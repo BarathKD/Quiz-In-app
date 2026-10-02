@@ -1,0 +1,46 @@
+{
+  "questions": [
+    {
+      "classNum": 10,
+      "subject": "Math",
+      "difficulty": "easy",
+      "questionText": "What is 2 + 2?",
+      "options": [
+        {"id":"a","text":"3"},
+        {"id":"b","text":"4"},
+        {"id":"c","text":"5"},
+        {"id":"d","text":"22"}
+      ],
+      "correctOptionId": "b",
+      "explanation": "2 + 2 = 4"
+    },
+    {
+      "classNum": 10,
+      "subject": "Science",
+      "difficulty": "medium",
+      "questionText": "Which gas do plants produce during photosynthesis?",
+      "options": [
+        {"id":"a","text":"Carbon dioxide"},
+        {"id":"b","text":"Oxygen"},
+        {"id":"c","text":"Nitrogen"},
+        {"id":"d","text":"Hydrogen"}
+      ],
+      "correctOptionId": "b",
+      "explanation": "Plants release oxygen during photosynthesis."
+    },
+    {
+      "classNum": 9,
+      "subject": "English",
+      "difficulty": "easy",
+      "questionText": "Choose the correct past form of 'go'.",
+      "options":[
+        {"id":"a","text":"goed"},
+        {"id":"b","text":"went"},
+        {"id":"c","text":"gone"},
+        {"id":"d","text":"going"}
+      ],
+      "correctOptionId":"b",
+      "explanation":"The past tense of 'go' is 'went'."
+    }
+  ]
+}
