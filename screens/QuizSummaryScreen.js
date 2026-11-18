@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import Header from "../components/header";
+import { QUESTIONS_PER_LEVEL } from "../utils/api";
 
 export default function QuizSummaryScreen({ route, navigation }) {
   // Safely extract route params with defaults
@@ -14,7 +15,12 @@ export default function QuizSummaryScreen({ route, navigation }) {
     subcategory = "",
     subject = null,
     difficulty = "",
-    user = null
+    user = null,
+    levelStart,
+    levelEnd,
+    levelNumber,
+    totalLevels = 1,
+    difficultyCompleted = false
   } = params;
   
   // Calculate totalQuestions from questions array if not provided
@@ -59,13 +65,33 @@ export default function QuizSummaryScreen({ route, navigation }) {
     return "Keep trying! You'll get better!";
   };
 
+  // Retry the same level (same question range)
   const handleRetry = () => {
     navigation.replace("Quiz", {
       category,
       subcategory,
       subject,
       difficulty,
-      user
+      user,
+      levelStart,
+      levelEnd,
+      levelNumber
+    });
+  };
+
+  const hasNextLevel = !!levelNumber && levelNumber < totalLevels;
+
+  // Go to the next 50-question level of the same difficulty
+  const handleNextLevel = () => {
+    navigation.replace("Quiz", {
+      category,
+      subcategory,
+      subject,
+      difficulty,
+      user,
+      levelStart: levelNumber * QUESTIONS_PER_LEVEL,
+      levelEnd: (levelNumber + 1) * QUESTIONS_PER_LEVEL,
+      levelNumber: levelNumber + 1
     });
   };
 
@@ -90,7 +116,8 @@ export default function QuizSummaryScreen({ route, navigation }) {
     else if (difficulty === "medium") nextDifficulty = "hard";
     
     if (nextDifficulty) {
-      navigation.replace("Quiz", {
+      // Go through the Levels screen so the quiz always gets a level range
+      navigation.replace("Levels", {
         category,
         subcategory,
         subject,
@@ -194,9 +221,19 @@ export default function QuizSummaryScreen({ route, navigation }) {
             <Text style={styles.retryButtonText}>🔄 Try Again</Text>
           </TouchableOpacity>
 
-          {passed && difficulty === "easy" && (
-            <TouchableOpacity 
-              style={styles.nextButton} 
+          {passed && hasNextLevel && (
+            <TouchableOpacity
+              style={styles.nextButton}
+              onPress={handleNextLevel}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.nextButtonText}>➡️ Next Level ({levelNumber + 1})</Text>
+            </TouchableOpacity>
+          )}
+
+          {passed && !hasNextLevel && difficultyCompleted && difficulty === "easy" && (
+            <TouchableOpacity
+              style={styles.nextButton}
               onPress={handleNextDifficulty}
               activeOpacity={0.8}
             >
@@ -204,7 +241,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
             </TouchableOpacity>
           )}
 
-          {passed && difficulty === "medium" && (
+          {passed && !hasNextLevel && difficultyCompleted && difficulty === "medium" && (
             <TouchableOpacity 
               style={styles.nextButton} 
               onPress={handleNextDifficulty}
@@ -227,7 +264,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
         <View style={styles.tipsCard}>
           <Text style={styles.tipsTitle}>💡 Tips for Next Time:</Text>
           <Text style={styles.tipText}>• Read each question carefully</Text>
-          <Text style={styles.tipText}>• Take your time - you have 5 minutes per question</Text>
+          <Text style={styles.tipText}>• Finish the whole level before the timer runs out</Text>
           <Text style={styles.tipText}>• Remember: One wrong answer restarts the quiz</Text>
           <Text style={styles.tipText}>• Practice regularly to improve your knowledge</Text>
           {passed && (

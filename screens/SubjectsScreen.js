@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, FlatList } from "react-native";
 import Header from "../components/header";
 import BottomNav from "../components/BottomNav";
-import { getUserProgress, getAllCategories } from "../utils/storage";
+import { getUserProgress, getAllCategories } from "../utils/api";
 
 export default function SubjectsScreen({ navigation, route }) {
   const { category, subcategory, user } = route.params;

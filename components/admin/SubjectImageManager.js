@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ScrollView } fr
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from 'expo-image-picker';
 import Slider from '@react-native-community/slider';
-import { saveCategoryImage, getCategoryImage, deleteCategoryImage, getAllCategories } from "../../utils/storage";
+import { saveCategoryImage, getCategoryImage, deleteCategoryImage, getAllCategories } from "../../utils/api";
 
 export default function SubjectImageManager({ category, onClose }) {
   const [selectedSubcategory, setSelectedSubcategory] = useState(null);

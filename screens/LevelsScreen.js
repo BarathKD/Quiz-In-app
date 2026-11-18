@@ -2,28 +2,39 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from "react-native";
 import Header from "../components/header";
 import BottomNav from "../components/BottomNav";
-import { getQuestionsByFilter } from "../utils/storage";
-
-const QUESTIONS_PER_LEVEL = 50;
+import { getQuestionsByFilter, getUserProgress, QUESTIONS_PER_LEVEL } from "../utils/api";
 
 export default function LevelsScreen({ navigation, route }) {
   const { category, subcategory, subject, difficulty, user } = route.params;
   const [levels, setLevels] = useState([]);
+  const [passedLevels, setPassedLevels] = useState({});
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Reload when coming back from a quiz so newly passed levels show up
   useEffect(() => {
     loadLevels();
-  }, [category, subcategory, subject, difficulty]);
+    const unsubscribe = navigation.addListener("focus", loadLevels);
+    return unsubscribe;
+  }, [category, subcategory, subject, difficulty, user?.id]);
 
   const loadLevels = async () => {
     try {
       setIsLoading(true);
-      // Fetch all questions for this combination
+
+      // Passed levels for this user
+      if (user?.id) {
+        const userProgress = await getUserProgress(user.id);
+        const key = subject ? `${category}_${subcategory}_${subject}` : `${category}_${subcategory}`;
+        setPassedLevels(userProgress[key]?.levels?.[difficulty] || {});
+      }
+
+      // Same filter the Quiz screen uses: with no subject, only questions
+      // that have no subject (null), never "all subjects" (undefined).
       const filteredQuestions = await getQuestionsByFilter(
         category,
         subcategory,
-        subject || undefined,  // undefined = no subject filter; subject string = match that subject
+        subject || null,
         difficulty
       );
 
@@ -61,7 +72,18 @@ export default function LevelsScreen({ navigation, route }) {
     }
   };
 
+  // Level 1 is always open; the next level opens after the previous one is passed.
+  const isLevelUnlocked = (level) => {
+    if (user?.isAdmin) return true;
+    if (level.levelNumber === 1) return true;
+    return !!passedLevels[level.levelNumber - 1];
+  };
+
   const handleLevelPress = (level) => {
+    if (!isLevelUnlocked(level)) {
+      Alert.alert("Level locked", `Pass Level ${level.levelNumber - 1} first to unlock this level.`);
+      return;
+    }
     navigation.navigate("Quiz", {
       category,
       subcategory,
@@ -128,8 +150,10 @@ export default function LevelsScreen({ navigation, route }) {
                 onPress={() => handleLevelPress(level)}
                 activeOpacity={0.8}
               >
-                <View style={[styles.levelBadge, { backgroundColor: getDifficultyColor() }]}>
-                  <Text style={styles.levelBadgeText}>{level.levelNumber}</Text>
+                <View style={[styles.levelBadge, { backgroundColor: isLevelUnlocked(level) ? getDifficultyColor() : "#BDBDBD" }]}>
+                  <Text style={styles.levelBadgeText}>
+                    {passedLevels[level.levelNumber] ? "✓" : isLevelUnlocked(level) ? level.levelNumber : "🔒"}
+                  </Text>
                 </View>
 
                 <View style={styles.levelInfo}>

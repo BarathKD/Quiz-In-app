@@ -1,5 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Crypto from "expo-crypto";
+
+// Number of questions in one level (shared by LevelsScreen and QuizScreen)
+export const QUESTIONS_PER_LEVEL = 50;
 
 const QUESTIONS_KEY = "quiz_questions";
 const USERS_KEY = "quiz_users";
@@ -338,14 +342,44 @@ const sampleQuestions = [
   }
 ];
 
-const sampleUsers = [
-  {
+// ───────────── Auth helpers (local-only until the backend in Phase 2) ─────────────
+// Passwords are never stored in plain text. A salted SHA-256 hash is a stop-gap;
+// the backend will replace this with proper server-side hashing + JWT.
+const normalizeEmail = (email) => (email || "").trim().toLowerCase();
+
+const makeSalt = () => {
+  const bytes = Crypto.getRandomBytes(16);
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+};
+
+export const hashPassword = async (password, salt) => {
+  return Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    `${salt}:${password}`
+  );
+};
+
+// Remove secrets before a user object is saved in the session or passed in navigation
+const sanitizeUser = (user) => {
+  const safe = { ...user };
+  delete safe.password;
+  delete safe.passwordHash;
+  delete safe.salt;
+  return safe;
+};
+
+// Development-only admin so the Admin panel can be tested in Expo Go.
+// This account is NEVER created in release builds.
+const createDevAdmin = async () => {
+  const salt = makeSalt();
+  return {
     id: "admin",
     email: "admin@quiz.com",
-    password: "admin123",
+    salt,
+    passwordHash: await hashPassword("admin123", salt),
     isAdmin: true
-  }
-];
+  };
+};
 
 // Category Management Functions
 export const getAllCategories = async () => {
@@ -571,8 +605,9 @@ export const bulkDeleteQuestions = async (category = null, subcategory = null, s
 
 export const bulkImportFromCsv = async (csvString, targetCategory, targetSubcategory, targetSubject = null, targetDifficulty = "easy") => {
   try {
-    const lines = csvString.trim().split('\n');
-    if (lines.length === 0) {
+    // Full CSV parser: handles quoted commas, "" escaped quotes, multi-line cells, \r\n
+    const rows = parseCSV(csvString).filter(row => row.some(cell => cell !== ""));
+    if (rows.length === 0) {
       throw new Error("CSV is empty");
     }
 
@@ -580,7 +615,7 @@ export const bulkImportFromCsv = async (csvString, targetCategory, targetSubcate
     let addedCount = 0;
     const skippedLines = [];
 
-    const firstLineCols = parseCSVLine(lines[0]);
+    const firstLineCols = rows[0];
     const firstCol = firstLineCols[0]?.toLowerCase() || "";
     const secondCol = firstLineCols[1]?.toLowerCase() || "";
     
@@ -594,11 +629,8 @@ export const bulkImportFromCsv = async (csvString, targetCategory, targetSubcate
       
     const startIndex = isHeader ? 1 : 0;
 
-    for (let i = startIndex; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-
-      const columns = parseCSVLine(line);
+    for (let i = startIndex; i < rows.length; i++) {
+      const columns = rows[i];
       
       // We need at least ID, Question, OptionA, OptionB, and CorrectAnswer
       if (columns.length < 6) {
@@ -725,26 +757,48 @@ export const bulkImportFromJson = async (jsonString, targetCategory, targetSubca
   }
 };
 
-const parseCSVLine = (line) => {
-  const result = [];
-  let current = '';
+// Parse a whole CSV text into rows of trimmed cells
+const parseCSV = (text) => {
+  const rows = [];
+  let row = [];
+  let cell = "";
   let inQuotes = false;
-  
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
+  const input = (text || "").replace(/^\uFEFF/, ""); // strip BOM
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (input[i + 1] === '"') {
+          cell += '"'; // escaped quote
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += char;
+      }
+    } else if (char === '"') {
+      inQuotes = true;
+    } else if (char === ",") {
+      row.push(cell.trim());
+      cell = "";
+    } else if (char === "\n" || char === "\r") {
+      if (char === "\r" && input[i + 1] === "\n") i++;
+      row.push(cell.trim());
+      rows.push(row);
+      row = [];
+      cell = "";
     } else {
-      current += char;
+      cell += char;
     }
   }
-  
-  result.push(current.trim());
-  return result;
+
+  // last cell / row (file without trailing newline)
+  row.push(cell.trim());
+  rows.push(row);
+  return rows;
 };
 
 export const getAllUsers = async () => {
@@ -760,11 +814,52 @@ export const getAllUsers = async () => {
 export const getUserByEmail = async (email) => {
   try {
     const users = await getAllUsers();
-    return users.find(u => u.email === email);
+    const wanted = normalizeEmail(email);
+    return users.find(u => normalizeEmail(u.email) === wanted);
   } catch (error) {
     console.error("Error getting user by email:", error);
     return null;
   }
+};
+
+// Create a normal (non-admin) account. Returns { ok: true } or { ok: false, reason }.
+export const registerUser = async (email, password) => {
+  const normalized = normalizeEmail(email);
+  const existing = await getUserByEmail(normalized);
+  if (existing) return { ok: false, reason: "exists" };
+
+  const salt = makeSalt();
+  const passwordHash = await hashPassword(password, salt);
+  await addUser({ email: normalized, salt, passwordHash, isAdmin: false });
+  return { ok: true };
+};
+
+// Check email + password. Returns a sanitized user (no secrets) or null.
+export const authenticateUser = async (email, password) => {
+  const user = await getUserByEmail(email);
+  if (!user) return null;
+
+  if (user.passwordHash) {
+    const hash = await hashPassword(password, user.salt);
+    return hash === user.passwordHash ? sanitizeUser(user) : null;
+  }
+
+  // Old plain-text account from a previous app version: verify, then upgrade to a hash
+  if (user.password && user.password === password) {
+    const salt = makeSalt();
+    const passwordHash = await hashPassword(password, salt);
+    const users = await getAllUsers();
+    const index = users.findIndex(u => u.id === user.id);
+    if (index !== -1) {
+      const upgraded = { ...users[index], salt, passwordHash };
+      delete upgraded.password;
+      users[index] = upgraded;
+      await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
+    }
+    return sanitizeUser(user);
+  }
+
+  return null;
 };
 
 export const addUser = async (user) => {
@@ -818,6 +913,47 @@ export const updateUserProgress = async (userId, category, subcategory, difficul
   }
 };
 
+// Record that one level was passed. The whole difficulty is marked complete
+// only when every level of that difficulty has been passed.
+// Progress shape per key: { easy, medium, hard, levels: { easy: {1: true}, ... } }
+export const markLevelPassed = async (userId, category, subcategory, subject, difficulty, levelNumber, totalLevels) => {
+  try {
+    const progress = await getUserProgress(userId);
+    const key = subject
+      ? `${category}_${subcategory}_${subject}`
+      : `${category}_${subcategory}`;
+
+    if (!progress[key]) {
+      progress[key] = { easy: false, medium: false, hard: false };
+    }
+    if (!progress[key].levels) {
+      progress[key].levels = { easy: {}, medium: {}, hard: {} };
+    }
+    if (!progress[key].levels[difficulty]) {
+      progress[key].levels[difficulty] = {};
+    }
+
+    progress[key].levels[difficulty][levelNumber] = true;
+
+    let allPassed = true;
+    for (let i = 1; i <= totalLevels; i++) {
+      if (!progress[key].levels[difficulty][i]) {
+        allPassed = false;
+        break;
+      }
+    }
+
+    // Never take back a difficulty that was already completed
+    progress[key][difficulty] = progress[key][difficulty] || allPassed;
+
+    await AsyncStorage.setItem(`${PROGRESS_KEY}_${userId}`, JSON.stringify(progress));
+    return { progress: progress[key], difficultyCompleted: progress[key][difficulty] };
+  } catch (error) {
+    console.error("Error marking level passed:", error);
+    throw error;
+  }
+};
+
 export const initStorageWithSample = async (forceReset = false) => {
   try {
     if (forceReset) {
@@ -861,9 +997,19 @@ export const initStorageWithSample = async (forceReset = false) => {
       console.warn("Users check failed:", error);
     }
     
-    if (existingUsers.length === 0 || forceReset) {
-      await AsyncStorage.setItem(USERS_KEY, JSON.stringify(sampleUsers));
-      console.log("Users initialized");
+    if (__DEV__) {
+      // Dev builds only: make sure a test admin exists
+      if (!existingUsers.some(u => u.isAdmin)) {
+        const devAdmin = await createDevAdmin();
+        await AsyncStorage.setItem(USERS_KEY, JSON.stringify([...existingUsers, devAdmin]));
+        console.log("Dev admin created");
+      }
+    } else {
+      // Release builds: remove the old hardcoded admin left by earlier app versions
+      const cleaned = existingUsers.filter(u => !(u.password === "admin123" && u.isAdmin));
+      if (cleaned.length !== existingUsers.length) {
+        await AsyncStorage.setItem(USERS_KEY, JSON.stringify(cleaned));
+      }
     }
 
     console.log("Storage initialized successfully");
@@ -913,7 +1059,7 @@ export const forceResetData = async () => {
 
 export const loginUserSession = async (user) => {
   try {
-    await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(sanitizeUser(user)));
     return true;
   } catch (error) {
     console.error("Error saving session:", error);

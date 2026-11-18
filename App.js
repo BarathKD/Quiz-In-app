@@ -9,14 +9,13 @@ import AdminScreen from "./screens/AdminScreen";
 import CategoriesScreen from "./screens/CategoriesScreen";
 import SubcategoriesScreen from "./screens/SubcategoriesScreen";
 import SubjectsScreen from "./screens/SubjectsScreen";
-import ClassesScreen from "./screens/ClassesScreen";
 import DifficultyScreen from "./screens/DifficultyScreen";
 import LoginScreen from "./screens/LoginScreen";
 import LevelsScreen from "./screens/LevelsScreen";
 import QuizScreen from "./screens/QuizScreen";
 import QuizSummaryScreen from "./screens/QuizSummaryScreen";
 import SplashScreen from "./screens/SplashScreen";
-import { initStorageWithSample } from "./utils/storage";
+import { initStorageWithSample } from "./utils/api";
 
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -74,8 +73,6 @@ export default function App() {
             <Stack.Screen name="Subcategories" component={SubcategoriesScreen} />
             <Stack.Screen name="Subjects" component={SubjectsScreen} />
             
-            {/* Legacy Class-based flow */}
-            <Stack.Screen name="Classes" component={ClassesScreen} />
             
             {/* Common screens */}
             <Stack.Screen name="Difficulty" component={DifficultyScreen} />

@@ -16,20 +16,20 @@ Ship Quiz-In on the Google Play Store with:
 - Android package: `com.barath78.Quizin`. EAS project id already in `app.json`; `eas.json` has `preview` (apk) and `production`.
 
 ## Known problems to fix first (Phase 1)
-- [ ] Remove hardcoded admin (`admin@quiz.com` / `admin123`), the "Login as Admin" and "Login as Student" demo buttons, and mock Google login in `screens/LoginScreen.js` and `utils/storage.js`.
-- [ ] Levels vs Quiz question-count mismatch: `LevelsScreen` passes `subject || undefined` to `getQuestionsByFilter`, `QuizScreen` filters strictly to no-subject. Make both use the same filter.
-- [ ] `QuizSummaryScreen` retry / next-difficulty does not pass `levelStart`, `levelEnd`, `levelNumber`; next difficulty skips the Levels screen.
-- [ ] Progress is stored per difficulty, not per level (`updateUserProgress` key has no level). Passing Level 1 marks the whole difficulty complete.
-- [ ] Pass rule: a wrong answer restarts the quiz, so the 70% pass logic is dead code; summary tip says "5 minutes per question" but timer is per quiz. Decide the rule and make text match.
-- [ ] `handleTimeout` is called inside a `setTimeLeft` updater (side effect in updater). Move it to an effect.
-- [ ] CSV import: naive `split('\n')`, no escaped quotes, no multi-line fields.
-- [ ] Delete dead code: `LogicScreen.js`, `ClassesScreen.js`, `BoardsScreen.js`, `utils/sampleData.json`, duplicate `eslint.config.*`, unused deps.
+- [x] Remove hardcoded admin (`admin@quiz.com` / `admin123`), the "Login as Admin" and "Login as Student" demo buttons, and mock Google login in `screens/LoginScreen.js` and `utils/storage.js`.
+- [x] Levels vs Quiz question-count mismatch: `LevelsScreen` passes `subject || undefined` to `getQuestionsByFilter`, `QuizScreen` filters strictly to no-subject. Make both use the same filter.
+- [x] `QuizSummaryScreen` retry / next-difficulty does not pass `levelStart`, `levelEnd`, `levelNumber`; next difficulty skips the Levels screen.
+- [x] Progress is stored per difficulty, not per level (`updateUserProgress` key has no level). Passing Level 1 marks the whole difficulty complete.
+- [x] Pass rule: a wrong answer restarts the quiz, so the 70% pass logic is dead code; summary tip says "5 minutes per question" but timer is per quiz. Decide the rule and make text match.
+- [x] `handleTimeout` is called inside a `setTimeLeft` updater (side effect in updater). Move it to an effect.
+- [x] CSV import: naive `split('\n')`, no escaped quotes, no multi-line fields.
+- [x] Delete dead code: `LogicScreen.js`, `ClassesScreen.js`, `BoardsScreen.js`, `utils/sampleData.json`, duplicate `eslint.config.mjs` (done). Still open: remove unused `expo-router` dependency (needs `npm uninstall` + lockfile check).
 
 ## Roadmap
 
 ### Phase 1: Clean and stabilise the app (no new features)
-- [ ] Fix every item in the list above
-- [ ] Add a single `api` layer (`utils/api.js`) so screens never call AsyncStorage directly (makes Phase 2 a swap, not a rewrite)
+- [x] Fix every item in the list above
+- [x] Add a single `api` layer (`utils/api.js`) so screens never call AsyncStorage directly (makes Phase 2 a swap, not a rewrite)
 
 ### Phase 2: Backend (ASP.NET Core Web API + EF Core + PostgreSQL or SQL Server)
 - [ ] Create `QuizIn.Api` project in a separate repo (or `/backend` folder)
@@ -73,4 +73,8 @@ Ship Quiz-In on the Google Play Store with:
 - (add new decisions here)
 
 ## Progress log
-- 2026-11-18: Code review done, roadmap written. Nothing implemented yet.
+- 2026-11-18: Code review done, roadmap written.
+- 2026-11-18: Phase 1 done. Auth: no hardcoded admin / demo buttons / mock Google; passwords salted-SHA-256 hashed (stop-gap until backend); session no longer stores secrets; legacy plain-text accounts upgrade on login. Dev-only test admin `admin@quiz.com` / `admin123` exists ONLY when `__DEV__` (Expo Go / dev build), never in release builds, so the Admin panel cannot be opened in a release APK until the Phase 2 backend has real admin login.
+  Levels: Levels and Quiz now use the same question filter; levels unlock one after another; progress is stored per level (`markLevelPassed`), a difficulty completes only when all its levels are passed; summary has Next Level / Try Again (same level) / next difficulty (via Levels screen). A level is passed only when every question is correct (wrong answer restarts).
+  Also: timeout handled in an effect (not in a state updater), proper CSV parser, all screens import from `utils/api.js`. Checks: eslint 0 errors, `expo export --platform android` bundles OK, CSV parser tested. NOT tested on a real device.
+- NEXT: Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.

@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert } from "react
 import { Ionicons } from '@expo/vector-icons';
 import Header from "../components/header";
 import BottomNav from "../components/BottomNav";
-import { getAllCategories, logoutUserSession } from "../utils/storage";
+import { getAllCategories, logoutUserSession } from "../utils/api";
 
 export default function CategoriesScreen({ navigation, route }) {
   const [activeTab, setActiveTab] = useState(route.params?.initialTab || "categories");

@@ -23,7 +23,7 @@ import {
   getQuestionsByFilter,
   bulkDeleteQuestions,
   logoutUserSession
-} from "../utils/storage";
+} from "../utils/api";
 
 // ============ NEW SUBCATEGORY MANAGER COMPONENT - ADD THIS ENTIRE SECTION ============
 const SubcategoryManager = ({ categoryForm, setCategoryForm }) => {

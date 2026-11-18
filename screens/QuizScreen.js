@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, ImageBackground } from "react-native";
 import Header from "../components/header";
-import { getAllQuestions, updateUserProgress, getCategoryByName,getCategoryImage } from "../utils/storage";
+import { getAllQuestions, markLevelPassed, getCategoryByName, getCategoryImage, QUESTIONS_PER_LEVEL } from "../utils/api";
 
 /** Utility shuffle (Fisher-Yates) */
 function shuffleArray(arr) {
@@ -177,14 +177,10 @@ export default function QuizScreen({ navigation, route }) {
       clearInterval(timerRef.current);
     }
     
+    // Only count down here. The timeout itself is handled in the effect below,
+    // because side effects must not run inside a state updater.
     timerRef.current = setInterval(() => {
-      setTimeLeft(t => {
-        if (t <= 1) {
-          handleTimeout();
-          return 0;
-        }
-        return t - 1;
-      });
+      setTimeLeft(t => (t <= 1 ? 0 : t - 1));
     }, 1000);
 
     return () => {
@@ -193,6 +189,69 @@ export default function QuizScreen({ navigation, route }) {
       }
     };
   }, [index, questions, showExplanation, isLoading, isTimerInitialized]);
+
+  const q = questions[index];
+
+  const handleQuizComplete = async (finalScore) => {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    // Any wrong answer restarts the quiz, so a level counts as passed
+    // only when every question in it was answered correctly.
+    const passed = questions.length > 0 && finalScore === questions.length;
+    const totalLevels = Math.max(1, Math.ceil(totalAvailableQuestions / QUESTIONS_PER_LEVEL));
+    let difficultyCompleted = false;
+
+    if (passed && user?.id) {
+      try {
+        const result = await markLevelPassed(
+          user.id,
+          category,
+          subcategory,
+          subject,
+          difficulty,
+          levelNumber || 1,
+          totalLevels
+        );
+        difficultyCompleted = result.difficultyCompleted;
+      } catch (error) {
+        console.error("Error updating progress:", error);
+      }
+    }
+
+    navigation.replace("QuizSummary", {
+      questions,
+      answers: { ...answers, [q?.id]: selectedAnswer },
+      score: finalScore,
+      passed,
+      category,
+      subcategory,
+      subject,
+      difficulty,
+      user,
+      totalQuestions: questions.length,
+      levelStart,
+      levelEnd,
+      levelNumber,
+      totalLevels,
+      difficultyCompleted
+    });
+  };
+
+  const handleTimeout = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    Alert.alert("Time's Up!", "Your time for this quiz has expired.", [
+      { text: "View Results", onPress: () => handleQuizComplete(score) }
+    ]);
+  };
+
+  // Fire the timeout exactly once when the countdown reaches zero
+  const timeoutHandledRef = useRef(false);
+  useEffect(() => {
+    if (timeLeft === 0 && questions.length > 0 && !timeoutHandledRef.current) {
+      timeoutHandledRef.current = true;
+      handleTimeout();
+    }
+  }, [timeLeft]);
 
   if (isLoading) {
     return (
@@ -216,7 +275,6 @@ export default function QuizScreen({ navigation, route }) {
     );
   }
 
-  const q = questions[index];
   if (!q) {
     return (
       <View style={styles.loadingContainer}>
@@ -224,42 +282,6 @@ export default function QuizScreen({ navigation, route }) {
       </View>
     );
   }
-
-  const handleTimeout = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    Alert.alert("Time's Up!", "Your time for this quiz has expired.", [
-      { text: "View Results", onPress: () => handleQuizComplete(score) }
-    ]);
-  };
-
-  const handleQuizComplete = async (finalScore) => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    
-    // Update progress if user completed successfully (70% or more)
-    const percentage = (finalScore / questions.length) * 100;
-    const passed = percentage >= 70;
-    
-    if (passed && user?.id) {
-      try {
-        await updateUserProgress(user.id, category, subcategory, difficulty, true, subject);
-      } catch (error) {
-        console.error("Error updating progress:", error);
-      }
-    }
-    
-    navigation.replace("QuizSummary", { 
-      questions, 
-      answers: { ...answers, [q.id]: selectedAnswer },
-      score: finalScore,
-      passed,
-      category,
-      subcategory,
-      subject,
-      difficulty,
-      user,
-      totalQuestions: questions.length
-    });
-  };
 
   const resetSession = () => {
     // Reshuffle pool and restart

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
 import Header from "../components/header";
 import BottomNav from "../components/BottomNav";
-import { getUserProgress } from "../utils/storage";
+import { getUserProgress } from "../utils/api";
 
 export default function DifficultyScreen({ navigation, route }) {
   const { category, subcategory, subject, user, progress: initialProgress } = route.params;
