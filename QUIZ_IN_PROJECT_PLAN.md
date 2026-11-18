@@ -25,6 +25,20 @@ Ship Quiz-In on the Google Play Store with:
 - [x] CSV import: naive `split('\n')`, no escaped quotes, no multi-line fields.
 - [x] Delete dead code: `LogicScreen.js`, `ClassesScreen.js`, `BoardsScreen.js`, `utils/sampleData.json`, duplicate `eslint.config.mjs` (done). Still open: remove unused `expo-router` dependency (needs `npm uninstall` + lockfile check).
 
+## How to verify Phase 1 is really done (manual test on phone)
+Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
+- [ ] Login screen has only Email, Password, Login, Sign up. No Admin / Student / Google buttons.
+- [ ] Sign up with a new email (6+ chars password), then Login works. Wrong password is rejected.
+- [ ] Dev admin login works in Expo Go: `admin@quiz.com` / `admin123` (dev mode only).
+- [ ] As admin, import a CSV with a comma and a quote inside a question; it imports correctly.
+- [ ] Add 60+ easy questions to one subcategory. Levels screen shows 2 levels; the count matches the questions that appear in the quiz.
+- [ ] As a normal user: Level 2 is locked (lock icon) until Level 1 is passed.
+- [ ] Answer every question correctly in Level 1 -> summary shows PASSED + "Next Level (2)". Tap it: Level 2 starts.
+- [ ] Answer one wrong -> quiz restarts. Try Again on summary reopens the SAME level.
+- [ ] Pass all levels of Easy -> "Try Medium" appears and Medium unlocks. Before that, Medium stays locked.
+- [ ] Let the timer reach 0 -> "Time's Up" alert appears once, View Results works.
+- [ ] Close and reopen the app: you stay logged in; Logout returns to Login.
+
 ## Roadmap
 
 ### Phase 1: Clean and stabilise the app (no new features)
