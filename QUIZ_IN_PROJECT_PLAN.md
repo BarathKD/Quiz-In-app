@@ -10,7 +10,7 @@ Ship Quiz-In on the Google Play Store with:
 - Paid levels / difficulty (Google Play Billing), all controlled from the Admin panel
 
 ## Current state (as of 2026-11-18, code review of `main`)
-- React Native 0.81 + Expo SDK 54, React Navigation (native-stack). `expo-router` is installed but unused.
+- React Native 0.81 + Expo SDK 58, React Navigation (native-stack). `expo-router` is installed but unused.
 - Storage: everything in AsyncStorage (`utils/storage.js`): users, questions, categories, progress, session. No backend.
 - Flow: Splash -> Login -> Categories -> Subcategories -> Subjects -> Difficulty -> Levels (50 questions each) -> Quiz -> QuizSummary. Admin screen manages categories, questions (CSV/JSON import), images, timers.
 - Android package: `com.barath78.Quizin`. EAS project id already in `app.json`; `eas.json` has `preview` (apk) and `production`.
@@ -91,4 +91,5 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - 2026-11-18: Phase 1 done. Auth: no hardcoded admin / demo buttons / mock Google; passwords salted-SHA-256 hashed (stop-gap until backend); session no longer stores secrets; legacy plain-text accounts upgrade on login. Dev-only test admin `admin@quiz.com` / `admin123` exists ONLY when `__DEV__` (Expo Go / dev build), never in release builds, so the Admin panel cannot be opened in a release APK until the Phase 2 backend has real admin login.
   Levels: Levels and Quiz now use the same question filter; levels unlock one after another; progress is stored per level (`markLevelPassed`), a difficulty completes only when all its levels are passed; summary has Next Level / Try Again (same level) / next difficulty (via Levels screen). A level is passed only when every question is correct (wrong answer restarts).
   Also: timeout handled in an effect (not in a state updater), proper CSV parser, all screens import from `utils/api.js`. Checks: eslint 0 errors, `expo export --platform android` bundles OK, CSV parser tested. NOT tested on a real device.
+- 2026-11-19: Upgraded project Expo SDK 54 -> 58 on branch `sdk-58-upgrade` (Expo Go from the Play Store only supports the latest SDK). RN 0.88, React 19.3, removed unused `expo-router`. Lint 0 errors, Android bundle export OK. NOT yet tested on a phone.
 - NEXT: Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
