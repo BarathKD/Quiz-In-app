@@ -1,35 +1,45 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLang } from '../utils/i18n';
+import { colors } from '../utils/theme';
 
 export default function BottomNav({ navigation, user, activeTab }) {
+  const { t } = useLang();
+  const insets = useSafeAreaInsets();
+  const homeActive = activeTab === "categories";
+  const profileActive = activeTab === "profile";
+
   return (
-    <View style={styles.bottomNavContainer}>
-      <TouchableOpacity 
+    <View style={[styles.bottomNavContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <TouchableOpacity
         style={styles.bottomNavTab}
-        onPress={() => {
-          if (activeTab === "categories") {
-            navigation.navigate("Categories", { user, initialTab: "categories" });
-          } else {
-            navigation.navigate("Categories", { user, initialTab: "categories" });
-          }
-        }}
+        onPress={() => navigation.navigate("Categories", { user, initialTab: "categories" })}
+        accessibilityRole="button"
       >
-        <Ionicons name="folder" size={24} color={activeTab === "categories" ? "#6366F1" : "#888"} />
-        <Text style={[styles.bottomNavText, activeTab === "categories" && styles.activeBottomNavText]}>
-          Categories
+        <Ionicons
+          name={homeActive ? "home" : "home-outline"}
+          size={24}
+          color={homeActive ? colors.primary : colors.muted}
+        />
+        <Text style={[styles.bottomNavText, homeActive && styles.activeBottomNavText]}>
+          {t("navHome")}
         </Text>
       </TouchableOpacity>
-      
-      <TouchableOpacity 
+
+      <TouchableOpacity
         style={styles.bottomNavTab}
-        onPress={() => {
-          navigation.navigate("Categories", { user, initialTab: "profile" });
-        }}
+        onPress={() => navigation.navigate("Categories", { user, initialTab: "profile" })}
+        accessibilityRole="button"
       >
-        <Ionicons name="person" size={24} color={activeTab === "profile" ? "#6366F1" : "#888"} />
-        <Text style={[styles.bottomNavText, activeTab === "profile" && styles.activeBottomNavText]}>
-          Profile
+        <Ionicons
+          name={profileActive ? "person" : "person-outline"}
+          size={24}
+          color={profileActive ? colors.primary : colors.muted}
+        />
+        <Text style={[styles.bottomNavText, profileActive && styles.activeBottomNavText]}>
+          {t("navProfile")}
         </Text>
       </TouchableOpacity>
     </View>
@@ -39,24 +49,24 @@ export default function BottomNav({ navigation, user, activeTab }) {
 const styles = StyleSheet.create({
   bottomNavContainer: {
     flexDirection: "row",
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: "#eee",
-    paddingBottom: 20, // for safe area
+    borderTopColor: colors.border,
     paddingTop: 8,
   },
   bottomNavTab: {
     flex: 1,
+    minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
   },
   bottomNavText: {
     fontSize: 12,
-    color: "#888",
-    marginTop: 4,
+    color: colors.muted,
+    marginTop: 2,
   },
   activeBottomNavText: {
-    color: "#6366F1",
-    fontWeight: "600"
-  }
+    color: colors.primary,
+    fontWeight: "700",
+  },
 });

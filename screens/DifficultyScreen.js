@@ -1,11 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Alert } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import Header from "../components/header";
 import BottomNav from "../components/BottomNav";
+import FadeInUp from "../components/FadeInUp";
+import PressableScale from "../components/PressableScale";
 import { getUserProgress } from "../utils/api";
+import { useLang } from "../utils/i18n";
+import { colors, difficultyColors, shadow } from "../utils/theme";
+
+const DIFFICULTIES = ["easy", "medium", "hard"];
+const LABEL_KEYS = { easy: "difficultyEasy", medium: "difficultyMedium", hard: "difficultyHard" };
 
 export default function DifficultyScreen({ navigation, route }) {
   const { category, subcategory, subject, user, progress: initialProgress } = route.params;
+  const { t } = useLang();
   const [progress, setProgress] = useState(initialProgress || { easy: false, medium: false, hard: false });
 
   useEffect(() => {
@@ -16,16 +25,11 @@ export default function DifficultyScreen({ navigation, route }) {
     if (user?.id) {
       try {
         const userProgress = await getUserProgress(user.id);
-        let key;
-        
-        if (subject) {
-          key = `${category}_${subcategory}_${subject}`;
-        } else {
-          key = `${category}_${subcategory}`;
-        }
-        
-        const itemProgress = userProgress[key] || { easy: false, medium: false, hard: false };
-        setProgress(itemProgress);
+        const key = subject
+          ? `${category}_${subcategory}_${subject}`
+          : `${category}_${subcategory}`;
+
+        setProgress(userProgress[key] || { easy: false, medium: false, hard: false });
       } catch (error) {
         console.error("Error loading progress:", error);
       }
@@ -34,7 +38,7 @@ export default function DifficultyScreen({ navigation, route }) {
 
   const getDifficultyStatus = (difficulty) => {
     if (user?.isAdmin) return "unlocked"; // Admin can access all
-    
+
     switch (difficulty) {
       case "easy":
         return "unlocked"; // Easy is always unlocked
@@ -47,191 +51,114 @@ export default function DifficultyScreen({ navigation, route }) {
     }
   };
 
-  const getDifficultyStyle = (difficulty) => {
-    const status = getDifficultyStatus(difficulty);
-    const isCompleted = progress[difficulty];
-    
-    if (status === "locked") {
-      return {
-        card: [styles.card, styles.lockedCard],
-        text: [styles.text, styles.lockedText],
-        sub: [styles.sub, styles.lockedText]
-      };
-    } else if (isCompleted) {
-      return {
-        card: [styles.card, styles.completedCard],
-        text: [styles.text, styles.completedText],
-        sub: [styles.sub, styles.completedText]
-      };
-    } else {
-      return {
-        card: [styles.card, styles.availableCard],
-        text: [styles.text],
-        sub: [styles.sub]
-      };
-    }
-  };
-
   const handleDifficultyPress = (difficulty) => {
-    const status = getDifficultyStatus(difficulty);
-    
-    if (status === "locked") {
-      // Show the custom message for locked difficulties
-      Alert.alert(
-        "🧠 Locked Level",
-        "You are not smart enough! Complete the previous difficulty level first.",
-        [{ text: "OK, I'll get smarter!" }]
-      );
+    if (getDifficultyStatus(difficulty) === "locked") {
+      Alert.alert(t("lockedTitle"), t("lockedMsg"), [{ text: t("lockedOk") }]);
       return;
     }
-    
-    if (status === "unlocked") {
-      // Navigate to Levels screen first - questions split into 50/level
-      navigation.navigate("Levels", { 
-        category, 
-        subcategory, 
-        subject,
-        difficulty,
-        user 
-      });
-    }
+
+    // Levels screen first: questions are split into levels of 50
+    navigation.navigate("Levels", { category, subcategory, subject, difficulty, user });
   };
 
-  const getDifficultyIcon = (difficulty) => {
+  const getDescription = (difficulty) => {
     const status = getDifficultyStatus(difficulty);
-    const isCompleted = progress[difficulty];
-    
-    if (isCompleted) return "✅";
-    if (status === "locked") return "🔒";
-    return "▶️";
-  };
 
-  const getDifficultyDescription = (difficulty) => {
-    const status = getDifficultyStatus(difficulty);
-    const isCompleted = progress[difficulty];
-    
-    if (isCompleted) return "Completed! Tap to replay";
+    if (progress[difficulty]) return t("completedReplay");
     if (status === "locked") {
-      switch (difficulty) {
-        case "medium":
-          return "Complete Easy level to unlock";
-        case "hard":
-          return "Complete Medium level to unlock";
-        default:
-          return "Locked";
-      }
+      return difficulty === "hard" ? t("unlockHard") : t("unlockMedium");
     }
-    return "Tap to start";
+    return t("tapToStart");
+  };
+
+  const getIcon = (difficulty) => {
+    if (progress[difficulty]) return "checkmark-circle";
+    if (getDifficultyStatus(difficulty) === "locked") return "lock-closed";
+    return "play-circle";
   };
 
   return (
     <View style={styles.container}>
-      <Header 
-        title={`${subcategory}${subject ? ` - ${subject}` : ''} - Select Difficulty`}
-        onBack={() => navigation.goBack()} 
+      <Header
+        title={`${subcategory}${subject ? ` - ${subject}` : ""}`}
+        onBack={() => navigation.goBack()}
       />
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <Text style={styles.pageTitle}>{t("selectDifficulty")}</Text>
         <Text style={styles.categoryInfo}>
-          {category} › {subcategory}{subject ? ` › ${subject}` : ''}
+          {category} › {subcategory}{subject ? ` › ${subject}` : ""}
         </Text>
-        
-        {["easy", "medium", "hard"].map(difficulty => {
-          const difficultyStyles = getDifficultyStyle(difficulty);
-          const status = getDifficultyStatus(difficulty);
-          const icon = getDifficultyIcon(difficulty);
-          const description = getDifficultyDescription(difficulty);
-          
+
+        {DIFFICULTIES.map((difficulty, index) => {
+          const locked = getDifficultyStatus(difficulty) === "locked";
+          const color = locked ? colors.locked : difficultyColors[difficulty];
+
           return (
-            <TouchableOpacity 
-              key={difficulty}
-              style={difficultyStyles.card} 
-              onPress={() => handleDifficultyPress(difficulty)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.cardHeader}>
-                <Text style={difficultyStyles.text}>
-                  {icon} {difficulty.toUpperCase()}
-                </Text>
-                {progress[difficulty] && (
-                  <View style={styles.completedBadge}>
-                    <Text style={styles.completedBadgeText}>COMPLETED</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={difficultyStyles.sub}>{description}</Text>
-              
-              {status === "locked" && (
-                <View style={styles.lockWarning}>
-                  <Text style={styles.lockWarningText}>
-                    🧠 You need to be smarter to unlock this level!
-                  </Text>
+            <FadeInUp key={difficulty} index={index} style={{ marginBottom: 12 }}>
+              <PressableScale
+                style={[styles.card, { borderLeftColor: color }, locked && styles.lockedCard]}
+                onPress={() => handleDifficultyPress(difficulty)}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: color }]}>
+                  <Ionicons name={getIcon(difficulty)} size={26} color="#FFFFFF" />
                 </View>
-              )}
-            </TouchableOpacity>
+
+                <View style={{ flex: 1 }}>
+                  <View style={styles.cardHeader}>
+                    <Text style={[styles.cardTitle, locked && { color: colors.muted }]}>
+                      {t(LABEL_KEYS[difficulty])}
+                    </Text>
+                    {progress[difficulty] ? (
+                      <View style={[styles.completedBadge, { backgroundColor: color }]}>
+                        <Text style={styles.completedBadgeText}>{t("completedBadge")}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.sub}>{getDescription(difficulty)}</Text>
+                  {locked ? <Text style={styles.lockHint}>{t("lockedHint")}</Text> : null}
+                </View>
+              </PressableScale>
+            </FadeInUp>
           );
         })}
-        
+
         <View style={styles.progressContainer}>
-          <Text style={styles.progressTitle}>Your Progress</Text>
+          <Text style={styles.progressTitle}>{t("yourProgress")}</Text>
           <View style={styles.progressBar}>
-            <View style={styles.progressStep}>
-              <View style={[
-                styles.progressDot, 
-                progress.easy && styles.progressDotCompleted
-              ]}>
-                <Text style={[
-                  styles.progressDotText,
-                  progress.easy && styles.progressDotTextCompleted
-                ]}>1</Text>
-              </View>
-              <Text style={styles.progressLabel}>Easy</Text>
-            </View>
-            
-            <View style={[
-              styles.progressLine, 
-              progress.easy && styles.progressLineCompleted
-            ]} />
-            
-            <View style={styles.progressStep}>
-              <View style={[
-                styles.progressDot, 
-                progress.medium && styles.progressDotCompleted
-              ]}>
-                <Text style={[
-                  styles.progressDotText,
-                  progress.medium && styles.progressDotTextCompleted
-                ]}>2</Text>
-              </View>
-              <Text style={styles.progressLabel}>Medium</Text>
-            </View>
-            
-            <View style={[
-              styles.progressLine, 
-              progress.medium && styles.progressLineCompleted
-            ]} />
-            
-            <View style={styles.progressStep}>
-              <View style={[
-                styles.progressDot, 
-                progress.hard && styles.progressDotCompleted
-              ]}>
-                <Text style={[
-                  styles.progressDotText,
-                  progress.hard && styles.progressDotTextCompleted
-                ]}>3</Text>
-              </View>
-              <Text style={styles.progressLabel}>Hard</Text>
-            </View>
+            {DIFFICULTIES.map((difficulty, index) => (
+              <React.Fragment key={difficulty}>
+                <View style={styles.progressStep}>
+                  <View
+                    style={[
+                      styles.progressDot,
+                      progress[difficulty] && { backgroundColor: difficultyColors[difficulty] },
+                    ]}
+                  >
+                    <Text style={[styles.progressDotText, progress[difficulty] && { color: "#FFFFFF" }]}>
+                      {index + 1}
+                    </Text>
+                  </View>
+                  <Text style={styles.progressLabel}>{t(LABEL_KEYS[difficulty])}</Text>
+                </View>
+                {index < DIFFICULTIES.length - 1 ? (
+                  <View
+                    style={[
+                      styles.progressLine,
+                      progress[difficulty] && { backgroundColor: difficultyColors[difficulty] },
+                    ]}
+                  />
+                ) : null}
+              </React.Fragment>
+            ))}
           </View>
         </View>
-        
-        {user?.isAdmin && (
+
+        {user?.isAdmin ? (
           <View style={styles.adminNotice}>
-            <Text style={styles.adminText}>
-              👑 Admin Mode: All difficulties are unlocked
-            </Text>
+            <Text style={styles.adminText}>{t("adminMode")}</Text>
           </View>
-        )}
+        ) : null}
+        <View style={{ height: 24 }} />
       </ScrollView>
       <BottomNav navigation={navigation} user={user} activeTab="categories" />
     </View>
@@ -239,168 +166,96 @@ export default function DifficultyScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8f9fa"
-  },
-  content: {
-    flex: 1,
-    padding: 16
+  container: { flex: 1, backgroundColor: colors.bg },
+  content: { flex: 1, padding: 16 },
+  pageTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.ink,
+    textAlign: "center",
+    marginTop: 4,
   },
   categoryInfo: {
-    fontSize: 16,
-    color: "#666",
-    marginBottom: 20,
-    textAlign: "center"
+    fontSize: 14,
+    color: colors.muted,
+    marginTop: 4,
+    marginBottom: 18,
+    textAlign: "center",
+    lineHeight: 22,
   },
   card: {
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { 
-      width: 0, 
-      height: 2 
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 16,
+    borderRadius: 18,
+    borderLeftWidth: 5,
+    backgroundColor: colors.surface,
+    ...shadow,
   },
-  availableCard: {
-    backgroundColor: "#e8f5e8",
-    borderLeftWidth: 4,
-    borderLeftColor: "#6366F1"
-  },
-  completedCard: {
-    backgroundColor: "#f0f8ff",
-    borderLeftWidth: 4,
-    borderLeftColor: "#6366F1"
-  },
-  lockedCard: {
-    backgroundColor: "#fff0f0",
-    borderLeftWidth: 4,
-    borderLeftColor: "#f44336"
+  lockedCard: { backgroundColor: "#EEF2F3" },
+  iconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
   },
   cardHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8
+    justifyContent: "space-between",
+    gap: 8,
   },
-  text: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#333"
-  },
-  lockedText: {
-    color: "#999"
-  },
-  completedText: {
-    color: "#6366F1"
-  },
-  sub: {
-    color: "#555",
-    fontSize: 14,
-    lineHeight: 18
-  },
-  lockWarning: {
-    marginTop: 8,
-    padding: 8,
-    backgroundColor: "#ffebee",
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: "#f44336"
-  },
-  lockWarningText: {
-    color: "#d32f2f",
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center"
-  },
+  cardTitle: { fontSize: 19, fontWeight: "800", color: colors.ink },
+  sub: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 2 },
+  lockHint: { color: colors.muted, fontSize: 13, marginTop: 6, lineHeight: 20 },
   completedBadge: {
-    backgroundColor: "#6366F1",
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12
+    borderRadius: 999,
   },
-  completedBadgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "600"
-  },
+  completedBadgeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   progressContainer: {
-    marginTop: 30,
+    marginTop: 18,
     padding: 20,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { 
-      width: 0, 
-      height: 1 
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   progressTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     marginBottom: 16,
     textAlign: "center",
-    color: "#333"
+    color: colors.ink,
   },
-  progressBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  progressStep: {
-    alignItems: "center"
-  },
+  progressBar: { flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  progressStep: { alignItems: "center" },
   progressDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#e0e0e0",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.track,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8
+    marginBottom: 8,
   },
-  progressDotCompleted: {
-    backgroundColor: "#6366F1"
-  },
-  progressDotText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#666"
-  },
-  progressDotTextCompleted: {
-    color: "#fff"
-  },
-  progressLabel: {
-    fontSize: 12,
-    color: "#666"
-  },
+  progressDotText: { fontSize: 14, fontWeight: "700", color: colors.muted },
+  progressLabel: { fontSize: 12, color: colors.muted },
   progressLine: {
-    height: 2,
-    width: 40,
-    backgroundColor: "#e0e0e0",
-    marginHorizontal: 8
-  },
-  progressLineCompleted: {
-    backgroundColor: "#6366F1"
+    height: 3,
+    width: 36,
+    backgroundColor: colors.track,
+    marginHorizontal: 8,
+    marginBottom: 22,
   },
   adminNotice: {
-    marginTop: 20,
+    marginTop: 16,
     padding: 12,
-    backgroundColor: "#fff3cd",
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: "#ffc107"
+    backgroundColor: colors.accentTint,
+    borderRadius: 12,
   },
-  adminText: {
-    color: "#856404",
-    fontSize: 14,
-    textAlign: "center"
-  }
+  adminText: { color: colors.ink, fontSize: 14, textAlign: "center", lineHeight: 22 },
 });

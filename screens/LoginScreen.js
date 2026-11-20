@@ -1,8 +1,16 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { View, Text, TextInput, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { authenticateUser, registerUser, loginUserSession } from "../utils/api";
+import { useLang } from "../utils/i18n";
+import { colors, fonts, shadow } from "../utils/theme";
+import LanguageToggle from "../components/LanguageToggle";
+import PressableScale from "../components/PressableScale";
+import FadeInUp from "../components/FadeInUp";
 
 export default function LoginScreen({ navigation }) {
+  const { t } = useLang();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -10,15 +18,15 @@ export default function LoginScreen({ navigation }) {
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
   const login = async () => {
-    if (!email || !password) return Alert.alert("Error", "Enter email and password");
-    if (!isValidEmail(email)) return Alert.alert("Error", "Enter a valid email address");
+    if (!email || !password) return Alert.alert(t("error"), t("errEnterBoth"));
+    if (!isValidEmail(email)) return Alert.alert(t("error"), t("errInvalidEmail"));
 
     setBusy(true);
     try {
       const user = await authenticateUser(email, password);
 
       if (!user) {
-        Alert.alert("Invalid credentials", "Check your email and password, or create an account.");
+        Alert.alert(t("errInvalidCredsTitle"), t("errInvalidCreds"));
         return;
       }
 
@@ -31,154 +39,172 @@ export default function LoginScreen({ navigation }) {
       }
     } catch (error) {
       console.error("Login error:", error);
-      Alert.alert("Error", "Login failed. Please try again.");
+      Alert.alert(t("error"), t("loginFailed"));
     } finally {
       setBusy(false);
     }
   };
 
   const signup = async () => {
-    if (!email || !password) return Alert.alert("Error", "Enter email and password");
-    if (!isValidEmail(email)) return Alert.alert("Error", "Enter a valid email address");
-    if (password.length < 6) return Alert.alert("Weak password", "Password must be at least 6 characters");
+    if (!email || !password) return Alert.alert(t("error"), t("errEnterBoth"));
+    if (!isValidEmail(email)) return Alert.alert(t("error"), t("errInvalidEmail"));
+    if (password.length < 6) return Alert.alert(t("errWeakTitle"), t("errWeak"));
 
     setBusy(true);
     try {
       const result = await registerUser(email, password);
 
       if (!result.ok) {
-        Alert.alert("User exists", "This email is already registered. Try login instead.");
+        Alert.alert(t("userExistsTitle"), t("userExists"));
         return;
       }
 
-      Alert.alert("Success", "Account created. Please login.");
+      Alert.alert(t("success"), t("signupOk"));
       setPassword("");
     } catch (error) {
       console.error("Signup error:", error);
-      Alert.alert("Error", "Account creation failed. Please try again.");
+      Alert.alert(t("error"), t("signupFailed"));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.logo}>Quiz-IN</Text>
-      <Text style={styles.subtitle}>Hardest Game Ever</Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.bg }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
+        <View style={[styles.banner, { paddingTop: Math.max(insets.top, 16) + 8 }]}>
+          <View style={styles.bannerTop}>
+            <Text style={styles.logo}>Quiz-IN</Text>
+            <LanguageToggle variant="onPrimary" />
+          </View>
+          <Text style={styles.tagline}>{t("tagline")}</Text>
+        </View>
 
-      <View style={styles.formContainer}>
-        <TextInput
-          placeholder="Email"
-          style={styles.input}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          placeholder="Password"
-          style={styles.input}
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+        <FadeInUp style={styles.formContainer}>
+          <TextInput
+            placeholder={t("email")}
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TextInput
+            placeholder={t("password")}
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
 
-        <TouchableOpacity style={styles.btn} onPress={login} disabled={busy}>
-          <Text style={styles.btnText}>{busy ? "Please wait..." : "Login"}</Text>
-        </TouchableOpacity>
+          <PressableScale style={styles.btn} onPress={login} disabled={busy}>
+            <Text style={styles.btnText}>{busy ? t("pleaseWait") : t("login")}</Text>
+          </PressableScale>
 
-        <TouchableOpacity style={[styles.btn, styles.secondary]} onPress={signup} disabled={busy}>
-          <Text style={styles.secondaryText}>Sign up</Text>
-        </TouchableOpacity>
-      </View>
+          <PressableScale style={[styles.btn, styles.secondary]} onPress={signup} disabled={busy}>
+            <Text style={styles.secondaryText}>{t("signup")}</Text>
+          </PressableScale>
+        </FadeInUp>
 
-      <View style={styles.infoContainer}>
-        <Text style={styles.infoTitle}>Features:</Text>
-        <Text style={styles.infoText}>• Category-based quiz system</Text>
-        <Text style={styles.infoText}>• Progressive level unlocking</Text>
-        <Text style={styles.infoText}>• Track your progress</Text>
-      </View>
-    </View>
+        <FadeInUp index={2} style={styles.infoContainer}>
+          <Text style={styles.infoTitle}>{t("featuresTitle")}</Text>
+          <Text style={styles.infoText}>• {t("feature1")}</Text>
+          <Text style={styles.infoText}>• {t("feature2")}</Text>
+          <Text style={styles.infoText}>• {t("feature3")}</Text>
+        </FadeInUp>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 20,
-    backgroundColor: "#f8f9fa"
+  banner: {
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
+  bannerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   logo: {
-    fontSize: 36,
-    fontWeight: "800",
-    marginBottom: 8,
-    textAlign: "center",
-    color: "#534bae"
+    fontFamily: fonts.heading,
+    fontSize: 34,
+    color: colors.onPrimary,
   },
-  subtitle: {
+  tagline: {
     fontSize: 16,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 40
+    color: colors.onPrimary,
+    opacity: 0.92,
+    marginTop: 18,
   },
   formContainer: {
-    backgroundColor: "#fff",
-    padding: 24,
-    borderRadius: 16,
-    marginBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3
+    backgroundColor: colors.surface,
+    marginHorizontal: 20,
+    marginTop: -16,
+    padding: 22,
+    borderRadius: 20,
+    ...shadow,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#f0f0f0",
-    backgroundColor: "#f5f5f5",
-    padding: 14,
-    borderRadius: 8,
-    marginBottom: 16,
-    fontSize: 16
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    color: colors.ink,
+    paddingHorizontal: 14,
+    minHeight: 52,
+    borderRadius: 12,
+    marginBottom: 14,
+    fontSize: 16,
   },
   btn: {
-    backgroundColor: "#534bae",
-    padding: 14,
-    borderRadius: 8,
+    backgroundColor: colors.primary,
+    minHeight: 52,
+    borderRadius: 14,
     alignItems: "center",
-    marginBottom: 12
+    justifyContent: "center",
+    marginBottom: 12,
   },
   btnText: {
-    color: "#fff",
+    color: colors.onPrimary,
     fontWeight: "700",
-    fontSize: 16
+    fontSize: 17,
   },
   secondary: {
-    backgroundColor: "#eef0fb"
+    backgroundColor: colors.tint,
+    marginBottom: 0,
   },
   secondaryText: {
-    color: "#534bae",
+    color: colors.primaryDark,
     fontWeight: "700",
-    fontSize: 16
+    fontSize: 17,
   },
   infoContainer: {
-    backgroundColor: "#f0f8ff",
+    backgroundColor: colors.accentTint,
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 24,
     padding: 16,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: "#6366F1"
+    borderRadius: 14,
   },
   infoTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1976d2",
-    marginBottom: 8
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.accent,
+    marginBottom: 8,
   },
   infoText: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 2
-  }
+    fontSize: 14,
+    color: colors.ink,
+    lineHeight: 22,
+  },
 });

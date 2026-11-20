@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, FlatList } from "react-native";
+import { View, Text, StyleSheet, FlatList } from "react-native";
 import Header from "../components/header";
 import BottomNav from "../components/BottomNav";
+import ProgressRow from "../components/ProgressRow";
 import { getUserProgress, getAllCategories } from "../utils/api";
+import { useLang } from "../utils/i18n";
+import { colors } from "../utils/theme";
 
 export default function SubcategoriesScreen({ navigation, route }) {
   const { category, user } = route.params;
+  const { t } = useLang();
   const [progress, setProgress] = useState({});
 
   useEffect(() => {
@@ -64,64 +68,25 @@ export default function SubcategoriesScreen({ navigation, route }) {
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Header title={category.name} onBack={() => navigation.goBack()} />
 
       <FlatList
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ paddingTop: 16, paddingBottom: 24 }}
         data={category.subcategories || []}
         keyExtractor={(item) => item}
-        renderItem={({ item: subcategoryName }) => {
-          const subcategoryProgress = getSubcategoryProgress(subcategoryName);
-          const completedCount = Object.values(subcategoryProgress).filter(Boolean).length;
-
-          return (
-            <TouchableOpacity
-              style={styles.subcategoryCard}
-              onPress={() => handleSubcategoryPress(subcategoryName)}
-            >
-              <View style={styles.cardContent}>
-                <View style={styles.titleRow}>
-                  <Text style={styles.subcategoryName}>{subcategoryName}</Text>
-                </View>
-
-                <View style={styles.progressContainer}>
-                  <View style={styles.difficultyRow}>
-                    {["easy", "medium", "hard"].map((level) => (
-                      <View
-                        key={level}
-                        style={[
-                          styles.difficultyBadge,
-                          subcategoryProgress[level] && styles.completedBadge,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.difficultyText,
-                            subcategoryProgress[level] && styles.completedText,
-                          ]}
-                        >
-                          {level.charAt(0).toUpperCase() + level.slice(1)}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                  <Text style={styles.progressText}>{completedCount}/3 completed</Text>
-                </View>
-              </View>
-
-              <View style={styles.arrow}>
-                <Text style={styles.arrowText}>›</Text>
-              </View>
-            </TouchableOpacity>
-          );
-        }}
+        renderItem={({ item: subcategoryName, index }) => (
+          <ProgressRow
+            index={index}
+            title={subcategoryName}
+            progress={getSubcategoryProgress(subcategoryName)}
+            onPress={() => handleSubcategoryPress(subcategoryName)}
+          />
+        )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No subcategories available</Text>
-            <Text style={styles.emptySubtext}>
-              This category doesnt have any subcategories yet
-            </Text>
+            <Text style={styles.emptyText}>{t("noSubcategories")}</Text>
+            <Text style={styles.emptySubtext}>{t("noSubcategoriesSub")}</Text>
           </View>
         }
       />
@@ -131,70 +96,6 @@ export default function SubcategoriesScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  subcategoryCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    marginBottom: 16,
-    padding: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cardContent: {
-    flex: 1,
-  },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  subcategoryName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  progressContainer: {
-    marginTop: 4,
-  },
-  difficultyRow: {
-    flexDirection: "row",
-    marginBottom: 8,
-  },
-  difficultyBadge: {
-    backgroundColor: "#f0f0f0",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-  },
-  completedBadge: {
-    backgroundColor: "#6366F1",
-  },
-  difficultyText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#666",
-  },
-  completedText: {
-    color: "#fff",
-  },
-  progressText: {
-    fontSize: 12,
-    color: "#888",
-  },
-  arrow: {
-    marginLeft: 12,
-  },
-  arrowText: {
-    fontSize: 24,
-    color: "#ccc",
-    fontWeight: "300",
-  },
   emptyContainer: {
     alignItems: "center",
     marginTop: 60,
@@ -202,14 +103,14 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#666",
+    fontWeight: "700",
+    color: colors.ink,
     marginBottom: 8,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: "#888",
+    fontSize: 15,
+    color: colors.muted,
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 22,
   },
 });

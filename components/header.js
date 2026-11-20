@@ -1,23 +1,30 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, fonts } from "../utils/theme";
 
+// Banner header: peacock blue with rounded bottom corners.
 export default function Header({ title, right, onBack }) {
   const insets = useSafeAreaInsets();
-  
+
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) }]}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) + 4 }]}>
       {onBack ? (
-        <TouchableOpacity onPress={onBack} style={styles.iconButton}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
+        <TouchableOpacity
+          onPress={onBack}
+          style={styles.iconButton}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
+          <Ionicons name="arrow-back" size={22} color={colors.onPrimary} />
         </TouchableOpacity>
-      ) : <View style={{width: 40}} />}
-      
+      ) : <View style={{ width: 44 }} />}
+
       <Text style={styles.title} numberOfLines={1}>{title}</Text>
-      
+
       <View style={styles.rightContainer}>
-        {right || <View style={{width: 40}} />}
+        {right || <View style={{ width: 44 }} />}
       </View>
     </View>
   );
@@ -28,40 +35,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 18,
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    backgroundColor: colors.primary,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   title: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1F2937", // Slate-800
+    fontSize: 20,
+    fontFamily: fonts.headingSemi,
+    color: colors.onPrimary,
     flex: 1,
     textAlign: "center",
-    marginHorizontal: 10,
-    letterSpacing: 0.3,
+    marginHorizontal: 8,
   },
   rightContainer: {
     flexDirection: "row",
     alignItems: "center",
-    minWidth: 40,
-    justifyContent: "flex-end"
+    minWidth: 44,
+    justifyContent: "flex-end",
   },
   iconButton: {
-    padding: 8,
-    marginLeft: -8, // to offset the padding and align with edge
-  }
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(244,249,248,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

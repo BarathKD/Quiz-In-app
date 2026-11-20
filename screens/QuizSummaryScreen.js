@@ -1,13 +1,20 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import Header from "../components/header";
+import FadeInUp from "../components/FadeInUp";
+import PressableScale from "../components/PressableScale";
 import { QUESTIONS_PER_LEVEL } from "../utils/api";
+import { useLang } from "../utils/i18n";
+import { colors, fonts, shadow } from "../utils/theme";
+
+const DIFF_KEYS = { easy: "difficultyEasy", medium: "difficultyMedium", hard: "difficultyHard" };
 
 export default function QuizSummaryScreen({ route, navigation }) {
-  // Safely extract route params with defaults
+  const { t } = useLang();
   const params = route?.params || {};
-  const { 
-    score = 0, 
+  const {
+    score = 0,
     totalQuestions = 0,
     questions = [],
     passed = false,
@@ -20,68 +27,41 @@ export default function QuizSummaryScreen({ route, navigation }) {
     levelEnd,
     levelNumber,
     totalLevels = 1,
-    difficultyCompleted = false
+    difficultyCompleted = false,
   } = params;
-  
-  // Calculate totalQuestions from questions array if not provided
+
   const actualTotalQuestions = totalQuestions || questions.length || 0;
   const percentage = actualTotalQuestions > 0 ? Math.round((score / actualTotalQuestions) * 100) : 0;
 
-  // Ensure we have valid data
+  const goHome = () =>
+    navigation.reset({
+      index: 0,
+      routes: [{ name: user ? "Categories" : "Login", params: user ? { user } : {} }],
+    });
+
   if (!category || !subcategory || !difficulty) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Invalid quiz data</Text>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.reset({
-            index: 0,
-            routes: [{ name: user ? "Categories" : "Login", params: user ? { user } : {} }]
-          })}
-        >
-          <Text style={styles.backButtonText}>Back to Home</Text>
-        </TouchableOpacity>
+        <Text style={styles.errorText}>{t("invalidQuiz")}</Text>
+        <PressableScale style={styles.primaryBtn} onPress={goHome}>
+          <Text style={styles.primaryBtnText}>{t("backToHome")}</Text>
+        </PressableScale>
       </View>
     );
   }
 
-  const getScoreColor = () => {
-    if (percentage >= 70) return "#6366F1"; // Green
-    if (percentage >= 50) return "#ff9800"; // Orange  
-    return "#f44336"; // Red
-  };
+  // Score tone: green / peacock / violet (never red or yellow)
+  const scoreColor = percentage >= 70 ? colors.success : percentage >= 50 ? colors.primary : colors.accent;
+  const scoreIcon = percentage >= 90 ? "trophy" : percentage >= 70 ? "ribbon" : percentage >= 50 ? "happy-outline" : "fitness-outline";
+  const scoreMessage =
+    percentage >= 90 ? t("msgExcellent") : percentage >= 70 ? t("msgGreat") : percentage >= 50 ? t("msgGood") : t("msgKeepTrying");
 
-  const getScoreEmoji = () => {
-    if (percentage >= 90) return "🏆";
-    if (percentage >= 70) return "🎉";
-    if (percentage >= 50) return "😊";
-    return "😞";
-  };
-
-  const getScoreMessage = () => {
-    if (percentage >= 90) return "Excellent! Perfect performance!";
-    if (percentage >= 70) return "Great job! You passed!";
-    if (percentage >= 50) return "Good effort! Keep practicing!";
-    return "Keep trying! You'll get better!";
-  };
-
-  // Retry the same level (same question range)
   const handleRetry = () => {
-    navigation.replace("Quiz", {
-      category,
-      subcategory,
-      subject,
-      difficulty,
-      user,
-      levelStart,
-      levelEnd,
-      levelNumber
-    });
+    navigation.replace("Quiz", { category, subcategory, subject, difficulty, user, levelStart, levelEnd, levelNumber });
   };
 
   const hasNextLevel = !!levelNumber && levelNumber < totalLevels;
 
-  // Go to the next 50-question level of the same difficulty
   const handleNextLevel = () => {
     navigation.replace("Quiz", {
       category,
@@ -91,426 +71,182 @@ export default function QuizSummaryScreen({ route, navigation }) {
       user,
       levelStart: levelNumber * QUESTIONS_PER_LEVEL,
       levelEnd: (levelNumber + 1) * QUESTIONS_PER_LEVEL,
-      levelNumber: levelNumber + 1
+      levelNumber: levelNumber + 1,
     });
-  };
-
-  // FIXED: Ensure user object is properly passed
-  const handleBackToCategories = () => {
-    if (user) {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Categories", params: { user } }]
-      });
-    } else {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Login" }]
-      });
-    }
   };
 
   const handleNextDifficulty = () => {
     let nextDifficulty = "";
     if (difficulty === "easy") nextDifficulty = "medium";
     else if (difficulty === "medium") nextDifficulty = "hard";
-    
     if (nextDifficulty) {
       // Go through the Levels screen so the quiz always gets a level range
-      navigation.replace("Levels", {
-        category,
-        subcategory,
-        subject,
-        difficulty: nextDifficulty,
-        user
-      });
+      navigation.replace("Levels", { category, subcategory, subject, difficulty: nextDifficulty, user });
     }
   };
 
+  const nextDifficultyKey = difficulty === "easy" ? "tryMedium" : difficulty === "medium" ? "tryHard" : null;
+  const showNextDifficulty = passed && !hasNextLevel && difficultyCompleted && !!nextDifficultyKey;
+
   return (
     <View style={styles.container}>
-      <Header 
-        title="Quiz Complete!" 
-        onBack={handleBackToCategories} 
-      />
-      
+      <Header title={t("quizComplete")} onBack={goHome} />
+
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Score Card */}
-        <View style={styles.scoreCard}>
-          <Text style={styles.emoji}>{getScoreEmoji()}</Text>
-          <Text style={[styles.scoreText, { color: getScoreColor() }]}>
-            {score}/{actualTotalQuestions}
-          </Text>
-          <Text style={[styles.percentageText, { color: getScoreColor() }]}>
-            {percentage}%
-          </Text>
-          <Text style={styles.messageText}>{getScoreMessage()}</Text>
-          
-          {passed && (
-            <View style={styles.passedBadge}>
-              <Text style={styles.passedText}>✓ PASSED</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Quiz Info */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Quiz Details</Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Category:</Text>
-            <Text style={styles.infoValue}>{category}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Subject:</Text>
-            <Text style={styles.infoValue}>{subcategory}{subject ? ` - ${subject}` : ''}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Difficulty:</Text>
-            <Text style={[styles.infoValue, styles.difficultyText]}>
-              {difficulty ? difficulty.toUpperCase() : 'N/A'}
+        <FadeInUp index={0}>
+          <View style={styles.scoreCard}>
+            <Ionicons name={scoreIcon} size={60} color={scoreColor} />
+            <Text style={[styles.scoreText, { color: scoreColor }]}>
+              {score}/{actualTotalQuestions}
             </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Questions Answered:</Text>
-            <Text style={styles.infoValue}>{score} correct out of {actualTotalQuestions}</Text>
-          </View>
-        </View>
+            <Text style={[styles.percentageText, { color: scoreColor }]}>{percentage}%</Text>
+            <Text style={styles.messageText}>{scoreMessage}</Text>
 
-        {/* Performance Stats */}
-        <View style={styles.statsCard}>
-          <Text style={styles.statsTitle}>Performance</Text>
-          <View style={styles.statRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{score}</Text>
-              <Text style={styles.statLabel}>Correct</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: "#f44336" }]}>
-                {actualTotalQuestions - score}
-              </Text>
-              <Text style={styles.statLabel}>Wrong</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: getScoreColor() }]}>
-                {percentage}%
-              </Text>
-              <Text style={styles.statLabel}>Accuracy</Text>
-            </View>
+            {passed && (
+              <View style={styles.passedBadge}>
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                <Text style={styles.passedText}>{t("passed")}</Text>
+              </View>
+            )}
           </View>
-          
-          {/* Progress Bar */}
-          <View style={styles.progressContainer}>
+        </FadeInUp>
+
+        <FadeInUp index={1}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{t("quizDetails")}</Text>
+            <InfoRow label={t("categoryLabel")} value={category} />
+            <InfoRow label={t("subjectLabel")} value={`${subcategory}${subject ? ` - ${subject}` : ""}`} />
+            <InfoRow label={t("difficultyLabel")} value={t(DIFF_KEYS[difficulty] || "difficultyEasy")} accent />
+            <InfoRow label={t("answeredLabel")} value={t("correctOutOf", { a: score, b: actualTotalQuestions })} />
+          </View>
+        </FadeInUp>
+
+        <FadeInUp index={2}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{t("performance")}</Text>
+            <View style={styles.statRow}>
+              <Stat value={score} label={t("correctStat")} color={colors.success} />
+              <Stat value={actualTotalQuestions - score} label={t("wrongStat")} color={colors.danger} />
+              <Stat value={`${percentage}%`} label={t("accuracyStat")} color={scoreColor} />
+            </View>
             <View style={styles.progressBar}>
-              <View 
-                style={[
-                  styles.progressFill, 
-                  { width: `${percentage}%`, backgroundColor: getScoreColor() }
-                ]} 
-              />
+              <View style={[styles.progressFill, { width: `${percentage}%`, backgroundColor: scoreColor }]} />
             </View>
           </View>
-        </View>
+        </FadeInUp>
 
-        {/* Action Buttons */}
-        <View style={styles.actionsContainer}>
-          <TouchableOpacity 
-            style={styles.retryButton} 
-            onPress={handleRetry}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.retryButtonText}>🔄 Try Again</Text>
-          </TouchableOpacity>
+        <FadeInUp index={3}>
+          <View style={styles.actions}>
+            <PressableScale style={styles.primaryBtn} onPress={handleRetry}>
+              <Ionicons name="refresh" size={20} color="#FFFFFF" />
+              <Text style={styles.primaryBtnText}>{t("tryAgain")}</Text>
+            </PressableScale>
 
-          {passed && hasNextLevel && (
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={handleNextLevel}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.nextButtonText}>➡️ Next Level ({levelNumber + 1})</Text>
-            </TouchableOpacity>
-          )}
+            {passed && hasNextLevel && (
+              <PressableScale style={styles.accentBtn} onPress={handleNextLevel}>
+                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                <Text style={styles.primaryBtnText}>{t("nextLevel", { n: levelNumber + 1 })}</Text>
+              </PressableScale>
+            )}
 
-          {passed && !hasNextLevel && difficultyCompleted && difficulty === "easy" && (
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={handleNextDifficulty}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.nextButtonText}>➡️ Try Medium</Text>
-            </TouchableOpacity>
-          )}
+            {showNextDifficulty && (
+              <PressableScale style={styles.accentBtn} onPress={handleNextDifficulty}>
+                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                <Text style={styles.primaryBtnText}>{t(nextDifficultyKey)}</Text>
+              </PressableScale>
+            )}
 
-          {passed && !hasNextLevel && difficultyCompleted && difficulty === "medium" && (
-            <TouchableOpacity 
-              style={styles.nextButton} 
-              onPress={handleNextDifficulty}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.nextButtonText}>➡️ Try Hard</Text>
-            </TouchableOpacity>
-          )}
+            <PressableScale style={styles.outlineBtn} onPress={goHome}>
+              <Ionicons name="home-outline" size={20} color={colors.primary} />
+              <Text style={styles.outlineBtnText}>{t("backToCategories")}</Text>
+            </PressableScale>
+          </View>
+        </FadeInUp>
 
-          <TouchableOpacity 
-            style={styles.homeButton} 
-            onPress={handleBackToCategories}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.homeButtonText}>🏠 Back to Categories</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Tips */}
-        <View style={styles.tipsCard}>
-          <Text style={styles.tipsTitle}>💡 Tips for Next Time:</Text>
-          <Text style={styles.tipText}>• Read each question carefully</Text>
-          <Text style={styles.tipText}>• Finish the whole level before the timer runs out</Text>
-          <Text style={styles.tipText}>• Remember: One wrong answer restarts the quiz</Text>
-          <Text style={styles.tipText}>• Practice regularly to improve your knowledge</Text>
-          {passed && (
-            <Text style={[styles.tipText, styles.successTip]}>
-              • Great job! You have unlocked the next level! 🎉
-            </Text>
-          )}
-        </View>
+        <FadeInUp index={4}>
+          <View style={styles.tipsCard}>
+            <View style={styles.tipsHeader}>
+              <Ionicons name="bulb-outline" size={20} color={colors.accent} />
+              <Text style={styles.tipsTitle}>{t("tipsTitle")}</Text>
+            </View>
+            {["tip1", "tip2", "tip3", "tip4"].map((k) => (
+              <Text key={k} style={styles.tipText}>• {t(k)}</Text>
+            ))}
+            {passed && hasNextLevel && (
+              <Text style={[styles.tipText, styles.successTip]}>• {t("unlockedNext")}</Text>
+            )}
+          </View>
+        </FadeInUp>
+        <View style={{ height: 24 }} />
       </ScrollView>
     </View>
   );
 }
 
+function InfoRow({ label, value, accent }) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={[styles.infoValue, accent && { color: colors.primary }]}>{value}</Text>
+    </View>
+  );
+}
+
+function Stat({ value, label, color }) {
+  return (
+    <View style={styles.statItem}>
+      <Text style={[styles.statValue, { color }]}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8f9fa"
-  },
-  content: {
-    flex: 1,
-    padding: 16
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20
-  },
-  errorText: {
-    fontSize: 18,
-    color: "#f44336",
-    marginBottom: 20,
-    textAlign: "center"
-  },
-  backButton: {
-    backgroundColor: "#6366F1",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8
-  },
-  backButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600"
-  },
+  container: { flex: 1, backgroundColor: colors.bg },
+  content: { flex: 1, padding: 16 },
+  errorContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20, backgroundColor: colors.bg },
+  errorText: { fontSize: 18, color: colors.danger, marginBottom: 20, textAlign: "center" },
   scoreCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 32,
-    alignItems: "center",
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { 
-      width: 0, 
-      height: 4 
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4
+    backgroundColor: colors.surface, borderRadius: 24, padding: 28, alignItems: "center", marginBottom: 14, ...shadow,
   },
-  emoji: {
-    fontSize: 64,
-    marginBottom: 16
-  },
-  scoreText: {
-    fontSize: 48,
-    fontWeight: "bold",
-    marginBottom: 8
-  },
-  percentageText: {
-    fontSize: 24,
-    fontWeight: "600",
-    marginBottom: 16
-  },
-  messageText: {
-    fontSize: 18,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 16
-  },
+  scoreText: { fontSize: 48, marginTop: 8, fontFamily: fonts.heading },
+  percentageText: { fontSize: 24, fontWeight: "600", marginBottom: 10 },
+  messageText: { fontSize: 18, color: colors.muted, textAlign: "center", marginBottom: 14, lineHeight: 28 },
   passedBadge: {
-    backgroundColor: "#6366F1",
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20
+    flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.success,
+    paddingHorizontal: 18, paddingVertical: 8, borderRadius: 999,
   },
-  passedText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "bold"
+  passedText: { color: "#FFFFFF", fontSize: 14, fontWeight: "bold" },
+  card: { backgroundColor: colors.surface, borderRadius: 18, padding: 18, marginBottom: 14, ...shadow },
+  cardTitle: { fontSize: 18, color: colors.ink, marginBottom: 14, fontFamily: fonts.headingSemi },
+  infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 12 },
+  infoLabel: { fontSize: 14, color: colors.muted, flex: 1 },
+  infoValue: { fontSize: 14, fontWeight: "600", color: colors.ink, flex: 1, textAlign: "right" },
+  statRow: { flexDirection: "row", justifyContent: "space-around", marginBottom: 14 },
+  statItem: { alignItems: "center" },
+  statValue: { fontSize: 26, fontWeight: "bold" },
+  statLabel: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  progressBar: { height: 8, backgroundColor: colors.track, borderRadius: 4, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 4 },
+  actions: { gap: 10, marginBottom: 14 },
+  primaryBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 22, borderRadius: 999,
   },
-  infoCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { 
-      width: 0, 
-      height: 2 
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2
+  accentBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: colors.accent, paddingVertical: 14, paddingHorizontal: 22, borderRadius: 999,
   },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 16
+  primaryBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+  outlineBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.primary,
+    paddingVertical: 12, paddingHorizontal: 22, borderRadius: 999,
   },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: "#666",
-    flex: 1
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    flex: 1,
-    textAlign: "right"
-  },
-  difficultyText: {
-    color: "#6366F1"
-  },
-  statsCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { 
-      width: 0, 
-      height: 2 
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2
-  },
-  statsTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 16,
-    textAlign: "center"
-  },
-  statRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 20
-  },
-  statItem: {
-    alignItems: "center",
-    flex: 1
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#6366F1"
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4
-  },
-  progressContainer: {
-    marginTop: 8
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 4,
-    overflow: "hidden"
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: 4
-  },
-  actionsContainer: {
-    marginBottom: 16
-  },
-  retryButton: {
-    backgroundColor: "#6366F1",
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 12
-  },
-  retryButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold"
-  },
-  nextButton: {
-    backgroundColor: "#6366F1",
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 12
-  },
-  nextButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold"
-  },
-  homeButton: {
-    backgroundColor: "#666",
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center"
-  },
-  homeButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold"
-  },
-  tipsCard: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: "#6366F1",
-    marginBottom: 32
-  },
-  tipsTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 12
-  },
-  tipText: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 6,
-    paddingLeft: 8,
-    lineHeight: 20
-  },
-  successTip: {
-    color: "#6366F1",
-    fontWeight: "600"
-  }
+  outlineBtnText: { color: colors.primary, fontSize: 16, fontWeight: "700" },
+  tipsCard: { backgroundColor: colors.accentTint, borderRadius: 18, padding: 18 },
+  tipsHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  tipsTitle: { fontSize: 16, fontWeight: "700", color: colors.ink },
+  tipText: { fontSize: 14, color: colors.ink, lineHeight: 24 },
+  successTip: { color: colors.success, fontWeight: "700", marginTop: 4 },
 });

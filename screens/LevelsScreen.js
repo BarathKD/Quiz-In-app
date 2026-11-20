@@ -1,11 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import Header from "../components/header";
 import BottomNav from "../components/BottomNav";
+import FadeInUp from "../components/FadeInUp";
+import PressableScale from "../components/PressableScale";
 import { getQuestionsByFilter, getUserProgress, QUESTIONS_PER_LEVEL } from "../utils/api";
+import { useLang } from "../utils/i18n";
+import { colors, difficultyColors, shadow } from "../utils/theme";
+
+const LABEL_KEYS = { easy: "difficultyEasy", medium: "difficultyMedium", hard: "difficultyHard" };
 
 export default function LevelsScreen({ navigation, route }) {
   const { category, subcategory, subject, difficulty, user } = route.params;
+  const { t } = useLang();
   const [levels, setLevels] = useState([]);
   const [passedLevels, setPassedLevels] = useState({});
   const [totalQuestions, setTotalQuestions] = useState(0);
@@ -43,11 +51,10 @@ export default function LevelsScreen({ navigation, route }) {
 
       if (total === 0) {
         setLevels([]);
-        setIsLoading(false);
         return;
       }
 
-      // Calculate levels - each level = 50 questions
+      // Each level = up to 50 questions
       const numLevels = Math.ceil(total / QUESTIONS_PER_LEVEL);
       const generatedLevels = [];
 
@@ -59,14 +66,14 @@ export default function LevelsScreen({ navigation, route }) {
           levelNumber: i + 1,
           start,
           end,
-          count: end - start
+          count: end - start,
         });
       }
 
       setLevels(generatedLevels);
     } catch (error) {
       console.error("Error loading levels:", error);
-      Alert.alert("Error", "Failed to load levels. Please try again.");
+      Alert.alert(t("error"), t("levelsLoadError"));
     } finally {
       setIsLoading(false);
     }
@@ -81,7 +88,7 @@ export default function LevelsScreen({ navigation, route }) {
 
   const handleLevelPress = (level) => {
     if (!isLevelUnlocked(level)) {
-      Alert.alert("Level locked", `Pass Level ${level.levelNumber - 1} first to unlock this level.`);
+      Alert.alert(t("levelLockedTitle"), t("levelLockedMsg", { n: level.levelNumber - 1 }));
       return;
     }
     navigation.navigate("Quiz", {
@@ -92,24 +99,17 @@ export default function LevelsScreen({ navigation, route }) {
       user,
       levelStart: level.start,
       levelEnd: level.end,
-      levelNumber: level.levelNumber
+      levelNumber: level.levelNumber,
     });
   };
 
-  const getDifficultyColor = () => {
-    switch (difficulty) {
-      case "easy": return "#6366F1";
-      case "medium": return "#ff9800";
-      case "hard": return "#f44336";
-      default: return "#4F46E5";
-    }
-  };
+  const color = difficultyColors[difficulty] || colors.primary;
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4F46E5" />
-        <Text style={styles.loadingText}>Loading levels...</Text>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>{t("loadingLevels")}</Text>
       </View>
     );
   }
@@ -117,7 +117,7 @@ export default function LevelsScreen({ navigation, route }) {
   return (
     <View style={styles.container}>
       <Header
-        title={`${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} - Select Level`}
+        title={`${t(LABEL_KEYS[difficulty] || "difficultyEasy")} - ${t("selectLevel")}`}
         onBack={() => navigation.goBack()}
       />
 
@@ -126,46 +126,59 @@ export default function LevelsScreen({ navigation, route }) {
           {category} › {subcategory}{subject ? ` › ${subject}` : ""}
         </Text>
 
-        <View style={[styles.summaryCard, { borderLeftColor: getDifficultyColor() }]}>
-          <Text style={styles.summaryTitle}>📊 Quiz Info</Text>
-          <Text style={styles.summaryText}>Total Questions: <Text style={styles.summaryBold}>{totalQuestions}</Text></Text>
-          <Text style={styles.summaryText}>Levels Available: <Text style={styles.summaryBold}>{levels.length}</Text></Text>
-          <Text style={styles.summaryText}>Questions per Level: <Text style={styles.summaryBold}>up to {QUESTIONS_PER_LEVEL}</Text></Text>
+        <View style={[styles.summaryCard, { borderLeftColor: color }]}>
+          <Text style={styles.summaryTitle}>{t("quizInfo")}</Text>
+          <Text style={styles.summaryText}>
+            {t("totalQuestions")}: <Text style={styles.summaryBold}>{totalQuestions}</Text>
+          </Text>
+          <Text style={styles.summaryText}>
+            {t("levelsAvailable")}: <Text style={styles.summaryBold}>{levels.length}</Text>
+          </Text>
+          <Text style={styles.summaryText}>
+            {t("perLevel")}: <Text style={styles.summaryBold}>{t("upTo", { n: QUESTIONS_PER_LEVEL })}</Text>
+          </Text>
         </View>
 
         {levels.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🚀</Text>
-            <Text style={styles.emptyTitle}>Coming Soon</Text>
-            <Text style={styles.emptySubtitle}>
-              Content for {difficulty} difficulty is currently being updated.{"\n"}Please check back later!
-            </Text>
+            <Ionicons name="hourglass-outline" size={48} color={colors.muted} />
+            <Text style={styles.emptyTitle}>{t("comingSoon")}</Text>
+            <Text style={styles.emptySubtitle}>{t("comingSoonSub")}</Text>
           </View>
         ) : (
           <View style={styles.levelsContainer}>
-            {levels.map((level) => (
-              <TouchableOpacity
-                key={level.id}
-                style={[styles.levelCard, { borderLeftColor: getDifficultyColor() }]}
-                onPress={() => handleLevelPress(level)}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.levelBadge, { backgroundColor: isLevelUnlocked(level) ? getDifficultyColor() : "#BDBDBD" }]}>
-                  <Text style={styles.levelBadgeText}>
-                    {passedLevels[level.levelNumber] ? "✓" : isLevelUnlocked(level) ? level.levelNumber : "🔒"}
-                  </Text>
-                </View>
+            {levels.map((level, index) => {
+              const unlocked = isLevelUnlocked(level);
+              const passed = !!passedLevels[level.levelNumber];
 
-                <View style={styles.levelInfo}>
-                  <Text style={styles.levelTitle}>Level {level.levelNumber}</Text>
-                  <Text style={styles.levelSubtitle}>
-                    {level.count} Questions  (Q{level.start + 1} – Q{level.end})
-                  </Text>
-                </View>
+              return (
+                <FadeInUp key={level.id} index={index}>
+                  <PressableScale
+                    style={[styles.levelCard, { borderLeftColor: unlocked ? color : colors.locked }]}
+                    onPress={() => handleLevelPress(level)}
+                  >
+                    <View style={[styles.levelBadge, { backgroundColor: unlocked ? color : colors.locked }]}>
+                      {passed ? (
+                        <Ionicons name="checkmark" size={26} color="#FFFFFF" />
+                      ) : unlocked ? (
+                        <Text style={styles.levelBadgeText}>{level.levelNumber}</Text>
+                      ) : (
+                        <Ionicons name="lock-closed" size={22} color="#FFFFFF" />
+                      )}
+                    </View>
 
-                <Text style={styles.levelArrow}>▶</Text>
-              </TouchableOpacity>
-            ))}
+                    <View style={styles.levelInfo}>
+                      <Text style={styles.levelTitle}>{t("levelLabel", { n: level.levelNumber })}</Text>
+                      <Text style={styles.levelSubtitle}>
+                        {t("questionsCount", { n: level.count })}  (Q{level.start + 1} – Q{level.end})
+                      </Text>
+                    </View>
+
+                    <Ionicons name="chevron-forward" size={22} color={colors.muted} />
+                  </PressableScale>
+                </FadeInUp>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -175,124 +188,56 @@ export default function LevelsScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8f9fa"
-  },
+  container: { flex: 1, backgroundColor: colors.bg },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f8f9fa"
+    backgroundColor: colors.bg,
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#666"
-  },
-  content: {
-    flex: 1,
-    padding: 16
-  },
+  loadingText: { marginTop: 12, fontSize: 16, color: colors.muted },
+  content: { flex: 1, padding: 16 },
   breadcrumb: {
     fontSize: 14,
-    color: "#666",
+    color: colors.muted,
     textAlign: "center",
-    marginBottom: 16
+    marginBottom: 16,
+    lineHeight: 22,
   },
   summaryCard: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2
+    borderRadius: 18,
+    marginBottom: 18,
+    borderLeftWidth: 5,
+    ...shadow,
   },
-  summaryTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#333",
-    marginBottom: 8
-  },
-  summaryText: {
-    fontSize: 14,
-    color: "#555",
-    marginBottom: 3
-  },
-  summaryBold: {
-    fontWeight: "700",
-    color: "#333"
-  },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 60
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#333",
-    marginBottom: 8
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 22
-  },
-  levelsContainer: {
-    gap: 12,
-    paddingBottom: 40
-  },
+  summaryTitle: { fontSize: 16, fontWeight: "700", color: colors.ink, marginBottom: 8 },
+  summaryText: { fontSize: 15, color: colors.muted, marginBottom: 3, lineHeight: 23 },
+  summaryBold: { fontWeight: "700", color: colors.ink },
+  emptyContainer: { alignItems: "center", paddingVertical: 50 },
+  emptyTitle: { fontSize: 19, fontWeight: "700", color: colors.ink, marginTop: 12, marginBottom: 8 },
+  emptySubtitle: { fontSize: 15, color: colors.muted, textAlign: "center", lineHeight: 24 },
+  levelsContainer: { gap: 12, paddingBottom: 32 },
   levelCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 18,
     borderLeftWidth: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3
+    ...shadow,
   },
   levelBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16
+    marginRight: 16,
   },
-  levelBadgeText: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#fff"
-  },
-  levelInfo: {
-    flex: 1
-  },
-  levelTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#222",
-    marginBottom: 4
-  },
-  levelSubtitle: {
-    fontSize: 13,
-    color: "#777"
-  },
-  levelArrow: {
-    fontSize: 16,
-    color: "#aaa",
-    marginLeft: 10
-  }
+  levelBadgeText: { fontSize: 20, fontWeight: "bold", color: "#FFFFFF" },
+  levelInfo: { flex: 1 },
+  levelTitle: { fontSize: 17, fontWeight: "700", color: colors.ink, marginBottom: 2 },
+  levelSubtitle: { fontSize: 13, color: colors.muted, lineHeight: 20 },
 });

@@ -92,3 +92,11 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
   Levels: Levels and Quiz now use the same question filter; levels unlock one after another; progress is stored per level (`markLevelPassed`), a difficulty completes only when all its levels are passed; summary has Next Level / Try Again (same level) / next difficulty (via Levels screen). A level is passed only when every question is correct (wrong answer restarts).
   Also: timeout handled in an effect (not in a state updater), proper CSV parser, all screens import from `utils/api.js`. Checks: eslint 0 errors, `expo export --platform android` bundles OK, CSV parser tested. NOT tested on a real device.
 - NEXT: Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
+
+## Redesign progress (branch `ui-redesign`)
+- New "Mayil" (peacock) palette in `utils/theme.js`: peacock blue-teal, lotus violet, jasmine white.
+  **Do NOT use yellow or red as brand colors** (TVK party colors). Red only for wrong answers/errors.
+- Tamil-first bilingual UI (`utils/i18n.js`, `useLang()`), Baloo Thambi 2 headings, fade/press/shake animations.
+- Done: Splash, Login, Categories, Subcategories, Subjects, Difficulty, Levels, Quiz, QuizSummary, header, bottom nav.
+- Not yet restyled: AdminScreen and components/admin/* (still old palette).
+- Test: `git fetch origin && git checkout ui-redesign && npm install && npx expo start --tunnel -c`

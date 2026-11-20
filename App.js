@@ -3,6 +3,9 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
+import { useFonts, BalooThambi2_600SemiBold, BalooThambi2_800ExtraBold } from "@expo-google-fonts/baloo-thambi-2";
+import { LanguageProvider } from "./utils/i18n";
+import { colors } from "./utils/theme";
 
 // Import screens
 import AdminScreen from "./screens/AdminScreen";
@@ -24,6 +27,7 @@ const Stack = createNativeStackNavigator();
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
+  const [fontsLoaded, fontError] = useFonts({ BalooThambi2_600SemiBold, BalooThambi2_800ExtraBold });
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -44,10 +48,10 @@ export default function App() {
   // Show a simple spinner while storage initialises.
   // We do NOT render <SplashScreen /> here because it would be outside the
   // Stack.Navigator, so navigation.replace("Admin") etc. would fail.
-  if (!isReady) {
+  if (!isReady || (!fontsLoaded && !fontError)) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -55,7 +59,8 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <StatusBar style="dark" backgroundColor="#FFFFFF" translucent={false} />
+        <LanguageProvider>
+        <StatusBar style="light" backgroundColor={colors.primary} translucent={false} />
         <NavigationContainer>
           <Stack.Navigator 
             initialRouteName="Splash" 
@@ -82,6 +87,7 @@ export default function App() {
             <Stack.Screen name="Admin" component={AdminScreen} />
           </Stack.Navigator>
         </NavigationContainer>
+        </LanguageProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
@@ -92,6 +98,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f7f7f7"
+    backgroundColor: colors.bg
   }
 });
