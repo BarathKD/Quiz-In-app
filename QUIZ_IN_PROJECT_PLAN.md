@@ -55,9 +55,9 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - [x] Restyle AdminScreen + components/admin to the Mayil theme
 
 ### Phase 2: Backend (ASP.NET Core Web API + EF Core + PostgreSQL or SQL Server)
-- [ ] Create `QuizIn.Api` project in a separate repo (or `/backend` folder)
-- [ ] Entities: User, Category, Subcategory, Subject, Question, Level/Difficulty, Progress, Purchase, AdConfig
-- [ ] Auth: register/login, password hashing (ASP.NET Identity or BCrypt), JWT + refresh token, roles (Admin / User)
+- [x] Create `QuizIn.Api` project in `/backend/QuizIn.Api` (written, NOT yet compiled: no .NET SDK in Claude's sandbox; build it in Codespaces with `dotnet build` and report errors)
+- [x] Entities (written): User, Category, Subcategory, Subject, Question, Level/Difficulty, Progress, Purchase, AdConfig
+- [~] Auth: register/login/me/delete-account done (BCrypt, JWT 7 days, Admin role, first admin from config). Refresh token still TODO
 - [ ] Endpoints: categories tree, questions by level, submit result, user progress, admin CRUD, CSV/JSON import
 - [ ] Deploy to a free/cheap host (Azure App Service, Render or Railway) + managed DB; HTTPS only
 - [ ] Global leaderboard on the server: weekly + all-time tabs, anti-cheat (server computes points from submitted results)
@@ -116,7 +116,8 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
   Also: timeout handled in an effect (not in a state updater), proper CSV parser, all screens import from `utils/api.js`. Checks: eslint 0 errors, `expo export --platform android` bundles OK, CSV parser tested. NOT tested on a real device.
 - 2026-11-20: Redesign + Leaderboard merged to main (ee70bd3). Plan reorganised: Phase 1B (local pages) added, new pages placed in phases.
 - 2026-11-20: Phase 1B built (Settings, Daily Challenge, Mistakes, Bookmarks, Achievements, admin recolor). Storage logic tested with mocked AsyncStorage; lint 0 errors; bundle OK; NOT tested on a device.
-- NEXT: test Phase 1B on phone, then Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
+- 2026-11-20: Phase 2 step 1-2 written: backend skeleton, all entities, DbContext, JWT auth endpoints. Dev DB = SQLite (Codespaces), prod = SQL Server (Azure SQL free tier). Decision: office PC cannot install tools, so all dev happens in Codespaces.
+- NEXT: build backend in Codespaces, then content endpoints. (earlier: test Phase 1B on phone), then Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
 
 ## Redesign progress (branch `ui-redesign`)
 - New "Mayil" (peacock) palette in `utils/theme.js`: peacock blue-teal, lotus violet, jasmine white.
