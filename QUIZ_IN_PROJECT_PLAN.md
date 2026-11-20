@@ -58,7 +58,7 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - [x] Create `QuizIn.Api` project in `/backend/QuizIn.Api` (written, NOT yet compiled: no .NET SDK in Claude's sandbox; build it in Codespaces with `dotnet build` and report errors)
 - [x] Entities (written): User, Category, Subcategory, Subject, Question, Level/Difficulty, Progress, Purchase, AdConfig
 - [~] Auth: register/login/me/delete-account done (BCrypt, JWT 7 days, Admin role, first admin from config). Refresh token still TODO
-- [ ] Endpoints: categories tree, questions by level, submit result, user progress, admin CRUD, CSV/JSON import
+- [~] Endpoints: DONE (written, being tested): GET categories, GET questions (filters), admin CRUD for categories/subcategories/subjects/questions, CSV import. TODO: submit result, user progress, daily, bookmarks, mistakes, leaderboard, JSON import, bulk delete, images
 - [ ] Deploy to a free/cheap host (Azure App Service, Render or Railway) + managed DB; HTTPS only
 - [ ] Global leaderboard on the server: weekly + all-time tabs, anti-cheat (server computes points from submitted results)
 - [ ] Move Daily Challenge streak, badges, bookmarks and wrong-answers to the server (sync across devices)
@@ -117,7 +117,8 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - 2026-11-20: Redesign + Leaderboard merged to main (ee70bd3). Plan reorganised: Phase 1B (local pages) added, new pages placed in phases.
 - 2026-11-20: Phase 1B built (Settings, Daily Challenge, Mistakes, Bookmarks, Achievements, admin recolor). Storage logic tested with mocked AsyncStorage; lint 0 errors; bundle OK; NOT tested on a device.
 - 2026-11-20: Phase 2 step 1-2 written: backend skeleton, all entities, DbContext, JWT auth endpoints. Dev DB = SQLite (Codespaces), prod = SQL Server (Azure SQL free tier). Decision: office PC cannot install tools, so all dev happens in Codespaces.
-- NEXT: build backend in Codespaces, then content endpoints. (earlier: test Phase 1B on phone), then Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
+- 2026-11-20: Backend auth tested OK in Codespaces (register/login/admin). Step 3 written: content endpoints + CSV import + `backend/smoke-test.sh`.
+- NEXT: run smoke test, then progress/daily/leaderboard endpoints. (earlier: build backend in Codespaces, then content endpoints. (earlier: test Phase 1B on phone), then Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
 
 ## Redesign progress (branch `ui-redesign`)
 - New "Mayil" (peacock) palette in `utils/theme.js`: peacock blue-teal, lotus violet, jasmine white.

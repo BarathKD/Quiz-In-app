@@ -24,14 +24,17 @@ public class AppDbContext : DbContext
         b.Entity<User>().Property(u => u.Email).HasMaxLength(256);
 
         b.Entity<Category>().Property(c => c.Name).HasMaxLength(200);
+        b.Entity<Category>().HasIndex(c => c.Name).IsUnique();
         b.Entity<Subcategory>().Property(s => s.Name).HasMaxLength(200);
+        b.Entity<Subcategory>().HasIndex(s => new { s.CategoryId, s.Name }).IsUnique();
         b.Entity<Subject>().Property(s => s.Name).HasMaxLength(200);
+        b.Entity<Subject>().HasIndex(s => new { s.SubcategoryId, s.Name }).IsUnique();
 
         // SQL Server forbids several cascade paths to one table, so the optional
-        // Subject links use Restrict. Subcategory -> Question/Subject still cascades.
+        // Subject links use NoAction (checked at end of statement, so cascades from Subcategory still work). Subcategory -> Question/Subject still cascades.
         b.Entity<Question>()
             .HasOne(q => q.Subject).WithMany().HasForeignKey(q => q.SubjectId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.NoAction);
         b.Entity<Question>().HasIndex(q => new { q.SubcategoryId, q.SubjectId, q.Difficulty });
 
         b.Entity<LevelProgress>()
@@ -39,7 +42,7 @@ public class AppDbContext : DbContext
         b.Entity<LevelProgress>()
             .HasOne<Subcategory>().WithMany().HasForeignKey(p => p.SubcategoryId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<LevelProgress>()
-            .HasOne<Subject>().WithMany().HasForeignKey(p => p.SubjectId).OnDelete(DeleteBehavior.Restrict);
+            .HasOne<Subject>().WithMany().HasForeignKey(p => p.SubjectId).OnDelete(DeleteBehavior.NoAction);
         b.Entity<LevelProgress>()
             .HasIndex(p => new { p.UserId, p.SubcategoryId, p.SubjectId, p.Difficulty, p.LevelNumber });
 

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using QuizIn.Api.Auth;
+using QuizIn.Api.Content;
 using QuizIn.Api.Data;
 using QuizIn.Api.Models;
 
@@ -74,5 +75,6 @@ app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", time = DateTime.UtcNow }));
 app.MapAuth();
+app.MapContent();
 
 app.Run();
