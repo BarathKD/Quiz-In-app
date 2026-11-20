@@ -44,3 +44,7 @@ curl -s -o /dev/null -w "%{http_code}\n" $B/api/categories
 
 say "cleanup: delete the Smoke Test category"
 curl -s -o /dev/null -w "%{http_code}\n" -X DELETE $B/api/admin/categories/$CID -H "$A"
+
+say "admin web pages"
+echo "login page (expect 200): $(curl -s -o /dev/null -w "%{http_code}" $B/admin/login)"
+echo "dashboard without login (expect 302 redirect to login): $(curl -s -o /dev/null -w "%{http_code}" $B/admin)"

@@ -1,0 +1,67 @@
+@model List<Category>
+@{ ViewData["Title"] = "Content"; }
+<h1>Content</h1>
+
+<div class="card">
+  <h2>Add category</h2>
+  <form method="post" action="/admin/content/category" class="row">
+    @Html.AntiForgeryToken()
+    <input name="name" placeholder="Name" required>
+    <input name="description" placeholder="Description">
+    <input name="timerMinutes" type="number" min="1" max="180" placeholder="Timer (min)" style="width:130px">
+    <button type="submit">Add</button>
+  </form>
+</div>
+
+@foreach (var cat in Model)
+{
+  <div class="card">
+    <div class="row">
+      <h2 style="margin:0">@cat.Name</h2>
+      <span class="pill">@cat.TimerMinutes min</span>
+      <form class="inline" method="post" action="/admin/content/category/@cat.Id/delete" onsubmit="return confirm('Delete this category and ALL its questions?');">
+        @Html.AntiForgeryToken()
+        <button class="danger" type="submit">Delete</button>
+      </form>
+    </div>
+    @if (!string.IsNullOrEmpty(cat.Description)) { <p class="muted">@cat.Description</p> }
+
+    @foreach (var sub in cat.Subcategories.OrderBy(s => s.Id))
+    {
+      <div class="tree-sub">
+        <div class="row">
+          <b>@sub.Name</b>
+          <a class="btn alt" href="/admin/questions?target=@(sub.Id)-0">Questions</a>
+          <form class="inline" method="post" action="/admin/content/subcategory/@sub.Id/delete" onsubmit="return confirm('Delete this subcategory and its questions?');">
+            @Html.AntiForgeryToken()
+            <button class="danger" type="submit">Delete</button>
+          </form>
+        </div>
+        @foreach (var subject in sub.Subjects.OrderBy(x => x.Id))
+        {
+          <div class="tree-sub row">
+            <span>@subject.Name</span>
+            @if (subject.TimerMinutes != null) { <span class="pill">@subject.TimerMinutes min</span> }
+            <a class="btn alt" href="/admin/questions?target=@(sub.Id)-@(subject.Id)">Questions</a>
+            <form class="inline" method="post" action="/admin/content/subject/@subject.Id/delete" onsubmit="return confirm('Delete this subject and its questions?');">
+              @Html.AntiForgeryToken()
+              <button class="danger" type="submit">Delete</button>
+            </form>
+          </div>
+        }
+        <form method="post" action="/admin/content/subcategory/@sub.Id/subject" class="row tree-sub">
+          @Html.AntiForgeryToken()
+          <input name="name" placeholder="New subject" required>
+          <input name="timerMinutes" type="number" min="1" max="180" placeholder="Timer (min)" style="width:130px">
+          <button class="alt" type="submit">Add subject</button>
+        </form>
+      </div>
+    }
+
+    <form method="post" action="/admin/content/category/@cat.Id/subcategory" class="row" style="margin-top:12px">
+      @Html.AntiForgeryToken()
+      <input name="name" placeholder="New subcategory" required>
+      <button class="alt" type="submit">Add subcategory</button>
+    </form>
+  </div>
+}

@@ -17,6 +17,11 @@ curl -X POST http://localhost:5080/api/auth/register -H "Content-Type: applicati
 ```
 (Runs on port 5080 in Development mode via Properties/launchSettings.json.)
 
+## Admin web panel
+Open `/admin` (e.g. http://localhost:5080/admin) and log in with the admin account.
+Pages: Dashboard, Content (categories/subcategories/subjects), Questions (list, add, edit, delete), CSV import.
+It is part of this same project (Razor views + cookie login), so one deployment serves both the API and the panel.
+
 ## Migrations (recommended once the model is stable)
 ```
 dotnet tool install --global dotnet-ef

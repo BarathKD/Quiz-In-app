@@ -1,0 +1,65 @@
+@model QuestionListVm
+@{ ViewData["Title"] = "Questions"; }
+<h1>Questions <span class="muted">(@Model.Total)</span></h1>
+
+<div class="card">
+  <form method="get" action="/admin/questions" class="row">
+    <select name="target">
+      <option value="">All locations</option>
+      @foreach (var loc in Model.Locations)
+      {
+        <option value="@loc.Value" selected="@(loc.Value == Model.Target)">@loc.Label</option>
+      }
+    </select>
+    <select name="difficulty">
+      <option value="">Any difficulty</option>
+      @foreach (var d in new[] { "easy", "medium", "hard" })
+      {
+        <option value="@d" selected="@(d == Model.Difficulty)">@d</option>
+      }
+    </select>
+    <button type="submit">Filter</button>
+    <a class="btn alt" href="/admin/questions/new?target=@Model.Target">Add question</a>
+  </form>
+</div>
+
+<div class="card">
+  @if (Model.Items.Count == 0)
+  {
+    <p class="muted">No questions found.</p>
+  }
+  else
+  {
+    <table>
+      <tr><th>#</th><th>Question</th><th>Where</th><th>Level</th><th></th></tr>
+      @foreach (var q in Model.Items)
+      {
+        <tr>
+          <td>@q.Id</td>
+          <td>@(q.QuestionText.Length > 90 ? q.QuestionText.Substring(0, 90) + "…" : q.QuestionText)</td>
+          <td class="muted">@q.Subcategory?.Category?.Name › @q.Subcategory?.Name@(q.Subject != null ? " › " + q.Subject.Name : "")</td>
+          <td><span class="pill">@q.Difficulty</span></td>
+          <td>
+            <a class="btn alt" href="/admin/questions/@q.Id/edit">Edit</a>
+            <form class="inline" method="post" action="/admin/questions/@q.Id/delete" onsubmit="return confirm('Delete this question?');">
+              @Html.AntiForgeryToken()
+              <input type="hidden" name="target" value="@Model.Target">
+              <button class="danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      }
+    </table>
+    <p class="row">
+      @if (Model.Page > 1)
+      {
+        <a class="btn alt" href="/admin/questions?target=@Model.Target&difficulty=@Model.Difficulty&page=@(Model.Page - 1)">Previous</a>
+      }
+      <span class="muted">Page @Model.Page of @Model.TotalPages</span>
+      @if (Model.Page < Model.TotalPages)
+      {
+        <a class="btn alt" href="/admin/questions?target=@Model.Target&difficulty=@Model.Difficulty&page=@(Model.Page + 1)">Next</a>
+      }
+    </p>
+  }
+</div>

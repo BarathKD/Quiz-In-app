@@ -1,6 +1,7 @@
 using System.Net.Mail;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
 using QuizIn.Api.Data;
 using QuizIn.Api.Models;
 
@@ -43,7 +44,7 @@ public static class AuthEndpoints
                 return Results.Unauthorized();
 
             return Results.Ok(new AuthResponse(tokens.Create(user), ToDto(user)));
-        });
+        }).RequireRateLimiting("login");
 
         group.MapGet("/me", async (ClaimsPrincipal principal, AppDbContext db) =>
         {

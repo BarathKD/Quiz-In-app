@@ -1,0 +1,53 @@
+@model ImportVm
+@{ ViewData["Title"] = "CSV import"; }
+<h1>CSV import</h1>
+
+@if (!string.IsNullOrEmpty(Model.Error))
+{
+  <div class="err">@Model.Error</div>
+}
+@if (Model.Added != null)
+{
+  <div class="ok">Imported @Model.Added question(s).</div>
+  @if (Model.Skipped != null && Model.Skipped.Count > 0)
+  {
+    <div class="card">
+      <h2>Skipped rows (@Model.Skipped.Count)</h2>
+      <ul>
+        @foreach (var line in Model.Skipped)
+        {
+          <li>@line</li>
+        }
+      </ul>
+    </div>
+  }
+}
+
+<div class="card">
+  <p class="muted">Columns: <b>id, question, A, B, C, D, answer, explanation</b>. The answer can be A-D, 1-4 or the answer text. The first row may be a header. Save the file as UTF-8 (needed for Tamil). Missing categories, subcategories and subjects are created automatically.</p>
+  <form method="post" action="/admin/import" enctype="multipart/form-data">
+    @Html.AntiForgeryToken()
+    <label for="Category">Category</label>
+    <input id="Category" name="Category" list="cats" value="@Model.Category" required>
+    <datalist id="cats">
+      @foreach (var c in Model.Categories)
+      {
+        <option value="@c"></option>
+      }
+    </datalist>
+    <label for="Subcategory">Subcategory</label>
+    <input id="Subcategory" name="Subcategory" value="@Model.Subcategory" required>
+    <label for="Subject">Subject (optional)</label>
+    <input id="Subject" name="Subject" value="@Model.Subject">
+    <label for="Difficulty">Difficulty</label>
+    <select id="Difficulty" name="Difficulty">
+      @foreach (var d in new[] { "easy", "medium", "hard" })
+      {
+        <option value="@d" selected="@(d == Model.Difficulty)">@d</option>
+      }
+    </select>
+    <label for="file">CSV file</label>
+    <input id="file" name="file" type="file" accept=".csv,text/csv" required>
+    <p><button type="submit">Import</button></p>
+  </form>
+</div>

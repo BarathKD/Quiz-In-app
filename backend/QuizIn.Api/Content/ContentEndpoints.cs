@@ -212,58 +212,70 @@ public static class ContentEndpoints
         admin.MapPost("/import/csv", async (HttpRequest req, AppDbContext db,
             string category, string subcategory, string? subject, string? difficulty) =>
         {
-            var diff = (difficulty ?? "easy").ToLowerInvariant();
-            if (!Difficulties.Contains(diff)) return Results.BadRequest(new { error = "invalid_difficulty" });
-
             using var reader = new StreamReader(req.Body);
             var csv = await reader.ReadToEndAsync();
-            var rows = CsvParser.Parse(csv).Where(r => r.Any(c => c != "")).ToList();
-            if (rows.Count == 0) return Results.BadRequest(new { error = "csv_empty" });
-
-            var target = await Resolve(db, category, subcategory, subject, create: true);
-            if (target.Error != null) return Results.BadRequest(new { error = target.Error });
-
-            var first = rows[0];
-            var c0 = first[0].Trim().ToLowerInvariant();
-            var c1 = first.Count > 1 ? first[1].Trim().ToLowerInvariant() : "";
-            var isHeader = c0 is "id" or "s.no" or "sno" || c0.Contains("serial") || c1.Contains("question")
-                || first.Any(c => c.Trim().ToLowerInvariant() is "answer" or "explanation");
-
-            var added = new List<Question>();
-            var skipped = new List<string>();
-            for (var i = isHeader ? 1 : 0; i < rows.Count; i++)
-            {
-                var r = rows[i];
-                string Col(int n) => n < r.Count ? r[n].Trim() : "";
-                if (r.Count < 6) { skipped.Add($"Row {i + 1}: missing columns"); continue; }
-                if (Col(0) == "" || Col(1) == "" || Col(2) == "" || Col(3) == "" || Col(6) == "")
-                { skipped.Add($"Row {i + 1}: missing required fields"); continue; }
-
-                var options = new List<OptionDto>();
-                var letters = new[] { "a", "b", "c", "d" };
-                for (var k = 0; k < 4; k++)
-                    if (Col(2 + k) != "") options.Add(new OptionDto(letters[k], Col(2 + k)));
-
-                var correct = MatchCorrect(Col(6), Col(2), Col(3), Col(4), Col(5));
-                if (correct == null || !options.Any(o => o.Id == correct))
-                { skipped.Add($"Row {i + 1}: correct answer not recognised"); continue; }
-
-                added.Add(new Question
-                {
-                    SubcategoryId = target.Subcategory!.Id,
-                    SubjectId = target.Subject?.Id,
-                    Difficulty = diff,
-                    QuestionText = Col(1),
-                    OptionsJson = JsonSerializer.Serialize(options, Json),
-                    CorrectOptionId = correct,
-                    Explanation = Col(7) == "" ? null : Col(7),
-                });
-            }
-
-            db.Questions.AddRange(added);
-            await db.SaveChangesAsync();
-            return Results.Ok(new { added = added.Count, skipped });
+            var result = await ImportCsvAsync(db, csv, category, subcategory, subject, difficulty ?? "easy");
+            return result.Error != null
+                ? Results.BadRequest(new { error = result.Error })
+                : Results.Ok(new { added = result.Added, skipped = result.Skipped });
         });
+    }
+
+    public record ImportResult(int Added, List<string> Skipped, string? Error);
+
+    // Shared by the API endpoint and the admin web page.
+    public static async Task<ImportResult> ImportCsvAsync(
+        AppDbContext db, string csv, string category, string subcategory, string? subject, string difficulty)
+    {
+        var diff = difficulty.ToLowerInvariant();
+        if (!Difficulties.Contains(diff)) return new ImportResult(0, new List<string>(), "invalid_difficulty");
+
+        var rows = CsvParser.Parse(csv).Where(r => r.Any(c => c != "")).ToList();
+        if (rows.Count == 0) return new ImportResult(0, new List<string>(), "csv_empty");
+
+        var target = await Resolve(db, category, subcategory, subject, create: true);
+        if (target.Error != null) return new ImportResult(0, new List<string>(), target.Error);
+
+        var first = rows[0];
+        var c0 = first[0].Trim().ToLowerInvariant();
+        var c1 = first.Count > 1 ? first[1].Trim().ToLowerInvariant() : "";
+        var isHeader = c0 is "id" or "s.no" or "sno" || c0.Contains("serial") || c1.Contains("question")
+            || first.Any(c => c.Trim().ToLowerInvariant() is "answer" or "explanation");
+
+        var added = new List<Question>();
+        var skipped = new List<string>();
+        var letters = new[] { "a", "b", "c", "d" };
+        for (var i = isHeader ? 1 : 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
+            string Col(int n) => n < row.Count ? row[n].Trim() : "";
+            if (row.Count < 6) { skipped.Add($"Row {i + 1}: missing columns"); continue; }
+            if (Col(0) == "" || Col(1) == "" || Col(2) == "" || Col(3) == "" || Col(6) == "")
+            { skipped.Add($"Row {i + 1}: missing required fields"); continue; }
+
+            var options = new List<OptionDto>();
+            for (var k = 0; k < 4; k++)
+                if (Col(2 + k) != "") options.Add(new OptionDto(letters[k], Col(2 + k)));
+
+            var correct = MatchCorrect(Col(6), Col(2), Col(3), Col(4), Col(5));
+            if (correct == null || !options.Any(o => o.Id == correct))
+            { skipped.Add($"Row {i + 1}: correct answer not recognised"); continue; }
+
+            added.Add(new Question
+            {
+                SubcategoryId = target.Subcategory!.Id,
+                SubjectId = target.Subject?.Id,
+                Difficulty = diff,
+                QuestionText = Col(1),
+                OptionsJson = JsonSerializer.Serialize(options, Json),
+                CorrectOptionId = correct,
+                Explanation = Col(7) == "" ? null : Col(7),
+            });
+        }
+
+        db.Questions.AddRange(added);
+        await db.SaveChangesAsync();
+        return new ImportResult(added.Count, skipped, null);
     }
 
     // ---------- helpers ----------

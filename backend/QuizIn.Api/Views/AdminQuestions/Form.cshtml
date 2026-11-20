@@ -1,0 +1,61 @@
+@model QuestionFormVm
+@{
+    ViewData["Title"] = Model.Id == null ? "Add question" : "Edit question";
+    var actionUrl = Model.Id == null ? "/admin/questions/new" : "/admin/questions/" + Model.Id + "/edit";
+}
+<h1>@ViewData["Title"]</h1>
+<div class="card">
+  @if (!string.IsNullOrEmpty(Model.Error))
+  {
+    <div class="err">@Model.Error</div>
+  }
+  <form method="post" action="@actionUrl">
+    @Html.AntiForgeryToken()
+
+    <label for="Target">Where does it belong?</label>
+    <select id="Target" name="Target" required>
+      <option value="">Choose...</option>
+      @foreach (var loc in Model.Locations)
+      {
+        <option value="@loc.Value" selected="@(loc.Value == Model.Target)">@loc.Label</option>
+      }
+    </select>
+    <div class="muted">Pick "Category › Subcategory" for a question without a subject.</div>
+
+    <label for="Difficulty">Difficulty</label>
+    <select id="Difficulty" name="Difficulty">
+      @foreach (var d in new[] { "easy", "medium", "hard" })
+      {
+        <option value="@d" selected="@(d == Model.Difficulty)">@d</option>
+      }
+    </select>
+
+    <label for="QuestionText">Question</label>
+    <textarea id="QuestionText" name="QuestionText" required>@Model.QuestionText</textarea>
+
+    <label for="OptionA">Option A</label>
+    <input id="OptionA" name="OptionA" value="@Model.OptionA" style="width:100%">
+    <label for="OptionB">Option B</label>
+    <input id="OptionB" name="OptionB" value="@Model.OptionB" style="width:100%">
+    <label for="OptionC">Option C (optional)</label>
+    <input id="OptionC" name="OptionC" value="@Model.OptionC" style="width:100%">
+    <label for="OptionD">Option D (optional)</label>
+    <input id="OptionD" name="OptionD" value="@Model.OptionD" style="width:100%">
+
+    <label for="Correct">Correct answer</label>
+    <select id="Correct" name="Correct">
+      @foreach (var letter in new[] { "a", "b", "c", "d" })
+      {
+        <option value="@letter" selected="@(letter == Model.Correct)">@letter.ToUpper()</option>
+      }
+    </select>
+
+    <label for="Explanation">Explanation (optional)</label>
+    <textarea id="Explanation" name="Explanation">@Model.Explanation</textarea>
+
+    <p class="row">
+      <button type="submit">Save</button>
+      <a class="btn alt" href="/admin/questions?target=@Model.Target">Cancel</a>
+    </p>
+  </form>
+</div>
