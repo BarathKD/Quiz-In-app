@@ -45,12 +45,25 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - [x] Fix every item in the list above
 - [x] Add a single `api` layer (`utils/api.js`) so screens never call AsyncStorage directly (makes Phase 2 a swap, not a rewrite)
 
+### Phase 1B: New look + local-only pages (no backend needed, works now)
+- [x] Redesign: "Mayil" peacock palette (no yellow/red brand colors), Tamil-first + English, animations (branch merged to main)
+- [x] Leaderboard tab (points = passed levels x 50 x difficulty weight; this device's accounts only)
+- [ ] Settings page: language, sound on/off, privacy policy link, about/version, logout, delete account (local data wipe now; server delete in Phase 2). Needed for Play Store.
+- [ ] Wrong-answers review + Bookmarks: save missed/starred questions per user, "practice my mistakes" quiz
+- [ ] Daily Challenge: 10 random questions per day, streak counter, "done today" state (streak stored locally for now)
+- [ ] Achievements / Badges: first level, 7-day streak, category master, 100 correct. Computed from progress, shown on Profile
+- [ ] Restyle AdminScreen + components/admin to the Mayil theme
+
 ### Phase 2: Backend (ASP.NET Core Web API + EF Core + PostgreSQL or SQL Server)
 - [ ] Create `QuizIn.Api` project in a separate repo (or `/backend` folder)
 - [ ] Entities: User, Category, Subcategory, Subject, Question, Level/Difficulty, Progress, Purchase, AdConfig
 - [ ] Auth: register/login, password hashing (ASP.NET Identity or BCrypt), JWT + refresh token, roles (Admin / User)
 - [ ] Endpoints: categories tree, questions by level, submit result, user progress, admin CRUD, CSV/JSON import
 - [ ] Deploy to a free/cheap host (Azure App Service, Render or Railway) + managed DB; HTTPS only
+- [ ] Global leaderboard on the server: weekly + all-time tabs, anti-cheat (server computes points from submitted results)
+- [ ] Move Daily Challenge streak, badges, bookmarks and wrong-answers to the server (sync across devices)
+- [ ] Settings: real "delete my account" endpoint (Play policy)
+- [ ] Web admin panel (ASP.NET Core MVC), first version: Dashboard, Content manager (categories/questions/CSV import, Tamil + English fields), Users, Leaderboard control
 - [ ] Mobile app: login/signup against the API, store JWT in `expo-secure-store`, load data from API (cache offline)
 
 ### Phase 3: Paid levels / difficulty
@@ -58,14 +71,17 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - [ ] Admin panel: per category / subcategory / subject / difficulty / level -> `isPaid`, `price tier` (Play product id), `free preview count`
 - [ ] Backend: verify purchase tokens with the Google Play Developer API, store `Purchase`, return `unlocked` flags per user
 - [ ] App: lock icon + paywall screen, restore purchases
+- [ ] Store / Premium page: unlock levels, remove ads, purchase history, restore purchases
+- [ ] Admin: Paid content manager + purchases list
 - [ ] Needs a dev build (EAS), will not work in Expo Go
 
 ### Phase 4: Ads
 - [ ] AdMob account + app id; library `react-native-google-mobile-ads` (EAS dev build required)
 - [ ] Banner on Categories/Levels, interstitial after quiz summary (frequency-capped), optional rewarded ad "unlock one level"
-- [ ] Admin panel toggles: ads on/off, interstitial frequency, which screens
+- [ ] Admin panel Ads control: ads on/off, interstitial frequency, which screens
 - [ ] Paid users: no ads (optional, decide)
 - [ ] Use Google test ad IDs until the app is approved
+- [ ] Rewarded ad: watch to unlock one level or get a hint (appears on Store page too)
 
 ### Phase 5: Play Store release
 - [ ] Google Play Developer account (one-time fee, done by Barath)
@@ -73,7 +89,14 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - [ ] Privacy policy URL (required: ads + accounts + purchases), Data safety form, content rating
 - [ ] Account deletion option (Play policy for apps with accounts)
 - [ ] `eas build -p android --profile production` (AAB), upload to Internal testing -> Closed testing (new personal accounts must run a closed test with testers before production) -> Production
+- [ ] Exam packs content ready before launch: TNPSC (Group 1/2/4), TET, TRB, NEET, school boards. Content work, add as categories (Tamil + English). Start with 1-2 packs, add more after launch
+- [ ] Admin: Announcements, Question quality (reports, duplicates, draft/publish), Settings (force-update flag, maintenance mode), backup/export, audit log
 - [ ] Remove all `console.log` debug output, set versionCode via `autoIncrement`
+
+### Phase 6: After launch
+- [ ] Push notifications for the Daily Challenge (streak reminder)
+- [ ] Weekly tournaments / reset rewards, friends leaderboard
+- [ ] More exam packs from user feedback, analytics-driven content
 
 ## Things only Barath can do (I cannot do these)
 - Create Google Play Developer account, AdMob account, Play Console in-app products / merchant profile
@@ -91,7 +114,8 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - 2026-11-18: Phase 1 done. Auth: no hardcoded admin / demo buttons / mock Google; passwords salted-SHA-256 hashed (stop-gap until backend); session no longer stores secrets; legacy plain-text accounts upgrade on login. Dev-only test admin `admin@quiz.com` / `admin123` exists ONLY when `__DEV__` (Expo Go / dev build), never in release builds, so the Admin panel cannot be opened in a release APK until the Phase 2 backend has real admin login.
   Levels: Levels and Quiz now use the same question filter; levels unlock one after another; progress is stored per level (`markLevelPassed`), a difficulty completes only when all its levels are passed; summary has Next Level / Try Again (same level) / next difficulty (via Levels screen). A level is passed only when every question is correct (wrong answer restarts).
   Also: timeout handled in an effect (not in a state updater), proper CSV parser, all screens import from `utils/api.js`. Checks: eslint 0 errors, `expo export --platform android` bundles OK, CSV parser tested. NOT tested on a real device.
-- NEXT: Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
+- 2026-11-20: Redesign + Leaderboard merged to main (ee70bd3). Plan reorganised: Phase 1B (local pages) added, new pages placed in phases.
+- NEXT: Phase 1B (Settings first), then Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
 
 ## Redesign progress (branch `ui-redesign`)
 - New "Mayil" (peacock) palette in `utils/theme.js`: peacock blue-teal, lotus violet, jasmine white.
@@ -116,11 +140,12 @@ Pages, by priority:
 8. Question quality: reported questions, duplicate finder, draft/publish.
 9. Settings and audit: app version/force-update flag, maintenance mode, backup/export, admin action log.
 
-## More app pages worth adding (user side)
-- Daily Challenge (10 questions, streak counter): best retention feature.
-- Weekly/All-time leaderboard tabs (needs backend).
-- Achievements/Badges (first level, 7-day streak, category master).
-- Bookmarks and Wrong-answers review (revise mistakes).
-- Store / Premium page (paid levels, remove ads) in Phase 3.
-- Settings (language, sound, notifications, privacy policy, delete account: required for Play Store).
-- Competitive-exam packs for Tamil Nadu: TNPSC, TET, TRB, NEET, school boards (content, not code).
+## App pages summary (where each is scheduled)
+| Page | Phase |
+|---|---|
+| Home, Profile, Leaderboard (local) | done |
+| Settings, Wrong answers + Bookmarks, Daily Challenge, Achievements | 1B |
+| Global leaderboard (weekly/all-time), synced streaks and badges | 2 |
+| Store / Premium | 3 |
+| Rewarded-ad unlock | 4 |
+| Exam packs (TNPSC, TET, TRB, NEET) content | 5 (start earlier if content is ready) |
