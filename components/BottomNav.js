@@ -10,6 +10,7 @@ export default function BottomNav({ navigation, user, activeTab }) {
   const insets = useSafeAreaInsets();
   const homeActive = activeTab === "categories";
   const profileActive = activeTab === "profile";
+  const boardActive = activeTab === "leaderboard";
 
   return (
     <View style={[styles.bottomNavContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
@@ -25,6 +26,21 @@ export default function BottomNav({ navigation, user, activeTab }) {
         />
         <Text style={[styles.bottomNavText, homeActive && styles.activeBottomNavText]}>
           {t("navHome")}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.bottomNavTab}
+        onPress={() => navigation.navigate("Leaderboard", { user })}
+        accessibilityRole="button"
+      >
+        <Ionicons
+          name={boardActive ? "trophy" : "trophy-outline"}
+          size={24}
+          color={boardActive ? colors.primary : colors.muted}
+        />
+        <Text style={[styles.bottomNavText, boardActive && styles.activeBottomNavText]}>
+          {t("navLeaderboard")}
         </Text>
       </TouchableOpacity>
 

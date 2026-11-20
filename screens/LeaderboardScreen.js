@@ -1,0 +1,124 @@
+import React, { useCallback, useEffect, useState } from "react";
+import { View, Text, StyleSheet, FlatList, ActivityIndicator } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import Header from "../components/header";
+import BottomNav from "../components/BottomNav";
+import FadeInUp from "../components/FadeInUp";
+import { getLeaderboard } from "../utils/api";
+import { useLang } from "../utils/i18n";
+import { colors, fonts, shadow } from "../utils/theme";
+
+// Top 3 use peacock, violet and green (no gold/red palette)
+const PODIUM = [colors.accent, colors.primary, colors.success];
+
+export default function LeaderboardScreen({ navigation, route }) {
+  const { user } = route.params || {};
+  const { t } = useLang();
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setRows(await getLeaderboard());
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    load();
+    const unsubscribe = navigation.addListener("focus", load);
+    return unsubscribe;
+  }, [navigation, load]);
+
+  const mine = rows.find((r) => r.id === user?.id);
+
+  const renderItem = ({ item, index }) => {
+    const isMe = item.id === user?.id;
+    const top = item.rank <= 3;
+    return (
+      <FadeInUp index={Math.min(index, 8)} style={styles.rowWrap}>
+        <View style={[styles.row, isMe && styles.rowMe]}>
+          <View style={[styles.rankBadge, { backgroundColor: top ? PODIUM[item.rank - 1] : colors.tint }]}>
+            {top ? (
+              <Ionicons name="trophy" size={18} color="#FFFFFF" />
+            ) : (
+              <Text style={styles.rankText}>{item.rank}</Text>
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name} numberOfLines={1}>
+              {item.name}{isMe ? `  (${t("you")})` : ""}
+            </Text>
+            <Text style={styles.sub}>{t("levelsPassed", { n: item.levels })}</Text>
+          </View>
+          <Text style={styles.points}>{t("pointsLabel", { n: item.points })}</Text>
+        </View>
+      </FadeInUp>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      <Header title={t("leaderboard")} />
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={rows.filter((r) => r.points > 0)}
+          keyExtractor={(r) => String(r.id)}
+          renderItem={renderItem}
+          contentContainerStyle={{ paddingBottom: 24 }}
+          ListHeaderComponent={
+            <View style={styles.headerBox}>
+              {mine && mine.points > 0 ? (
+                <View style={styles.myCard}>
+                  <Text style={styles.myLabel}>{t("yourRank")}</Text>
+                  <Text style={styles.myRank}>#{mine.rank}</Text>
+                  <Text style={styles.myPoints}>{t("pointsLabel", { n: mine.points })}</Text>
+                </View>
+              ) : null}
+              <Text style={styles.formula}>{t("leaderboardSub")}</Text>
+              <Text style={styles.note}>{t("leaderboardNote")}</Text>
+            </View>
+          }
+          ListEmptyComponent={
+            <View style={styles.center}>
+              <Ionicons name="trophy-outline" size={52} color={colors.muted} />
+              <Text style={styles.emptyTitle}>{t("leaderboardEmpty")}</Text>
+              <Text style={styles.emptySub}>{t("leaderboardEmptySub")}</Text>
+            </View>
+          }
+        />
+      )}
+      <BottomNav navigation={navigation} user={user} activeTab="leaderboard" />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
+  center: { alignItems: "center", justifyContent: "center", paddingVertical: 60, paddingHorizontal: 24 },
+  headerBox: { padding: 16 },
+  myCard: {
+    backgroundColor: colors.primary, borderRadius: 24, padding: 20, alignItems: "center", marginBottom: 12, ...shadow,
+  },
+  myLabel: { color: colors.onPrimary, fontSize: 14 },
+  myRank: { color: "#FFFFFF", fontSize: 44, fontFamily: fonts.heading },
+  myPoints: { color: colors.onPrimary, fontSize: 16, fontWeight: "700" },
+  formula: { fontSize: 13, color: colors.muted, textAlign: "center", lineHeight: 20 },
+  note: { fontSize: 12, color: colors.muted, textAlign: "center", marginTop: 2 },
+  rowWrap: { paddingHorizontal: 16, marginBottom: 10 },
+  row: {
+    flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 18, padding: 14,
+    borderWidth: 2, borderColor: "transparent", ...shadow,
+  },
+  rowMe: { borderColor: colors.primary, backgroundColor: colors.tint },
+  rankBadge: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  rankText: { color: colors.primary, fontWeight: "800", fontSize: 15 },
+  name: { fontSize: 16, fontWeight: "700", color: colors.ink },
+  sub: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  points: { fontSize: 15, fontWeight: "800", color: colors.primary },
+  emptyTitle: { fontSize: 18, fontWeight: "700", color: colors.ink, marginTop: 12 },
+  emptySub: { fontSize: 14, color: colors.muted, marginTop: 6, textAlign: "center" },
+});

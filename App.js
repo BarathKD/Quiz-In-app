@@ -17,6 +17,7 @@ import LoginScreen from "./screens/LoginScreen";
 import LevelsScreen from "./screens/LevelsScreen";
 import QuizScreen from "./screens/QuizScreen";
 import QuizSummaryScreen from "./screens/QuizSummaryScreen";
+import LeaderboardScreen from "./screens/LeaderboardScreen";
 import SplashScreen from "./screens/SplashScreen";
 import { initStorageWithSample } from "./utils/api";
 
@@ -84,6 +85,7 @@ export default function App() {
             <Stack.Screen name="Levels" component={LevelsScreen} />
             <Stack.Screen name="Quiz" component={QuizScreen} />
             <Stack.Screen name="QuizSummary" component={QuizSummaryScreen} />
+            <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
             <Stack.Screen name="Admin" component={AdminScreen} />
           </Stack.Navigator>
         </NavigationContainer>

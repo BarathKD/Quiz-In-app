@@ -98,5 +98,29 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
   **Do NOT use yellow or red as brand colors** (TVK party colors). Red only for wrong answers/errors.
 - Tamil-first bilingual UI (`utils/i18n.js`, `useLang()`), Baloo Thambi 2 headings, fade/press/shake animations.
 - Done: Splash, Login, Categories, Subcategories, Subjects, Difficulty, Levels, Quiz, QuizSummary, header, bottom nav.
+- Leaderboard tab added (points = passed levels x 50 x difficulty weight 1/2/3; local accounts only until backend).
 - Not yet restyled: AdminScreen and components/admin/* (still old palette).
 - Test: `git fetch origin && git checkout ui-redesign && npm install && npx expo start --tunnel -c`
+
+
+## Admin UI plan (build with Phase 2 backend)
+Recommended: web admin panel (ASP.NET Core MVC) calling the same API; the in-app AdminScreen stays for quick edits.
+Pages, by priority:
+1. Dashboard: users, daily actives, quizzes taken, pass rate, top categories, ad and revenue summary.
+2. Content manager: categories, subcategories, subjects, questions (add/edit/delete, CSV/JSON import, Tamil + English fields, image upload, timer, background opacity).
+3. Paid content manager: price per level or difficulty, free vs paid toggle, Google Play product IDs, purchase list.
+4. Ads control: AdMob on/off, ad frequency, placements (banner, interstitial after quiz, rewarded to unlock), test-ad switch.
+5. Users: list, search, block/unblock, reset progress, purchases per user.
+6. Leaderboard control: reset weekly/monthly, hide users, adjust point weights.
+7. Announcements and daily challenge: push message text, featured quiz of the day.
+8. Question quality: reported questions, duplicate finder, draft/publish.
+9. Settings and audit: app version/force-update flag, maintenance mode, backup/export, admin action log.
+
+## More app pages worth adding (user side)
+- Daily Challenge (10 questions, streak counter): best retention feature.
+- Weekly/All-time leaderboard tabs (needs backend).
+- Achievements/Badges (first level, 7-day streak, category master).
+- Bookmarks and Wrong-answers review (revise mistakes).
+- Store / Premium page (paid levels, remove ads) in Phase 3.
+- Settings (language, sound, notifications, privacy policy, delete account: required for Play Store).
+- Competitive-exam packs for Tamil Nadu: TNPSC, TET, TRB, NEET, school boards (content, not code).

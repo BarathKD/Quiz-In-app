@@ -954,6 +954,36 @@ export const markLevelPassed = async (userId, category, subcategory, subject, di
   }
 };
 
+// Points: each passed level = 50 questions, weighted by difficulty (easy 1x, medium 2x, hard 3x).
+// Local-only for now: ranks the accounts on this device. Phase 2 moves this to the backend.
+const DIFFICULTY_WEIGHT = { easy: 1, medium: 2, hard: 3 };
+
+export const getLeaderboard = async () => {
+  try {
+    const users = await getAllUsers();
+    const rows = [];
+    for (const u of users) {
+      if (u.isAdmin) continue;
+      const progress = await getUserProgress(u.id);
+      let levels = 0;
+      let points = 0;
+      for (const entry of Object.values(progress)) {
+        for (const [diff, passed] of Object.entries(entry.levels || {})) {
+          const count = Object.values(passed).filter(Boolean).length;
+          levels += count;
+          points += count * QUESTIONS_PER_LEVEL * (DIFFICULTY_WEIGHT[diff] || 1);
+        }
+      }
+      rows.push({ id: u.id, name: String(u.email || "user").split("@")[0], levels, points });
+    }
+    rows.sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
+    return rows.map((r, i) => ({ ...r, rank: i + 1 }));
+  } catch (error) {
+    console.error("Error building leaderboard:", error);
+    return [];
+  }
+};
+
 export const initStorageWithSample = async (forceReset = false) => {
   try {
     if (forceReset) {
