@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     padding: 16,
-    backgroundColor: "#4F46E5", // Indigo-600
+    backgroundColor: "#084A5A", // Indigo-600
     borderRadius: 12
   },
   categoryContent: {
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     padding: 12,
-    backgroundColor: "#6366F1" // Indigo-500
+    backgroundColor: "#0C6478" // Indigo-500
   },
   subcategoryContent: {
     padding: 10,
@@ -411,10 +411,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#C7D2FE"
+    borderColor: "#9FCBD5"
   },
   loadMoreText: {
-    color: "#4F46E5",
+    color: "#084A5A",
     fontWeight: "700",
     fontSize: 14
   },

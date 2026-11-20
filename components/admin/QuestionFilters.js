@@ -202,8 +202,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   selectedOption: {
-    backgroundColor: "#EEF2FF",
-    borderColor: "#6366F1"
+    backgroundColor: "#DCEEF2",
+    borderColor: "#0C6478"
   },
   optionText: {
     fontSize: 13,
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     fontWeight: "500"
   },
   selectedText: {
-    color: "#4F46E5",
+    color: "#084A5A",
     fontWeight: "700"
   },
   actions: {
@@ -221,11 +221,11 @@ const styles = StyleSheet.create({
   applyBtn: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#0C6478",
     borderRadius: 10,
     marginRight: 8,
     alignItems: "center",
-    shadowColor: "#6366F1",
+    shadowColor: "#0C6478",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
   clearBtn: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F4F9F8",
     borderRadius: 10,
     alignItems: "center",
     borderWidth: 1,
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#e3f2fd",
     borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: "#6366F1"
+    borderLeftColor: "#0C6478"
   },
   summaryTitle: {
     fontSize: 12,

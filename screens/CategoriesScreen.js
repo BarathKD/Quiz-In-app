@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, Alert, StyleSheet } from "react-native";
+import { View, Text, FlatList, Alert, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Header from "../components/header";
@@ -7,7 +7,8 @@ import BottomNav from "../components/BottomNav";
 import LanguageToggle from "../components/LanguageToggle";
 import FadeInUp from "../components/FadeInUp";
 import PressableScale from "../components/PressableScale";
-import { getAllCategories, logoutUserSession } from "../utils/api";
+import MenuRow from "../components/MenuRow";
+import { getAllCategories, logoutUserSession, getDailyStatus, getMistakeIds, getBookmarkIds } from "../utils/api";
 import { useLang } from "../utils/i18n";
 import { colors, fonts, shadow } from "../utils/theme";
 
@@ -18,8 +19,23 @@ export default function CategoriesScreen({ navigation, route }) {
   const [categories, setCategories] = useState([]);
   const user = route?.params?.user;
 
+  const [daily, setDaily] = useState(null);
+  const [counts, setCounts] = useState({ mistakes: 0, bookmarks: 0 });
+
+  const loadExtras = async () => {
+    if (!user?.id) return;
+    setDaily(await getDailyStatus(user.id));
+    setCounts({
+      mistakes: (await getMistakeIds(user.id)).length,
+      bookmarks: (await getBookmarkIds(user.id)).length,
+    });
+  };
+
   useEffect(() => {
     loadCategories();
+    loadExtras();
+    const unsubscribe = navigation.addListener("focus", loadExtras);
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -73,6 +89,25 @@ export default function CategoriesScreen({ navigation, route }) {
           ListHeaderComponent={
             <View>
               {renderBanner()}
+              {user?.id ? (
+                <FadeInUp index={0} style={styles.dailyWrap}>
+                  <PressableScale
+                    style={styles.dailyCard}
+                    onPress={() => navigation.navigate("DailyChallenge", { user })}
+                  >
+                    <View style={styles.dailyIcon}>
+                      <Ionicons name="flame" size={28} color="#FFFFFF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.dailyTitle}>{t("dailyChallenge")}</Text>
+                      <Text style={styles.dailySub}>
+                        {daily?.doneToday ? t("dailyDone") : t("dailySub")}  •  {t("dailyStreak", { n: daily?.streak || 0 })}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
+                  </PressableScale>
+                </FadeInUp>
+              ) : null}
               <Text style={styles.sectionTitle}>{t("categories")}</Text>
             </View>
           }
@@ -110,7 +145,7 @@ export default function CategoriesScreen({ navigation, route }) {
       ) : (
         <View style={{ flex: 1 }}>
           <Header title={t("profile")} />
-          <View style={styles.userProfileContainer}>
+          <ScrollView contentContainerStyle={styles.userProfileContainer}>
             <View style={styles.profileCard}>
               <View style={styles.avatarCircle}>
                 <Text style={styles.avatarText}>{user?.email?.charAt(0).toUpperCase() || 'U'}</Text>
@@ -119,23 +154,18 @@ export default function CategoriesScreen({ navigation, route }) {
               <Text style={styles.profileRole}>{t("student")}</Text>
             </View>
 
-            <View style={styles.settingRow}>
-              <Ionicons name="language-outline" size={24} color={colors.primary} />
-              <Text style={styles.settingTitle}>{t("language")}</Text>
-              <LanguageToggle variant="light" />
-            </View>
-
-            <PressableScale style={styles.logoutCardBtn} onPress={handleLogout}>
-              <View style={styles.logoutIconContainer}>
-                <Ionicons name="log-out-outline" size={24} color={colors.danger} />
-              </View>
-              <View style={styles.logoutTextContainer}>
-                <Text style={styles.logoutCardTitle}>{t("logout")}</Text>
-                <Text style={styles.logoutCardSub}>{t("logoutSub")}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.muted} />
-            </PressableScale>
-          </View>
+            <MenuRow icon="flame-outline" title={t("dailyChallenge")} subtitle={t("dailySub")}
+              onPress={() => navigation.navigate("DailyChallenge", { user })} />
+            <MenuRow icon="ribbon-outline" title={t("achievements")}
+              onPress={() => navigation.navigate("Achievements", { user })} />
+            <MenuRow icon="alert-circle-outline" title={t("mistakes")} subtitle={t("mistakesSub")} badge={counts.mistakes}
+              onPress={() => navigation.navigate("Review", { user, mode: "mistakes" })} />
+            <MenuRow icon="star-outline" title={t("bookmarks")} subtitle={t("bookmarksSub")} badge={counts.bookmarks}
+              onPress={() => navigation.navigate("Review", { user, mode: "bookmarks" })} />
+            <MenuRow icon="settings-outline" title={t("settings")}
+              onPress={() => navigation.navigate("Settings", { user })} />
+            <MenuRow icon="log-out-outline" title={t("logout")} subtitle={t("logoutSub")} onPress={handleLogout} danger />
+          </ScrollView>
         </View>
       )}
 
@@ -250,8 +280,18 @@ const styles = StyleSheet.create({
   },
   userProfileContainer: {
     padding: 16,
-    flex: 1,
+    paddingBottom: 28,
   },
+  dailyWrap: { paddingHorizontal: 20, marginTop: 18 },
+  dailyCard: {
+    backgroundColor: colors.accent, borderRadius: 18, padding: 14, flexDirection: "row", alignItems: "center", ...shadow,
+  },
+  dailyIcon: {
+    width: 48, height: 48, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.22)",
+    alignItems: "center", justifyContent: "center", marginRight: 14,
+  },
+  dailyTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "800" },
+  dailySub: { color: "#FFFFFF", opacity: 0.92, fontSize: 13, lineHeight: 20 },
   profileCard: {
     backgroundColor: colors.surface,
     borderRadius: 18,

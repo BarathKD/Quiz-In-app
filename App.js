@@ -18,6 +18,10 @@ import LevelsScreen from "./screens/LevelsScreen";
 import QuizScreen from "./screens/QuizScreen";
 import QuizSummaryScreen from "./screens/QuizSummaryScreen";
 import LeaderboardScreen from "./screens/LeaderboardScreen";
+import SettingsScreen from "./screens/SettingsScreen";
+import DailyChallengeScreen from "./screens/DailyChallengeScreen";
+import ReviewScreen from "./screens/ReviewScreen";
+import AchievementsScreen from "./screens/AchievementsScreen";
 import SplashScreen from "./screens/SplashScreen";
 import { initStorageWithSample } from "./utils/api";
 
@@ -86,6 +90,10 @@ export default function App() {
             <Stack.Screen name="Quiz" component={QuizScreen} />
             <Stack.Screen name="QuizSummary" component={QuizSummaryScreen} />
             <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="DailyChallenge" component={DailyChallengeScreen} />
+            <Stack.Screen name="Review" component={ReviewScreen} />
+            <Stack.Screen name="Achievements" component={AchievementsScreen} />
             <Stack.Screen name="Admin" component={AdminScreen} />
           </Stack.Navigator>
         </NavigationContainer>

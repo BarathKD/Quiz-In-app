@@ -5,7 +5,11 @@ import Header from "../components/header";
 import PressableScale from "../components/PressableScale";
 import { useLang } from "../utils/i18n";
 import { colors, fonts, shadow } from "../utils/theme";
-import { getAllQuestions, markLevelPassed, getCategoryByName, getCategoryImage, QUESTIONS_PER_LEVEL } from "../utils/api";
+import {
+  getAllQuestions, markLevelPassed, getCategoryByName, getCategoryImage, QUESTIONS_PER_LEVEL,
+  getDailyQuestions, getMistakeIds, getBookmarkIds, getQuestionsByIds, toggleBookmark,
+  recordAnswer, completeDaily,
+} from "../utils/api";
 
 /** Utility shuffle (Fisher-Yates) */
 function shuffleArray(arr) {
@@ -18,7 +22,10 @@ function shuffleArray(arr) {
 }
 
 export default function QuizScreen({ navigation, route }) {
-  const { category, subcategory, difficulty, user, subject, levelStart, levelEnd, levelNumber } = route.params;
+  // mode: undefined = normal level quiz; "daily" | "mistakes" | "bookmarks" = custom practice
+  const { category, subcategory, difficulty, user, subject, levelStart, levelEnd, levelNumber, mode } = route.params;
+  const isCustom = !!mode;
+  const [bookmarked, setBookmarked] = useState(false);
   const { t } = useLang();
   const shake = useRef(new Animated.Value(0)).current;
   const [pool, setPool] = useState([]);
@@ -43,7 +50,7 @@ export default function QuizScreen({ navigation, route }) {
 
   useEffect(() => {
     loadQuestions();
-    loadCategoryBackground();
+    if (!isCustom) loadCategoryBackground();
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -104,6 +111,32 @@ export default function QuizScreen({ navigation, route }) {
   const loadQuestions = async () => {
     try {
       setIsLoading(true);
+
+      if (isCustom) {
+        let list = [];
+        if (mode === "daily") {
+          list = await getDailyQuestions();
+          setTotalTime(600);
+          setTimeLeft(600); // 10 minutes for the daily challenge
+        } else {
+          const ids = mode === "mistakes" ? await getMistakeIds(user?.id) : await getBookmarkIds(user?.id);
+          list = shuffleArray(await getQuestionsByIds(ids)); // practice is untimed
+        }
+        if (list.length === 0) {
+          Alert.alert(t("comingSoon"), t("dailyNoQuestions"), [
+            { text: t("lockedOk"), onPress: () => navigation.goBack() },
+          ]);
+          return;
+        }
+        setTotalAvailableQuestions(list.length);
+        setPool(list);
+        setQuestions(list);
+        setIndex(0);
+        setAnswers({});
+        setScore(0);
+        return;
+      }
+
       const all = await getAllQuestions();
       
       console.log("=== QUIZ LOADING DEBUG ===");
@@ -198,12 +231,44 @@ export default function QuizScreen({ navigation, route }) {
 
   const q = questions[index];
 
+  useEffect(() => {
+    let active = true;
+    setBookmarked(false);
+    if (q?.id && user?.id) {
+      getBookmarkIds(user.id).then((ids) => active && setBookmarked(ids.includes(q.id)));
+    }
+    return () => { active = false; };
+  }, [q?.id, user?.id]);
+
+  const handleBookmark = async () => {
+    if (!user?.id || !q) return;
+    setBookmarked(await toggleBookmark(user.id, q.id));
+  };
+
   const handleQuizComplete = async (finalScore) => {
     if (timerRef.current) clearInterval(timerRef.current);
 
     // Any wrong answer restarts the quiz, so a level counts as passed
     // only when every question in it was answered correctly.
     const passed = questions.length > 0 && finalScore === questions.length;
+
+    if (isCustom) {
+      // Daily streak only counts when every question was answered (no skipping to farm streaks)
+      if (mode === "daily" && user?.id && Object.keys(answers).length >= questions.length) {
+        try { await completeDaily(user.id, finalScore, questions.length); } catch (e) { console.error(e); }
+      }
+      navigation.replace("QuizSummary", {
+        mode,
+        questions,
+        answers: { ...answers, [q?.id]: selectedAnswer },
+        score: finalScore,
+        passed,
+        user,
+        totalQuestions: questions.length,
+      });
+      return;
+    }
+
     const totalLevels = Math.max(1, Math.ceil(totalAvailableQuestions / QUESTIONS_PER_LEVEL));
     let difficultyCompleted = false;
 
@@ -318,6 +383,8 @@ export default function QuizScreen({ navigation, route }) {
     const correct = q.correctOptionId;
     const isAnswerCorrect = optId === correct;
 
+    recordAnswer(user?.id, q.id, isAnswerCorrect, mode !== "mistakes" && mode !== "bookmarks");
+
     setSelectedAnswer(optId);
     setIsCorrect(isAnswerCorrect);
     setAnswers(prev => ({ ...prev, [q.id]: optId }));
@@ -334,8 +401,8 @@ export default function QuizScreen({ navigation, route }) {
   const handleExplanationClose = () => {
     setShowExplanation(false);
 
-    if (isCorrect) {
-      // Correct answer - go to next question or complete quiz
+    if (isCorrect || isCustom) {
+      // Correct answer (or any answer in daily/practice mode) - next question or finish
       if (index < questions.length - 1) {
         setIndex(i => i + 1);
         setSelectedAnswer(null);
@@ -389,9 +456,18 @@ export default function QuizScreen({ navigation, route }) {
   const mainContent = (
     <View style={styles.container}>
       <View style={styles.headerInfo}>
-        <Text style={styles.questionCounter}>
-          {t("questionOf", { a: index + 1, b: questions.length })}
-        </Text>
+        <View style={styles.counterRow}>
+          <Text style={styles.questionCounter}>
+            {t("questionOf", { a: index + 1, b: questions.length })}
+          </Text>
+          <PressableScale onPress={handleBookmark} style={styles.starBtn} accessibilityLabel={t("bookmarks")}>
+            <Ionicons
+              name={bookmarked ? "star" : "star-outline"}
+              size={24}
+              color={bookmarked ? colors.accent : colors.muted}
+            />
+          </PressableScale>
+        </View>
         {!showExplanation && timeLeft !== null && (
           <View style={[styles.timerPill, { backgroundColor: timeBg }]}>
             <Ionicons name="time-outline" size={16} color={timeColor} />
@@ -459,7 +535,7 @@ export default function QuizScreen({ navigation, route }) {
             {t("accuracyLabel", { n: index > 0 ? Math.round((score / (index + 1)) * 100) : 0 })}
           </Text>
         </View>
-        <Text style={styles.hintText}>{t("oneWrongHint")}</Text>
+        {!isCustom ? <Text style={styles.hintText}>{t("oneWrongHint")}</Text> : mode === "daily" ? <Text style={styles.hintText}>{t("dailyAllNote")}</Text> : null}
 
         {!showExplanation && (
           <PressableScale onPress={handleFinish} style={styles.finishButton}>
@@ -476,7 +552,7 @@ export default function QuizScreen({ navigation, route }) {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Header
-        title={`${subcategory}${subject ? ` - ${subject}` : ''} | ${difficulty}${levelNumber ? ` | L${levelNumber}` : ''}`}
+        title={isCustom ? t(mode === "daily" ? "dailyChallenge" : mode) : `${subcategory}${subject ? ` - ${subject}` : ''} | ${difficulty}${levelNumber ? ` | L${levelNumber}` : ''}`}
         onBack={() => {
           if (timerRef.current) clearInterval(timerRef.current);
           navigation.goBack();
@@ -533,11 +609,11 @@ export default function QuizScreen({ navigation, route }) {
             )}
 
             <PressableScale
-              style={[styles.continueButton, { backgroundColor: isCorrect ? colors.primary : colors.danger }]}
+              style={[styles.continueButton, { backgroundColor: isCorrect || isCustom ? colors.primary : colors.danger }]}
               onPress={handleExplanationClose}
             >
               <Text style={styles.continueButtonText}>
-                {isCorrect ? (index < questions.length - 1 ? t("nextQuestion") : t("completeQuiz")) : t("tryAgain")}
+                {isCorrect || isCustom ? (index < questions.length - 1 ? t("nextQuestion") : t("completeQuiz")) : t("tryAgain")}
               </Text>
             </PressableScale>
           </View>
@@ -562,6 +638,8 @@ const styles = StyleSheet.create({
     flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12, zIndex: 2,
   },
   questionCounter: { fontSize: 16, fontWeight: "700", color: colors.ink },
+  counterRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  starBtn: { padding: 4 },
   timerPill: {
     flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
   },

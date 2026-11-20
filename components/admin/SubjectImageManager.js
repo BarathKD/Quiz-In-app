@@ -304,7 +304,7 @@ export default function SubjectImageManager({ category, onClose }) {
                 maximumValue={0.8}
                 value={opacity}
                 onValueChange={setOpacity}
-                minimumTrackTintColor="#6366F1"
+                minimumTrackTintColor="#0C6478"
                 maximumTrackTintColor="#d3d3d3"
               />
               <View style={styles.opacityLabels}>
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     marginRight: 8
   },
   selectedOption: {
-    backgroundColor: "#6366F1"
+    backgroundColor: "#0C6478"
   },
   optionText: {
     fontSize: 14,
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
   },
   pickBtn: {
     flex: 1,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#0C6478",
     padding: 14,
     borderRadius: 8,
     alignItems: "center",
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     flex: 1,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#0C6478",
     padding: 14,
     borderRadius: 8,
     alignItems: "center"

@@ -1,10 +1,10 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Header from "../components/header";
 import FadeInUp from "../components/FadeInUp";
 import PressableScale from "../components/PressableScale";
-import { QUESTIONS_PER_LEVEL } from "../utils/api";
+import { QUESTIONS_PER_LEVEL, getDailyStatus } from "../utils/api";
 import { useLang } from "../utils/i18n";
 import { colors, fonts, shadow } from "../utils/theme";
 
@@ -28,7 +28,14 @@ export default function QuizSummaryScreen({ route, navigation }) {
     levelNumber,
     totalLevels = 1,
     difficultyCompleted = false,
+    mode,
   } = params;
+  const isCustom = !!mode;
+  const [daily, setDaily] = useState(null);
+
+  useEffect(() => {
+    if (mode === "daily" && user?.id) getDailyStatus(user.id).then(setDaily);
+  }, [mode, user?.id]);
 
   const actualTotalQuestions = totalQuestions || questions.length || 0;
   const percentage = actualTotalQuestions > 0 ? Math.round((score / actualTotalQuestions) * 100) : 0;
@@ -39,7 +46,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
       routes: [{ name: user ? "Categories" : "Login", params: user ? { user } : {} }],
     });
 
-  if (!category || !subcategory || !difficulty) {
+  if (!isCustom && (!category || !subcategory || !difficulty)) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>{t("invalidQuiz")}</Text>
@@ -90,7 +97,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <Header title={t("quizComplete")} onBack={goHome} />
+      <Header title={isCustom ? t(mode === "daily" ? "dailyChallenge" : "practiceTitle") : t("quizComplete")} onBack={goHome} />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <FadeInUp index={0}>
@@ -114,9 +121,14 @@ export default function QuizSummaryScreen({ route, navigation }) {
         <FadeInUp index={1}>
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t("quizDetails")}</Text>
-            <InfoRow label={t("categoryLabel")} value={category} />
-            <InfoRow label={t("subjectLabel")} value={`${subcategory}${subject ? ` - ${subject}` : ""}`} />
-            <InfoRow label={t("difficultyLabel")} value={t(DIFF_KEYS[difficulty] || "difficultyEasy")} accent />
+            {isCustom ? null : (
+              <>
+                <InfoRow label={t("categoryLabel")} value={category} />
+                <InfoRow label={t("subjectLabel")} value={`${subcategory}${subject ? ` - ${subject}` : ""}`} />
+                <InfoRow label={t("difficultyLabel")} value={t(DIFF_KEYS[difficulty] || "difficultyEasy")} accent />
+              </>
+            )}
+            {daily ? <InfoRow label={t("dailyChallenge")} value={t("dailyStreak", { n: daily.streak })} accent /> : null}
             <InfoRow label={t("answeredLabel")} value={t("correctOutOf", { a: score, b: actualTotalQuestions })} />
           </View>
         </FadeInUp>
@@ -137,10 +149,12 @@ export default function QuizSummaryScreen({ route, navigation }) {
 
         <FadeInUp index={3}>
           <View style={styles.actions}>
-            <PressableScale style={styles.primaryBtn} onPress={handleRetry}>
-              <Ionicons name="refresh" size={20} color="#FFFFFF" />
-              <Text style={styles.primaryBtnText}>{t("tryAgain")}</Text>
-            </PressableScale>
+            {!isCustom && (
+              <PressableScale style={styles.primaryBtn} onPress={handleRetry}>
+                <Ionicons name="refresh" size={20} color="#FFFFFF" />
+                <Text style={styles.primaryBtnText}>{t("tryAgain")}</Text>
+              </PressableScale>
+            )}
 
             {passed && hasNextLevel && (
               <PressableScale style={styles.accentBtn} onPress={handleNextLevel}>
@@ -163,6 +177,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
           </View>
         </FadeInUp>
 
+        {!isCustom && (
         <FadeInUp index={4}>
           <View style={styles.tipsCard}>
             <View style={styles.tipsHeader}>
@@ -177,6 +192,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
             )}
           </View>
         </FadeInUp>
+        )}
         <View style={{ height: 24 }} />
       </ScrollView>
     </View>

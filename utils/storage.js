@@ -984,6 +984,198 @@ export const getLeaderboard = async () => {
   }
 };
 
+// ---------- Phase 1B: per-user extras (mistakes, bookmarks, daily streak, stats, badges) ----------
+// All stored per user id so each account on the device has its own data.
+const userKey = (name, userId) => `quiz_${name}_${userId}`;
+
+const readJson = async (key, fallback) => {
+  try {
+    const data = await AsyncStorage.getItem(key);
+    return data ? JSON.parse(data) : fallback;
+  } catch (error) {
+    console.error("Error reading", key, error);
+    return fallback;
+  }
+};
+
+const writeJson = (key, value) => AsyncStorage.setItem(key, JSON.stringify(value));
+
+export const getQuestionsByIds = async (ids) => {
+  const all = await getAllQuestions();
+  const wanted = new Set(ids);
+  return all.filter((q) => wanted.has(q.id));
+};
+
+// Mistakes: question ids the user answered wrong; removed again when answered correctly.
+export const getMistakeIds = (userId) => readJson(userKey("mistakes", userId), []);
+
+// Bookmarks: question ids the user starred.
+export const getBookmarkIds = (userId) => readJson(userKey("bookmarks", userId), []);
+
+export const toggleBookmark = async (userId, questionId) => {
+  const ids = await getBookmarkIds(userId);
+  const has = ids.includes(questionId);
+  const next = has ? ids.filter((id) => id !== questionId) : [...ids, questionId];
+  await writeJson(userKey("bookmarks", userId), next);
+  return !has;
+};
+
+export const removeBookmark = async (userId, questionId) => {
+  const ids = await getBookmarkIds(userId);
+  await writeJson(userKey("bookmarks", userId), ids.filter((id) => id !== questionId));
+};
+
+export const removeMistake = async (userId, questionId) => {
+  const ids = await getMistakeIds(userId);
+  await writeJson(userKey("mistakes", userId), ids.filter((id) => id !== questionId));
+};
+
+// Record one answer. Updates the mistakes list; stats only count when countStats is true
+// (so practising old mistakes cannot farm the "correct answers" badges).
+export const recordAnswer = async (userId, questionId, correct, countStats = true) => {
+  if (!userId) return;
+  try {
+    const mistakes = await getMistakeIds(userId);
+    if (!correct && !mistakes.includes(questionId)) {
+      await writeJson(userKey("mistakes", userId), [...mistakes, questionId]);
+    } else if (correct && mistakes.includes(questionId)) {
+      await writeJson(userKey("mistakes", userId), mistakes.filter((id) => id !== questionId));
+    }
+    if (countStats) {
+      const stats = await readJson(userKey("stats", userId), { answered: 0, correct: 0 });
+      stats.answered += 1;
+      if (correct) stats.correct += 1;
+      await writeJson(userKey("stats", userId), stats);
+    }
+  } catch (error) {
+    console.error("Error recording answer:", error);
+  }
+};
+
+export const getUserStats = (userId) => readJson(userKey("stats", userId), { answered: 0, correct: 0 });
+
+// ----- Daily challenge -----
+export const DAILY_QUESTION_COUNT = 10;
+
+const dateKey = (d = new Date()) => {
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+};
+
+const yesterdayKey = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return dateKey(d);
+};
+
+// Same 10 questions for everyone on a given day (seeded shuffle by date).
+const seededRandom = (seedStr) => {
+  let h = 1779033703 ^ seedStr.length;
+  for (let i = 0; i < seedStr.length; i++) {
+    h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  let a = h >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+export const getDailyQuestions = async () => {
+  const all = (await getAllQuestions()).filter((q) => q.options && q.options.length > 1);
+  const rand = seededRandom(dateKey());
+  const arr = all.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.slice(0, DAILY_QUESTION_COUNT);
+};
+
+export const getDailyStatus = async (userId) => {
+  const d = await readJson(userKey("daily", userId), { lastDate: null, streak: 0, best: 0, history: [] });
+  const today = dateKey();
+  const alive = d.lastDate === today || d.lastDate === yesterdayKey();
+  return {
+    streak: alive ? d.streak : 0,
+    best: d.best || 0,
+    doneToday: d.lastDate === today,
+    lastScore: d.lastScore ?? null,
+    history: d.history || [],
+  };
+};
+
+export const completeDaily = async (userId, score, total) => {
+  const d = await readJson(userKey("daily", userId), { lastDate: null, streak: 0, best: 0, history: [] });
+  const today = dateKey();
+  if (d.lastDate === today) return getDailyStatus(userId);
+  d.streak = d.lastDate === yesterdayKey() ? d.streak + 1 : 1;
+  d.best = Math.max(d.best || 0, d.streak);
+  d.lastDate = today;
+  d.lastScore = `${score}/${total}`;
+  d.history = [...(d.history || []), today].slice(-60);
+  await writeJson(userKey("daily", userId), d);
+  return getDailyStatus(userId);
+};
+
+// ----- Achievements (computed, nothing extra stored) -----
+export const getAchievements = async (userId) => {
+  const progress = await getUserProgress(userId);
+  const stats = await getUserStats(userId);
+  const daily = await getDailyStatus(userId);
+
+  let levelsPassed = 0;
+  let hardPassed = 0;
+  let masterCount = 0;
+  for (const entry of Object.values(progress)) {
+    for (const [diff, passed] of Object.entries(entry.levels || {})) {
+      const n = Object.values(passed).filter(Boolean).length;
+      levelsPassed += n;
+      if (diff === "hard") hardPassed += n;
+    }
+    if (entry.easy && entry.medium && entry.hard) masterCount += 1;
+  }
+
+  const defs = [
+    { id: "firstLevel", icon: "flag", value: levelsPassed, target: 1 },
+    { id: "levels10", icon: "layers", value: levelsPassed, target: 10 },
+    { id: "hardHero", icon: "flame", value: hardPassed, target: 1 },
+    { id: "master", icon: "ribbon", value: masterCount, target: 1 },
+    { id: "streak3", icon: "calendar", value: daily.best, target: 3 },
+    { id: "streak7", icon: "calendar-number", value: daily.best, target: 7 },
+    { id: "correct100", icon: "checkmark-done", value: stats.correct, target: 100 },
+    { id: "correct500", icon: "trophy", value: stats.correct, target: 500 },
+  ];
+  return defs.map((d) => ({ ...d, value: Math.min(d.value, d.target), unlocked: d.value >= d.target }));
+};
+
+// ----- Delete account (Play Store requirement): wipes this user's local data -----
+export const deleteUserAccount = async (userId) => {
+  try {
+    const users = await getAllUsers();
+    const target = users.find((u) => u.id === userId);
+    if (!target || target.isAdmin) return false;
+    await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users.filter((u) => u.id !== userId)));
+    await AsyncStorage.multiRemove([
+      `${PROGRESS_KEY}_${userId}`,
+      userKey("mistakes", userId),
+      userKey("bookmarks", userId),
+      userKey("stats", userId),
+      userKey("daily", userId),
+      SESSION_KEY,
+    ]);
+    return true;
+  } catch (error) {
+    console.error("Error deleting account:", error);
+    return false;
+  }
+};
+
 export const initStorageWithSample = async (forceReset = false) => {
   try {
     if (forceReset) {

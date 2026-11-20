@@ -48,11 +48,11 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 ### Phase 1B: New look + local-only pages (no backend needed, works now)
 - [x] Redesign: "Mayil" peacock palette (no yellow/red brand colors), Tamil-first + English, animations (branch merged to main)
 - [x] Leaderboard tab (points = passed levels x 50 x difficulty weight; this device's accounts only)
-- [ ] Settings page: language, sound on/off, privacy policy link, about/version, logout, delete account (local data wipe now; server delete in Phase 2). Needed for Play Store.
-- [ ] Wrong-answers review + Bookmarks: save missed/starred questions per user, "practice my mistakes" quiz
-- [ ] Daily Challenge: 10 random questions per day, streak counter, "done today" state (streak stored locally for now)
-- [ ] Achievements / Badges: first level, 7-day streak, category master, 100 correct. Computed from progress, shown on Profile
-- [ ] Restyle AdminScreen + components/admin to the Mayil theme
+- [x] Settings page: language, privacy policy link, about/version, logout, delete account (local data wipe now; server delete in Phase 2). Sound toggle dropped: the app has no sounds yet. **TODO Barath: host a privacy policy page and paste its URL in `utils/config.js` (`PRIVACY_POLICY_URL`).**
+- [x] Wrong-answers review + Bookmarks (star in quiz, lists under Profile): save missed/starred questions per user, "practice my mistakes" quiz
+- [x] Daily Challenge (same 10 questions for everyone each day, 10 min timer, streak counts only if all answered): 10 random questions per day, streak counter, "done today" state (streak stored locally for now)
+- [x] Achievements / Badges (8 badges): first level, 7-day streak, category master, 100 correct. Computed from progress, shown on Profile
+- [x] Restyle AdminScreen + components/admin to the Mayil theme
 
 ### Phase 2: Backend (ASP.NET Core Web API + EF Core + PostgreSQL or SQL Server)
 - [ ] Create `QuizIn.Api` project in a separate repo (or `/backend` folder)
@@ -115,7 +115,8 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
   Levels: Levels and Quiz now use the same question filter; levels unlock one after another; progress is stored per level (`markLevelPassed`), a difficulty completes only when all its levels are passed; summary has Next Level / Try Again (same level) / next difficulty (via Levels screen). A level is passed only when every question is correct (wrong answer restarts).
   Also: timeout handled in an effect (not in a state updater), proper CSV parser, all screens import from `utils/api.js`. Checks: eslint 0 errors, `expo export --platform android` bundles OK, CSV parser tested. NOT tested on a real device.
 - 2026-11-20: Redesign + Leaderboard merged to main (ee70bd3). Plan reorganised: Phase 1B (local pages) added, new pages placed in phases.
-- NEXT: Phase 1B (Settings first), then Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
+- 2026-11-20: Phase 1B built (Settings, Daily Challenge, Mistakes, Bookmarks, Achievements, admin recolor). Storage logic tested with mocked AsyncStorage; lint 0 errors; bundle OK; NOT tested on a device.
+- NEXT: test Phase 1B on phone, then Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
 
 ## Redesign progress (branch `ui-redesign`)
 - New "Mayil" (peacock) palette in `utils/theme.js`: peacock blue-teal, lotus violet, jasmine white.

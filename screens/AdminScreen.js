@@ -1094,7 +1094,7 @@ export default function AdminScreen({ navigation, route }) {
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.btn, { backgroundColor: "#6366F1", marginTop: 8 }]} 
+              style={[styles.btn, { backgroundColor: "#0C6478", marginTop: 8 }]} 
               onPress={() => setImportModalVisible(true)}
             >
               <Text style={styles.btnText}>Bulk Import Questions</Text>
@@ -1164,7 +1164,7 @@ export default function AdminScreen({ navigation, route }) {
           style={styles.bottomNavTab}
           onPress={() => setActiveTab("categories")}
         >
-          <Ionicons name="folder" size={24} color={activeTab === "categories" ? "#6366F1" : "#888"} />
+          <Ionicons name="folder" size={24} color={activeTab === "categories" ? "#0C6478" : "#888"} />
           <Text style={[styles.bottomNavText, activeTab === "categories" && styles.activeBottomNavText]}>
             Categories
           </Text>
@@ -1173,7 +1173,7 @@ export default function AdminScreen({ navigation, route }) {
           style={styles.bottomNavTab}
           onPress={() => setActiveTab("questions")}
         >
-          <Ionicons name="help-circle" size={24} color={activeTab === "questions" ? "#6366F1" : "#888"} />
+          <Ionicons name="help-circle" size={24} color={activeTab === "questions" ? "#0C6478" : "#888"} />
           <Text style={[styles.bottomNavText, activeTab === "questions" && styles.activeBottomNavText]}>
             Questions
           </Text>
@@ -1182,7 +1182,7 @@ export default function AdminScreen({ navigation, route }) {
           style={styles.bottomNavTab}
           onPress={() => setActiveTab("admin")}
         >
-          <Ionicons name="person" size={24} color={activeTab === "admin" ? "#6366F1" : "#888"} />
+          <Ionicons name="person" size={24} color={activeTab === "admin" ? "#0C6478" : "#888"} />
           <Text style={[styles.bottomNavText, activeTab === "admin" && styles.activeBottomNavText]}>
             Admin
           </Text>
@@ -1520,7 +1520,7 @@ export default function AdminScreen({ navigation, route }) {
             
             <View style={styles.csvFileSection}>
               <TouchableOpacity 
-                style={[styles.btn, { backgroundColor: "#6366F1", marginBottom: 12 }]} 
+                style={[styles.btn, { backgroundColor: "#0C6478", marginBottom: 12 }]} 
                 onPress={pickExcelFile}
               >
                 <Text style={styles.btnText}>📁 Pick Excel File from Storage</Text>
@@ -1555,7 +1555,7 @@ export default function AdminScreen({ navigation, route }) {
                 style={[
                   styles.btn, 
                   { 
-                    backgroundColor: csvFileData ? "#F59E0B" : "#ccc",
+                    backgroundColor: csvFileData ? "#7B4BC0" : "#ccc",
                     marginTop: 8 
                   }
                 ]} 
@@ -1878,19 +1878,19 @@ export default function AdminScreen({ navigation, route }) {
 }
 
 const P = {
-  primary:   "#6366F1",   // Indigo-500
-  primaryDk: "#4F46E5",   // Indigo-600
-  primaryLt: "#EEF2FF",   // Indigo-50
-  primaryMd: "#C7D2FE",   // Indigo-200
+  primary:   "#0C6478",   // Indigo-500
+  primaryDk: "#084A5A",   // Indigo-600
+  primaryLt: "#DCEEF2",   // Indigo-50
+  primaryMd: "#9FCBD5",   // Indigo-200
   danger:    "#EF4444",
   dangerLt:  "#FEE2E2",
   success:   "#10B981",
   successLt: "#D1FAE5",
-  amber:     "#F59E0B",
-  amberLt:   "#FEF3C7",
+  amber:     "#7B4BC0",
+  amberLt:   "#E7DEF6",
   neutral:   "#6B7280",
   surface:   "#F9FAFB",
-  bg:        "#F3F4F6",
+  bg:        "#F4F9F8",
   white:     "#FFFFFF",
   border:    "#E5E7EB",
   text:      "#111827",
