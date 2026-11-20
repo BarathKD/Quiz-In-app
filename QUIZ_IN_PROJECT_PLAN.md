@@ -48,7 +48,7 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 ### Phase 1B: New look + local-only pages (no backend needed, works now)
 - [x] Redesign: "Mayil" peacock palette (no yellow/red brand colors), Tamil-first + English, animations (branch merged to main)
 - [x] Leaderboard tab (points = passed levels x 50 x difficulty weight; this device's accounts only)
-- [x] Settings page: language, privacy policy link, about/version, logout, delete account (local data wipe now; server delete in Phase 2). Sound toggle dropped: the app has no sounds yet. **TODO Barath: host a privacy policy page and paste its URL in `utils/config.js` (`PRIVACY_POLICY_URL`).**
+- [x] Settings page: language, privacy policy link, about/version, logout, delete account (local data wipe now; server delete in Phase 2). Sound toggle dropped: the app has no sounds yet. Privacy URL is set in `utils/config.js`. Play Console target audience: choose 13+ (avoid Families Policy).
 - [x] Wrong-answers review + Bookmarks (star in quiz, lists under Profile): save missed/starred questions per user, "practice my mistakes" quiz
 - [x] Daily Challenge (same 10 questions for everyone each day, 10 min timer, streak counts only if all answered): 10 random questions per day, streak counter, "done today" state (streak stored locally for now)
 - [x] Achievements / Badges (8 badges): first level, 7-day streak, category master, 100 correct. Computed from progress, shown on Profile
