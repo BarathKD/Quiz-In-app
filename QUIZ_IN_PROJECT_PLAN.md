@@ -150,3 +150,7 @@ Pages, by priority:
 | Store / Premium | 3 |
 | Rewarded-ad unlock | 4 |
 | Exam packs (TNPSC, TET, TRB, NEET) content | 5 (start earlier if content is ready) |
+
+## Privacy policy
+- Page: `docs/privacy.html`, hosted by GitHub Pages (Settings > Pages > main /docs) at https://barathkd.github.io/Quiz-In-app/privacy.html
+- It describes the CURRENT local-only app. Update it (and the Play Data safety form) before releasing Phase 2 (server accounts), Phase 3 (purchases) and Phase 4 (AdMob).
