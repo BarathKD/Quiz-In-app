@@ -12,10 +12,10 @@ Development settings (`appsettings.Development.json`) give a dev JWT key and a d
 
 Test:
 ```
-curl http://localhost:5000/health
-curl -X POST http://localhost:5000/api/auth/register -H "Content-Type: application/json" -d '{"email":"a@b.com","password":"secret1"}'
+curl http://localhost:5080/health
+curl -X POST http://localhost:5080/api/auth/register -H "Content-Type: application/json" -d '{"email":"a@b.com","password":"secret1"}'
 ```
-(The port is printed when it starts. In Codespaces use the forwarded port.)
+(Runs on port 5080 in Development mode via Properties/launchSettings.json.)
 
 ## Migrations (recommended once the model is stable)
 ```
