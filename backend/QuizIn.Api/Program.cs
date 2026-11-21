@@ -54,6 +54,18 @@ builder.Services
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        // Redirect with a relative path: behind a proxy (Codespaces, Azure) the request host can be
+        // "localhost", which would send the browser to the wrong place.
+        options.Events.OnRedirectToLogin = ctx =>
+        {
+            ctx.Response.Redirect(new Uri(ctx.RedirectUri).PathAndQuery);
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = ctx =>
+        {
+            ctx.Response.Redirect(new Uri(ctx.RedirectUri).PathAndQuery);
+            return Task.CompletedTask;
+        };
     });
 builder.Services.AddAuthorization(options =>
 {
