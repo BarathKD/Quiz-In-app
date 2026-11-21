@@ -41,23 +41,24 @@
   <form method="post" action="/admin/import" enctype="multipart/form-data">
     @Html.AntiForgeryToken()
 
+    <input type="hidden" id="Category" name="Category" value="@Model.Category">
+    <input type="hidden" id="Subcategory" name="Subcategory" value="@Model.Subcategory">
+    <input type="hidden" id="Subject" name="Subject" value="@Model.Subject">
+
     <div class="field">
-      <label for="Category">Category</label>
-      <input id="Category" name="Category" list="cats" value="@Model.Category" required>
-      <datalist id="cats">
-        @foreach (var c in Model.Categories)
-        {
-          <option value="@c"></option>
-        }
-      </datalist>
+      <label for="catSel">Category</label>
+      <select id="catSel"></select>
+      <input id="catNew" type="text" placeholder="New category name" hidden>
     </div>
     <div class="field">
-      <label for="Subcategory">Subcategory</label>
-      <input id="Subcategory" name="Subcategory" value="@Model.Subcategory" required>
+      <label for="subSel">Subcategory</label>
+      <select id="subSel"></select>
+      <input id="subNew" type="text" placeholder="New subcategory name" hidden>
     </div>
     <div class="field">
-      <label for="Subject">Subject (optional)</label>
-      <input id="Subject" name="Subject" value="@Model.Subject">
+      <label for="sbjSel">Subject (optional)</label>
+      <select id="sbjSel"></select>
+      <input id="sbjNew" type="text" placeholder="New subject name" hidden>
     </div>
 
     <div class="form-grid">
@@ -92,3 +93,72 @@
     <button class="btn" type="submit">Import questions</button>
   </form>
 </div>
+
+<script>
+(function () {
+  var tree = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Tree, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
+  var NEW = "__new";
+  var hidden = { cat: document.getElementById("Category"), sub: document.getElementById("Subcategory"), sbj: document.getElementById("Subject") };
+  var sel = { cat: document.getElementById("catSel"), sub: document.getElementById("subSel"), sbj: document.getElementById("sbjSel") };
+  var txt = { cat: document.getElementById("catNew"), sub: document.getElementById("subNew"), sbj: document.getElementById("sbjNew") };
+
+  function fill(select, names, placeholder, newLabel, wanted) {
+    select.innerHTML = "";
+    var first = document.createElement("option");
+    first.value = ""; first.textContent = placeholder;
+    select.appendChild(first);
+    names.forEach(function (n) {
+      var o = document.createElement("option");
+      o.value = n; o.textContent = n;
+      select.appendChild(o);
+    });
+    var add = document.createElement("option");
+    add.value = NEW; add.textContent = newLabel;
+    select.appendChild(add);
+    if (wanted && names.indexOf(wanted) >= 0) select.value = wanted;
+    else if (wanted) select.value = NEW;
+    else select.value = "";
+  }
+
+  function find(list, name) { for (var i = 0; i < list.length; i++) if (list[i].name === name) return list[i]; return null; }
+
+  function current(key) {
+    if (sel[key].value === NEW) return txt[key].value.trim();
+    return sel[key].value;
+  }
+
+  function refresh(initial) {
+    var wantCat = initial ? hidden.cat.value : sel.cat.value;
+    var wantSub = initial ? hidden.sub.value : sel.sub.value;
+    var wantSbj = initial ? hidden.sbj.value : sel.sbj.value;
+
+    fill(sel.cat, tree.map(function (c) { return c.name; }), "Choose category", "+ New category", wantCat);
+    if (initial && sel.cat.value === NEW) txt.cat.value = wantCat;
+    var cat = find(tree, sel.cat.value);
+
+    fill(sel.sub, cat ? cat.subs.map(function (s) { return s.name; }) : [], "Choose subcategory", "+ New subcategory", wantSub);
+    if (initial && sel.sub.value === NEW) txt.sub.value = wantSub;
+    var sub = cat ? find(cat.subs, sel.sub.value) : null;
+
+    fill(sel.sbj, sub ? sub.subjects : [], "No subject", "+ New subject", wantSbj);
+    if (initial && sel.sbj.value === NEW) txt.sbj.value = wantSbj;
+
+    ["cat", "sub", "sbj"].forEach(function (k) { txt[k].hidden = sel[k].value !== NEW; });
+    sync();
+  }
+
+  function sync() {
+    hidden.cat.value = current("cat");
+    hidden.sub.value = current("sub");
+    hidden.sbj.value = current("sbj");
+  }
+
+  sel.cat.addEventListener("change", function () { sel.sub.value = ""; sel.sbj.value = ""; txt.sub.value = ""; txt.sbj.value = ""; refresh(false); });
+  sel.sub.addEventListener("change", function () { sel.sbj.value = ""; txt.sbj.value = ""; refresh(false); });
+  sel.sbj.addEventListener("change", function () { refresh(false); });
+  ["cat", "sub", "sbj"].forEach(function (k) { txt[k].addEventListener("input", sync); });
+  document.querySelector("form[action='/admin/import']").addEventListener("submit", sync);
+
+  refresh(true);
+})();
+</script>

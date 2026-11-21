@@ -36,3 +36,6 @@ Set these as environment variables on the host (never commit real secrets):
 - `ConnectionStrings__Default=<Azure SQL connection string>`
 - `Jwt__Key=<random string, 32+ characters>`
 - `Admin__Email` and `Admin__Password` for the first admin
+
+## Uploads (category / subject images)
+Images are saved to `Uploads:Path` (default `<content root>/uploads`) and served at `/uploads/...`. On a host with an ephemeral disk, point `Uploads:Path` at persistent storage (or move to blob storage later).

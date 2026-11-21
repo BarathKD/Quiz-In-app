@@ -12,7 +12,9 @@ public record CategoryDto(
     int Id, string Name, string? Description, double BackgroundOpacity, int Timer,
     List<string> Subcategories,
     Dictionary<string, List<string>> Subjects,
-    Dictionary<string, int> SubjectTimers);
+    Dictionary<string, int> SubjectTimers,
+    string? ImageUrl,
+    Dictionary<string, string> SubjectImages);
 
 public record OptionDto(string Id, string Text);
 
@@ -49,7 +51,10 @@ public static class ContentEndpoints
                 c.Subcategories.Where(s => s.Subjects.Count > 0)
                     .ToDictionary(s => s.Name, s => s.Subjects.OrderBy(x => x.Id).Select(x => x.Name).ToList()),
                 c.Subcategories.SelectMany(s => s.Subjects).Where(x => x.TimerMinutes != null)
-                    .GroupBy(x => x.Name).ToDictionary(g => g.Key, g => g.First().TimerMinutes!.Value))));
+                    .GroupBy(x => x.Name).ToDictionary(g => g.Key, g => g.First().TimerMinutes!.Value),
+                c.ImageUrl,
+                c.Subcategories.SelectMany(s => s.Subjects).Where(x => x.ImageUrl != null)
+                    .GroupBy(x => x.Name).ToDictionary(g => g.Key, g => g.First().ImageUrl!))));
         });
 
         // ?subject= (present but empty) -> only questions without a subject; parameter absent -> any subject.

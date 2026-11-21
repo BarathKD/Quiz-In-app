@@ -333,3 +333,13 @@ table.data tr.total-row td { font-weight: 700; }
   .stat b { font-size: 26px; }
   .card { padding: 16px; }
 }
+
+/* ---------- Images ---------- */
+.thumb { width: 72px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); }
+.thumb-sm { width: 40px; height: 40px; }
+.img-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.edit-subjects { grid-template-columns: minmax(0, 1fr) 140px; }
+.edit-subjects .subject-img { grid-column: 1 / -1; padding-bottom: 6px; }
+.edit-subjects .subject-img input[type="file"] { flex: 1 1 240px; width: auto; }
+table.data .col-date { width: 140px; color: var(--muted); white-space: nowrap; }

@@ -7,8 +7,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using QuizIn.Api.Auth;
 using QuizIn.Api.Content;
+using QuizIn.Api.Admin;
 using QuizIn.Api.Data;
 using QuizIn.Api.Models;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +30,7 @@ if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
     throw new InvalidOperationException("Jwt:Key must be set and at least 32 characters (use an environment variable in production).");
 
 builder.Services.AddSingleton<TokenService>();
+builder.Services.AddSingleton<UploadStore>();
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -121,6 +124,11 @@ using (var scope = app.Services.CreateScope())
 
 app.UseForwardedHeaders();
 app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(app.Services.GetRequiredService<UploadStore>().Root),
+    RequestPath = "/uploads"
+});
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

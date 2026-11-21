@@ -67,7 +67,12 @@ public class ImportVm
     public int? Added { get; set; }
     public List<string>? Skipped { get; set; }
     public List<string> Categories { get; set; } = new();
+    public List<ImportCategoryNode> Tree { get; set; } = new();
 }
+
+// Category > subcategories > subjects, used by the import page dropdowns
+public record ImportSubNode(string Name, List<string> Subjects);
+public record ImportCategoryNode(string Name, List<ImportSubNode> Subs);
 
 public static class AdminHelpers
 {
@@ -101,4 +106,15 @@ public static class AdminHelpers
         subjectId = subj == 0 ? null : subj;
         return true;
     }
+}
+
+public record UserRow(Guid Id, string Email, DateTime CreatedAt, int LevelsPassed);
+
+public class UsersVm
+{
+    public List<UserRow> Items { get; set; } = new();
+    public string? Search { get; set; }
+    public int Page { get; set; }
+    public int TotalPages { get; set; }
+    public int Total { get; set; }
 }

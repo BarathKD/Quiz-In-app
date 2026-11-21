@@ -17,6 +17,7 @@ public class Category
     public int TimerMinutes { get; set; } = 5;
     public double BackgroundOpacity { get; set; } = 0.85;
     public int SortOrder { get; set; }
+    public string? ImageUrl { get; set; }            // "/uploads/xxxx.jpg"
     public List<Subcategory> Subcategories { get; set; } = new();
 }
 
@@ -36,6 +37,7 @@ public class Subject
     public Subcategory? Subcategory { get; set; }
     public string Name { get; set; } = "";
     public int? TimerMinutes { get; set; }           // overrides the category timer when set
+    public string? ImageUrl { get; set; }
 }
 
 public class Question

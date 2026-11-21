@@ -50,7 +50,8 @@ public class AdminDashboardController : Controller
 public class AdminContentController : Controller
 {
     private readonly AppDbContext _db;
-    public AdminContentController(AppDbContext db) => _db = db;
+    private readonly UploadStore _uploads;
+    public AdminContentController(AppDbContext db, UploadStore uploads) { _db = db; _uploads = uploads; }
 
     [HttpGet("")]
     public async Task<IActionResult> Index()
@@ -84,6 +85,7 @@ public class AdminContentController : Controller
     }
 
     [HttpPost("category/{id:int}/edit")]
+    [RequestSizeLimit(30_000_000)]
     public async Task<IActionResult> EditCategorySave(int id, string? name, string? description, int? timerMinutes, double? backgroundOpacity)
     {
         var cat = await _db.Categories
@@ -120,6 +122,37 @@ public class AdminContentController : Controller
             }
         }
 
+        // Images: a new file replaces the old one; the checkbox removes it.
+        var oldImages = new List<string?>();
+        async Task<string?> ApplyImage(string fileField, string removeField, string? current, Action<string?> set)
+        {
+            var upload = form.Files.GetFile(fileField);
+            if (upload != null && upload.Length > 0)
+            {
+                var (url, error) = await _uploads.SaveImageAsync(upload);
+                if (error != null) return error;
+                oldImages.Add(current);
+                set(url);
+            }
+            else if (form[removeField].ToString() == "on" && current != null)
+            {
+                oldImages.Add(current);
+                set(null);
+            }
+            return null;
+        }
+
+        var imageError = await ApplyImage("categoryImage", "categoryImageRemove", cat.ImageUrl, v => cat.ImageUrl = v);
+        if (imageError != null) return EditBack(id, imageError);
+        foreach (var sub in cat.Subcategories)
+        {
+            foreach (var subject in sub.Subjects)
+            {
+                imageError = await ApplyImage($"subjImg_{subject.Id}", $"subjImgRemove_{subject.Id}", subject.ImageUrl, v => subject.ImageUrl = v);
+                if (imageError != null) return EditBack(id, $"{subject.Name}: {imageError}");
+            }
+        }
+
         try
         {
             await _db.SaveChangesAsync();
@@ -129,6 +162,7 @@ public class AdminContentController : Controller
             return EditBack(id, "Could not save: a name clashes with an existing one.");
         }
 
+        foreach (var old in oldImages) _uploads.Delete(old);
         TempData["Msg"] = "Category updated.";
         return Redirect("/admin/content");
     }
@@ -460,7 +494,70 @@ public class AdminImportController : Controller
 
     private async Task<ImportVm> Fill(ImportVm vm)
     {
-        vm.Categories = await _db.Categories.AsNoTracking().OrderBy(c => c.Name).Select(c => c.Name).ToListAsync();
+        var cats = await _db.Categories.AsNoTracking()
+            .Include(c => c.Subcategories).ThenInclude(s => s.Subjects)
+            .OrderBy(c => c.Name).ToListAsync();
+        vm.Categories = cats.Select(c => c.Name).ToList();
+        vm.Tree = cats.Select(c => new ImportCategoryNode(c.Name,
+            c.Subcategories.OrderBy(s => s.Id).Select(s => new ImportSubNode(s.Name,
+                s.Subjects.OrderBy(x => x.Id).Select(x => x.Name).ToList())).ToList())).ToList();
         return vm;
+    }
+}
+
+
+// ---------------- Users ----------------
+[Route("admin/users")]
+[AutoValidateAntiforgeryToken]
+[Authorize(AuthenticationSchemes = AdminHelpers.Scheme, Roles = "Admin")]
+public class AdminUsersController : Controller
+{
+    private const int PageSize = 25;
+    private readonly AppDbContext _db;
+    public AdminUsersController(AppDbContext db) => _db = db;
+
+    [HttpGet("")]
+    public async Task<IActionResult> Index(string? search, int page = 1)
+    {
+        var q = _db.Users.AsNoTracking().Where(u => !u.IsAdmin);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            q = q.Where(u => u.Email.Contains(term));
+        }
+
+        var total = await q.CountAsync();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)PageSize));
+        page = Math.Clamp(page, 1, totalPages);
+
+        var users = await q.OrderByDescending(u => u.CreatedAt).Skip((page - 1) * PageSize).Take(PageSize).ToListAsync();
+        var ids = users.Select(u => u.Id).ToList();
+        var levels = await _db.LevelProgress.Where(p => ids.Contains(p.UserId))
+            .GroupBy(p => p.UserId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N);
+
+        return View(new UsersVm
+        {
+            Search = search,
+            Page = page,
+            TotalPages = totalPages,
+            Total = total,
+            Items = users.Select(u => new UserRow(u.Id, u.Email, u.CreatedAt, levels.GetValueOrDefault(u.Id))).ToList(),
+        });
+    }
+
+    [HttpPost("{id:guid}/delete")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == id);
+        if (user == null) return NotFound();
+        if (user.IsAdmin)
+        {
+            TempData["Err"] = "Admin accounts cannot be deleted here.";
+            return Redirect("/admin/users");
+        }
+        _db.Users.Remove(user);
+        await _db.SaveChangesAsync();
+        TempData["Msg"] = "User deleted.";
+        return Redirect("/admin/users");
     }
 }

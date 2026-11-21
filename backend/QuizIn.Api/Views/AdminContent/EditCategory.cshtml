@@ -5,7 +5,7 @@
   <a class="btn btn-secondary" href="/admin/content">Back to content</a>
 </div>
 
-<form method="post" action="/admin/content/category/@Model.Id/edit">
+<form method="post" action="/admin/content/category/@Model.Id/edit" enctype="multipart/form-data">
   @Html.AntiForgeryToken()
 
   <div class="card">
@@ -28,6 +28,17 @@
         <input id="backgroundOpacity" name="backgroundOpacity" type="number" min="0" max="1" step="0.05" value="@Model.BackgroundOpacity.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)">
       </div>
     </div>
+    <div class="field" style="margin-bottom:0">
+      <label for="categoryImage">Background image (PNG, JPG or WEBP, max 2 MB)</label>
+      @if (!string.IsNullOrEmpty(Model.ImageUrl))
+      {
+        <div class="img-row">
+          <img class="thumb" src="@Model.ImageUrl" alt="Current background">
+          <label class="check"><input type="checkbox" name="categoryImageRemove"> Remove image</label>
+        </div>
+      }
+      <input id="categoryImage" name="categoryImage" type="file" accept="image/png,image/jpeg,image/webp">
+    </div>
   </div>
 
   <div class="card">
@@ -45,6 +56,14 @@
           <div class="edit-subjects">
             <input name="subjName_@subject.Id" value="@subject.Name" aria-label="Subject name">
             <input name="subjTimer_@subject.Id" type="number" min="1" max="180" value="@subject.TimerMinutes" placeholder="Timer (min)" aria-label="Subject timer in minutes">
+            <div class="img-row subject-img">
+              @if (!string.IsNullOrEmpty(subject.ImageUrl))
+              {
+                <img class="thumb" src="@subject.ImageUrl" alt="">
+                <label class="check"><input type="checkbox" name="subjImgRemove_@subject.Id"> Remove</label>
+              }
+              <input name="subjImg_@subject.Id" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Subject image">
+            </div>
           </div>
         }
       </div>

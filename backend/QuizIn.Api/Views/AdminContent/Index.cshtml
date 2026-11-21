@@ -17,6 +17,7 @@
 {
   <div class="card">
     <div class="cat-head">
+      @if (!string.IsNullOrEmpty(cat.ImageUrl)) { <img class="thumb thumb-sm" src="@cat.ImageUrl" alt=""> }
       <h2>@cat.Name</h2>
       <span class="badge">@cat.TimerMinutes min</span>
       <span class="badge">opacity @cat.BackgroundOpacity.ToString("0.##")</span>

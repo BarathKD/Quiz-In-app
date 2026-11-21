@@ -1,0 +1,58 @@
+@model UsersVm
+@{ ViewData["Title"] = "Users"; }
+<div class="page-head">
+  <h1>Users <span class="count">(@Model.Total)</span></h1>
+</div>
+
+<div class="card">
+  <form method="get" action="/admin/users" class="toolbar">
+    <input class="grow-2" name="search" value="@Model.Search" placeholder="Search email" aria-label="Search email">
+    <button class="btn btn-secondary" type="submit">Search</button>
+  </form>
+</div>
+
+<div class="card">
+  @if (Model.Items.Count == 0)
+  {
+    <p class="muted" style="margin:0">No users yet.</p>
+  }
+  else
+  {
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th>Email</th><th class="col-date">Joined</th><th class="num">Levels passed</th><th class="col-actions"></th></tr>
+        </thead>
+        <tbody>
+          @foreach (var u in Model.Items)
+          {
+            <tr>
+              <td>@u.Email</td>
+              <td class="col-date">@u.CreatedAt.ToString("dd MMM yyyy")</td>
+              <td class="num">@u.LevelsPassed</td>
+              <td class="col-actions">
+                <div class="actions">
+                  <form method="post" action="/admin/users/@u.Id/delete" onsubmit="return confirm('Delete this user and all their progress? This cannot be undone.');">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="pager">
+      @if (Model.Page > 1)
+      {
+        <a class="btn btn-secondary btn-sm" href="/admin/users?search=@Model.Search&page=@(Model.Page - 1)">Previous</a>
+      }
+      <span class="muted">Page @Model.Page of @Model.TotalPages</span>
+      @if (Model.Page < Model.TotalPages)
+      {
+        <a class="btn btn-secondary btn-sm" href="/admin/users?search=@Model.Search&page=@(Model.Page + 1)">Next</a>
+      }
+    </div>
+  }
+</div>
