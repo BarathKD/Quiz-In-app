@@ -1,68 +1,45 @@
+@{
+    var path = (Context.Request.Path.Value ?? "").TrimEnd('/').ToLowerInvariant();
+    string Active(string prefix, bool exact = false) =>
+        (exact ? path == prefix : path == prefix || path.StartsWith(prefix + "/")) ? "active" : "";
+}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>@ViewData["Title"] - Quiz-IN Admin</title>
-  <style>
-    :root { --bg:#F4F9F8; --ink:#0B2A33; --muted:#46646C; --primary:#0C6478; --dark:#084A5A; --tint:#DCEEF2;
-            --accent:#7B4BC0; --border:#CFE0E4; --danger:#C9402A; --ok:#2E7D4F; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); line-height:1.5; }
-    header { background:var(--primary); color:#fff; padding:12px 20px; display:flex; flex-wrap:wrap; align-items:center; gap:16px; }
-    header .brand { font-weight:800; font-size:20px; margin-right:12px; }
-    header a { color:#fff; text-decoration:none; padding:6px 12px; border-radius:999px; }
-    header a:hover { background:rgba(255,255,255,.18); }
-    header form { margin-left:auto; }
-    main { max-width:1000px; margin:0 auto; padding:20px 16px 48px; }
-    h1 { color:var(--dark); margin:8px 0 16px; }
-    h2 { color:var(--dark); margin:0 0 10px; font-size:18px; }
-    .card { background:#fff; border:1px solid var(--border); border-radius:16px; padding:16px; margin-bottom:16px; }
-    .grid { display:flex; flex-wrap:wrap; gap:12px; }
-    .stat { flex:1 1 150px; background:#fff; border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; }
-    .stat b { display:block; font-size:30px; color:var(--primary); }
-    table { width:100%; border-collapse:collapse; }
-    th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
-    th { color:var(--muted); font-size:13px; }
-    input, select, textarea { font:inherit; padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#fff; max-width:100%; }
-    textarea { width:100%; min-height:80px; }
-    label { display:block; font-weight:600; margin:10px 0 4px; }
-    button, .btn { font:inherit; font-weight:700; border:0; border-radius:999px; padding:8px 16px; background:var(--primary); color:#fff; cursor:pointer; text-decoration:none; display:inline-block; }
-    button.alt, .btn.alt { background:var(--tint); color:var(--dark); }
-    button.danger { background:var(--danger); }
-    .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-    .ok { background:#E3F1E8; color:var(--ok); padding:10px 14px; border-radius:12px; margin-bottom:14px; }
-    .err { background:#FBE4E1; color:var(--danger); padding:10px 14px; border-radius:12px; margin-bottom:14px; }
-    .muted { color:var(--muted); font-size:14px; }
-    .pill { display:inline-block; padding:2px 10px; border-radius:999px; background:var(--tint); font-size:12px; font-weight:700; }
-    .tree-sub { margin:8px 0 0 18px; padding-left:12px; border-left:3px solid var(--tint); }
-    a { color:var(--primary); }
-    form.inline { display:inline; }
-  </style>
+  <link rel="stylesheet" href="/css/admin.css?v=3">
 </head>
 <body>
 @if (User.Identity?.IsAuthenticated == true)
 {
-  <header>
-    <span class="brand">Quiz-IN Admin</span>
-    <a href="/admin">Dashboard</a>
-    <a href="/admin/content">Content</a>
-    <a href="/admin/questions">Questions</a>
-    <a href="/admin/import">Bulk import</a>
-    <form method="post" action="/admin/logout">
-      @Html.AntiForgeryToken()
-      <button class="alt" type="submit">Logout</button>
-    </form>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <span class="brand">Quiz-IN Admin</span>
+      <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Toggle menu">
+      <label for="nav-toggle" class="nav-burger" aria-hidden="true">&#9776;</label>
+      <nav class="nav-links">
+        <a href="/admin" class="@Active("/admin", exact: true)">Dashboard</a>
+        <a href="/admin/content" class="@Active("/admin/content")">Content</a>
+        <a href="/admin/questions" class="@Active("/admin/questions")">Questions</a>
+        <a href="/admin/import" class="@Active("/admin/import")">Bulk import</a>
+        <form method="post" action="/admin/logout">
+          @Html.AntiForgeryToken()
+          <button class="btn btn-secondary btn-sm" type="submit">Logout</button>
+        </form>
+      </nav>
+    </div>
   </header>
 }
-<main>
+<main class="page">
   @if (TempData["Msg"] is string okMessage)
   {
-    <div class="ok">@okMessage</div>
+    <div class="alert alert-ok">@okMessage</div>
   }
   @if (TempData["Err"] is string errMessage)
   {
-    <div class="err">@errMessage</div>
+    <div class="alert alert-err">@errMessage</div>
   }
   @RenderBody()
 </main>

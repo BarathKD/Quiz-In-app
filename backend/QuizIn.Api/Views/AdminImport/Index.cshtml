@@ -1,19 +1,19 @@
 @model ImportVm
 @{ ViewData["Title"] = "Bulk import"; }
-<h1>Bulk import</h1>
+<div class="page-head"><h1>Bulk import</h1></div>
 
 @if (!string.IsNullOrEmpty(Model.Error))
 {
-  <div class="err">@Model.Error</div>
+  <div class="alert alert-err">@Model.Error</div>
 }
 @if (Model.Added != null)
 {
-  <div class="ok">Imported @Model.Added question(s).</div>
+  <div class="alert alert-ok">Imported @Model.Added question(s).</div>
   @if (Model.Skipped != null && Model.Skipped.Count > 0)
   {
     <div class="card">
-      <h2>Skipped (@Model.Skipped.Count)</h2>
-      <ul>
+      <h2 class="card-title">Skipped (@Model.Skipped.Count)</h2>
+      <ul class="help-list">
         @foreach (var line in Model.Skipped)
         {
           <li>@line</li>
@@ -24,43 +24,51 @@
 }
 
 <div class="card">
-  <h2>Formats</h2>
-  <p class="muted"><b>CSV</b> columns: id, question, A, B, C, D, answer, explanation. The answer can be A-D, 1-4 or the answer text. The first row may be a header. Save as <b>UTF-8</b> (needed for Tamil). From Excel use "CSV UTF-8".</p>
-  <p class="muted"><b>JSON</b>: an array like the example below. Option ids are usually a, b, c, d.</p>
-<pre class="muted" style="white-space:pre-wrap">[
+  <h2 class="card-title">Formats</h2>
+  <p class="muted"><b>Excel (.xlsx)</b> or <b>CSV</b>: first sheet, columns <b>id, question, A, B, C, D, answer, explanation</b>. The answer can be A-D, 1-4 or the answer text. The first row may be a header. For CSV save as UTF-8 (needed for Tamil). <a href="/templates/quiz-import-template.xlsx" download>Download the Excel template</a>.</p>
+  <p class="muted"><b>JSON</b>: an array like this:</p>
+<pre class="code">[
   { "questionText": "Capital of India?",
     "options": [ {"id":"a","text":"Delhi"}, {"id":"b","text":"Mumbai"} ],
     "correctOptionId": "a",
     "explanation": "New Delhi is the capital." }
 ]</pre>
-  <p class="muted">Missing categories, subcategories and subjects are created automatically. All questions in one import get the same difficulty.</p>
+  <p class="muted" style="margin:0">Missing categories, subcategories and subjects are created automatically. All questions in one import get the same difficulty.</p>
 </div>
 
 <div class="card">
+  <h2 class="card-title">Import questions</h2>
   <form method="post" action="/admin/import" enctype="multipart/form-data">
     @Html.AntiForgeryToken()
-    <label for="Category">Category</label>
-    <input id="Category" name="Category" list="cats" value="@Model.Category" style="width:100%" required>
-    <datalist id="cats">
-      @foreach (var c in Model.Categories)
-      {
-        <option value="@c"></option>
-      }
-    </datalist>
-    <label for="Subcategory">Subcategory</label>
-    <input id="Subcategory" name="Subcategory" value="@Model.Subcategory" style="width:100%" required>
-    <label for="Subject">Subject (optional)</label>
-    <input id="Subject" name="Subject" value="@Model.Subject" style="width:100%">
 
-    <div class="row">
-      <div>
-        <label for="Format">Format</label>
+    <div class="field">
+      <label for="Category">Category</label>
+      <input id="Category" name="Category" list="cats" value="@Model.Category" required>
+      <datalist id="cats">
+        @foreach (var c in Model.Categories)
+        {
+          <option value="@c"></option>
+        }
+      </datalist>
+    </div>
+    <div class="field">
+      <label for="Subcategory">Subcategory</label>
+      <input id="Subcategory" name="Subcategory" value="@Model.Subcategory" required>
+    </div>
+    <div class="field">
+      <label for="Subject">Subject (optional)</label>
+      <input id="Subject" name="Subject" value="@Model.Subject">
+    </div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label for="Format">Format (for pasted text; files are detected by extension)</label>
         <select id="Format" name="Format">
           <option value="csv" selected="@(Model.Format != "json")">CSV</option>
           <option value="json" selected="@(Model.Format == "json")">JSON</option>
         </select>
       </div>
-      <div>
+      <div class="field">
         <label for="Difficulty">Difficulty</label>
         <select id="Difficulty" name="Difficulty">
           @foreach (var d in new[] { "easy", "medium", "hard" })
@@ -71,12 +79,16 @@
       </div>
     </div>
 
-    <label for="file">File (.csv or .json)</label>
-    <input id="file" name="file" type="file" accept=".csv,.json,text/csv,application/json">
+    <div class="field">
+      <label for="file">File (.xlsx, .csv or .json)</label>
+      <input id="file" name="file" type="file" accept=".xlsx,.csv,.json,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+    </div>
 
-    <label for="Text">...or paste the questions here</label>
-    <textarea id="Text" name="Text" style="min-height:160px">@Model.Text</textarea>
+    <div class="field">
+      <label for="Text">...or paste the questions here</label>
+      <textarea id="Text" name="Text">@Model.Text</textarea>
+    </div>
 
-    <p><button type="submit">Import</button></p>
+    <button class="btn" type="submit">Import questions</button>
   </form>
 </div>

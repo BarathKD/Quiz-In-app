@@ -1,26 +1,40 @@
 @model DashboardVm
 @{ ViewData["Title"] = "Dashboard"; }
-<h1>Dashboard</h1>
-<div class="grid">
-  <div class="stat"><b>@Model.Users</b>Users</div>
-  <div class="stat"><b>@Model.Categories</b>Categories</div>
-  <div class="stat"><b>@Model.Questions</b>Questions</div>
-  <div class="stat"><b>@Model.LevelsPassed</b>Levels passed</div>
+<div class="page-head"><h1>Dashboard</h1></div>
+
+<div class="stat-grid">
+  <div class="stat"><b>@Model.Users</b><span>Users</span></div>
+  <div class="stat"><b>@Model.Categories</b><span>Categories</span></div>
+  <div class="stat"><b>@Model.Questions</b><span>Questions</span></div>
+  <div class="stat"><b>@Model.LevelsPassed</b><span>Levels passed</span></div>
 </div>
-<div class="card" style="margin-top:16px;">
-  <h2>Questions per category</h2>
+
+<div class="card">
+  <h2 class="card-title">Questions per category</h2>
   @if (Model.Stats.Count == 0)
   {
-    <p class="muted">No categories yet. Add one under <a href="/admin/content">Content</a>, or import a CSV.</p>
+    <p class="muted">No categories yet. Add one under <a href="/admin/content">Content</a>, or use <a href="/admin/import">Bulk import</a>.</p>
   }
   else
   {
-    <table>
-      <tr><th>Category</th><th>Easy</th><th>Medium</th><th>Hard</th><th>Total</th></tr>
-      @foreach (var s in Model.Stats)
-      {
-        <tr><td>@s.Name</td><td>@s.Easy</td><td>@s.Medium</td><td>@s.Hard</td><td><b>@s.Total</b></td></tr>
-      }
-    </table>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th>Category</th><th class="num">Easy</th><th class="num">Medium</th><th class="num">Hard</th><th class="num">Total</th></tr>
+        </thead>
+        <tbody>
+          @foreach (var s in Model.Stats)
+          {
+            <tr>
+              <td>@s.Name</td>
+              <td class="num">@s.Easy</td>
+              <td class="num">@s.Medium</td>
+              <td class="num">@s.Hard</td>
+              <td class="num"><b>@s.Total</b></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   }
 </div>

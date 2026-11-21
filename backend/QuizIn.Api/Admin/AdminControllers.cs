@@ -414,25 +414,39 @@ public class AdminImportController : Controller
             return View("Index", await Fill(vm));
         }
 
-        // A chosen file wins; otherwise use the pasted text
-        string content;
-        if (file != null && file.Length > 0)
-        {
-            using var reader = new StreamReader(file.OpenReadStream());
-            content = await reader.ReadToEndAsync();
-        }
-        else content = vm.Text ?? "";
-
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            vm.Error = "Choose a file or paste the questions.";
-            return View("Index", await Fill(vm));
-        }
-
         var difficulty = vm.Difficulty ?? "easy";
-        var result = vm.Format == "json"
-            ? await ContentEndpoints.ImportJsonAsync(_db, content, vm.Category, vm.Subcategory, vm.Subject, difficulty)
-            : await ContentEndpoints.ImportCsvAsync(_db, content, vm.Category, vm.Subcategory, vm.Subject, difficulty);
+        var hasFile = file != null && file.Length > 0;
+        var isXlsx = hasFile && file!.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase);
+
+        ContentEndpoints.ImportResult result;
+        if (isXlsx)
+        {
+            using var buffer = new MemoryStream();
+            await file!.CopyToAsync(buffer);
+            buffer.Position = 0;
+            result = await ContentEndpoints.ImportXlsxAsync(_db, buffer, vm.Category, vm.Subcategory, vm.Subject, difficulty);
+        }
+        else
+        {
+            // A chosen file wins; otherwise use the pasted text
+            string content;
+            if (hasFile)
+            {
+                using var reader = new StreamReader(file!.OpenReadStream());
+                content = await reader.ReadToEndAsync();
+            }
+            else content = vm.Text ?? "";
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                vm.Error = "Choose a file or paste the questions.";
+                return View("Index", await Fill(vm));
+            }
+
+            result = vm.Format == "json"
+                ? await ContentEndpoints.ImportJsonAsync(_db, content, vm.Category, vm.Subcategory, vm.Subject, difficulty)
+                : await ContentEndpoints.ImportCsvAsync(_db, content, vm.Category, vm.Subcategory, vm.Subject, difficulty);
+        }
 
         if (result.Error != null) vm.Error = "Import failed: " + result.Error;
         else

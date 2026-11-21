@@ -1,39 +1,44 @@
 @model QuestionListVm
-@{ ViewData["Title"] = "Questions"; }
-<h1>Questions <span class="muted">(@Model.Total)</span></h1>
+@{
+    ViewData["Title"] = "Questions";
+    var filtered = !string.IsNullOrEmpty(Model.Target) || !string.IsNullOrEmpty(Model.Difficulty) || !string.IsNullOrWhiteSpace(Model.Search);
+}
+<div class="page-head">
+  <h1>Questions <span class="count">(@Model.Total)</span></h1>
+  <a class="btn" href="/admin/questions/new?target=@Model.Target">Add question</a>
+</div>
 
 <div class="card">
-  <form method="get" action="/admin/questions" class="row">
-    <select name="target">
+  <form method="get" action="/admin/questions" class="toolbar">
+    <select class="grow-2" name="target" aria-label="Location">
       <option value="">All locations</option>
       @foreach (var loc in Model.Locations)
       {
         <option value="@loc.Value" selected="@(loc.Value == Model.Target)">@loc.Label</option>
       }
     </select>
-    <select name="difficulty">
+    <select class="fixed" name="difficulty" aria-label="Difficulty">
       <option value="">Any difficulty</option>
       @foreach (var d in new[] { "easy", "medium", "hard" })
       {
         <option value="@d" selected="@(d == Model.Difficulty)">@d</option>
       }
     </select>
-    <input name="search" value="@Model.Search" placeholder="Search text">
-    <button type="submit">Filter</button>
-    <a class="btn alt" href="/admin/questions/new?target=@Model.Target">Add question</a>
+    <input class="grow" name="search" value="@Model.Search" placeholder="Search text" aria-label="Search text">
+    <button class="btn btn-secondary" type="submit">Filter</button>
   </form>
 </div>
 
-@if ((!string.IsNullOrEmpty(Model.Target) || !string.IsNullOrEmpty(Model.Difficulty) || !string.IsNullOrWhiteSpace(Model.Search)) && Model.Total > 0)
+@if (filtered && Model.Total > 0)
 {
   <div class="card">
-    <form method="post" action="/admin/questions/bulk-delete" class="row" onsubmit="return confirm('Delete ALL @Model.Total question(s) matching these filters? This cannot be undone.');">
+    <form method="post" action="/admin/questions/bulk-delete" class="toolbar" onsubmit="return confirm('Delete ALL @Model.Total question(s) matching these filters? This cannot be undone.');">
       @Html.AntiForgeryToken()
       <input type="hidden" name="target" value="@Model.Target">
       <input type="hidden" name="difficulty" value="@Model.Difficulty">
       <input type="hidden" name="search" value="@Model.Search">
-      <span class="muted">Bulk delete: remove every question matching the current filters.</span>
-      <button class="danger" type="submit">Delete all @Model.Total matching</button>
+      <span class="muted grow">Bulk delete: remove every question matching the current filters.</span>
+      <button class="btn btn-danger" type="submit">Delete all @Model.Total matching</button>
     </form>
   </div>
 }
@@ -41,40 +46,48 @@
 <div class="card">
   @if (Model.Items.Count == 0)
   {
-    <p class="muted">No questions found.</p>
+    <p class="muted" style="margin:0">No questions found.</p>
   }
   else
   {
-    <table>
-      <tr><th>#</th><th>Question</th><th>Where</th><th>Level</th><th></th></tr>
-      @foreach (var q in Model.Items)
-      {
-        <tr>
-          <td>@q.Id</td>
-          <td>@(q.QuestionText.Length > 90 ? q.QuestionText.Substring(0, 90) + "…" : q.QuestionText)</td>
-          <td class="muted">@q.Subcategory?.Category?.Name › @q.Subcategory?.Name@(q.Subject != null ? " › " + q.Subject.Name : "")</td>
-          <td><span class="pill">@q.Difficulty</span></td>
-          <td>
-            <a class="btn alt" href="/admin/questions/@q.Id/edit">Edit</a>
-            <form class="inline" method="post" action="/admin/questions/@q.Id/delete" onsubmit="return confirm('Delete this question?');">
-              @Html.AntiForgeryToken()
-              <input type="hidden" name="target" value="@Model.Target">
-              <button class="danger" type="submit">Delete</button>
-            </form>
-          </td>
-        </tr>
-      }
-    </table>
-    <p class="row">
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th class="col-id">#</th><th>Question</th><th class="col-where">Where</th><th class="col-level">Level</th><th class="col-actions"></th></tr>
+        </thead>
+        <tbody>
+          @foreach (var q in Model.Items)
+          {
+            <tr>
+              <td class="col-id">@q.Id</td>
+              <td>@(q.QuestionText.Length > 110 ? q.QuestionText.Substring(0, 110) + "…" : q.QuestionText)</td>
+              <td class="col-where">@q.Subcategory?.Category?.Name › @q.Subcategory?.Name@(q.Subject != null ? " › " + q.Subject.Name : "")</td>
+              <td class="col-level"><span class="badge badge-@q.Difficulty">@q.Difficulty</span></td>
+              <td class="col-actions">
+                <div class="actions">
+                  <a class="btn btn-secondary btn-sm" href="/admin/questions/@q.Id/edit">Edit</a>
+                  <form method="post" action="/admin/questions/@q.Id/delete" onsubmit="return confirm('Delete this question?');">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="target" value="@Model.Target">
+                    <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="pager">
       @if (Model.Page > 1)
       {
-        <a class="btn alt" href="/admin/questions?target=@Model.Target&difficulty=@Model.Difficulty&search=@Model.Search&page=@(Model.Page - 1)">Previous</a>
+        <a class="btn btn-secondary btn-sm" href="/admin/questions?target=@Model.Target&difficulty=@Model.Difficulty&search=@Model.Search&page=@(Model.Page - 1)">Previous</a>
       }
       <span class="muted">Page @Model.Page of @Model.TotalPages</span>
       @if (Model.Page < Model.TotalPages)
       {
-        <a class="btn alt" href="/admin/questions?target=@Model.Target&difficulty=@Model.Difficulty&search=@Model.Search&page=@(Model.Page + 1)">Next</a>
+        <a class="btn btn-secondary btn-sm" href="/admin/questions?target=@Model.Target&difficulty=@Model.Difficulty&search=@Model.Search&page=@(Model.Page + 1)">Next</a>
       }
-    </p>
+    </div>
   }
 </div>

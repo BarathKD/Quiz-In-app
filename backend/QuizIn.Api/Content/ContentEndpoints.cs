@@ -275,14 +275,31 @@ public static class ContentEndpoints
     }
 
     // Shared by the API endpoint and the admin web page.
-    public static async Task<ImportResult> ImportCsvAsync(
+    public static Task<ImportResult> ImportCsvAsync(
         AppDbContext db, string csv, string category, string subcategory, string? subject, string difficulty)
+        => ImportRowsAsync(db, CsvParser.Parse(csv), category, subcategory, subject, difficulty);
+
+    // .xlsx: first worksheet, same columns as the CSV (id, question, A, B, C, D, answer, explanation)
+    public static Task<ImportResult> ImportXlsxAsync(
+        AppDbContext db, Stream xlsx, string category, string subcategory, string? subject, string difficulty)
+    {
+        List<List<string>> rows;
+        try { rows = XlsxReader.ReadFirstSheet(xlsx); }
+        catch (Exception ex) when (ex is InvalidDataException or System.Xml.XmlException or IOException)
+        {
+            return Task.FromResult(new ImportResult(0, new List<string>(), "invalid_xlsx"));
+        }
+        return ImportRowsAsync(db, rows, category, subcategory, subject, difficulty);
+    }
+
+    private static async Task<ImportResult> ImportRowsAsync(
+        AppDbContext db, List<List<string>> allRows, string category, string subcategory, string? subject, string difficulty)
     {
         var diff = difficulty.ToLowerInvariant();
         if (!Difficulties.Contains(diff)) return new ImportResult(0, new List<string>(), "invalid_difficulty");
 
-        var rows = CsvParser.Parse(csv).Where(r => r.Any(c => c != "")).ToList();
-        if (rows.Count == 0) return new ImportResult(0, new List<string>(), "csv_empty");
+        var rows = allRows.Where(r => r.Any(c => c != "")).ToList();
+        if (rows.Count == 0) return new ImportResult(0, new List<string>(), "file_empty");
 
         var target = await Resolve(db, category, subcategory, subject, create: true);
         if (target.Error != null) return new ImportResult(0, new List<string>(), target.Error);

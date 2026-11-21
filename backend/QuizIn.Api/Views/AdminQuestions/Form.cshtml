@@ -3,59 +3,90 @@
     ViewData["Title"] = Model.Id == null ? "Add question" : "Edit question";
     var actionUrl = Model.Id == null ? "/admin/questions/new" : "/admin/questions/" + Model.Id + "/edit";
 }
-<h1>@ViewData["Title"]</h1>
-<div class="card">
-  @if (!string.IsNullOrEmpty(Model.Error))
-  {
-    <div class="err">@Model.Error</div>
-  }
-  <form method="post" action="@actionUrl">
-    @Html.AntiForgeryToken()
-
-    <label for="Target">Where does it belong?</label>
-    <select id="Target" name="Target" required>
-      <option value="">Choose...</option>
-      @foreach (var loc in Model.Locations)
-      {
-        <option value="@loc.Value" selected="@(loc.Value == Model.Target)">@loc.Label</option>
-      }
-    </select>
-    <div class="muted">Pick "Category › Subcategory" for a question without a subject.</div>
-
-    <label for="Difficulty">Difficulty</label>
-    <select id="Difficulty" name="Difficulty">
-      @foreach (var d in new[] { "easy", "medium", "hard" })
-      {
-        <option value="@d" selected="@(d == Model.Difficulty)">@d</option>
-      }
-    </select>
-
-    <label for="QuestionText">Question</label>
-    <textarea id="QuestionText" name="QuestionText" required>@Model.QuestionText</textarea>
-
-    <label for="OptionA">Option A</label>
-    <input id="OptionA" name="OptionA" value="@Model.OptionA" style="width:100%">
-    <label for="OptionB">Option B</label>
-    <input id="OptionB" name="OptionB" value="@Model.OptionB" style="width:100%">
-    <label for="OptionC">Option C (optional)</label>
-    <input id="OptionC" name="OptionC" value="@Model.OptionC" style="width:100%">
-    <label for="OptionD">Option D (optional)</label>
-    <input id="OptionD" name="OptionD" value="@Model.OptionD" style="width:100%">
-
-    <label for="Correct">Correct answer</label>
-    <select id="Correct" name="Correct">
-      @foreach (var letter in new[] { "a", "b", "c", "d" })
-      {
-        <option value="@letter" selected="@(letter == Model.Correct)">@letter.ToUpper()</option>
-      }
-    </select>
-
-    <label for="Explanation">Explanation (optional)</label>
-    <textarea id="Explanation" name="Explanation">@Model.Explanation</textarea>
-
-    <p class="row">
-      <button type="submit">Save</button>
-      <a class="btn alt" href="/admin/questions?target=@Model.Target">Cancel</a>
-    </p>
-  </form>
+<div class="page-head">
+  <h1>@ViewData["Title"]</h1>
+  <a class="btn btn-secondary" href="/admin/questions?target=@Model.Target">Back to questions</a>
 </div>
+
+@if (!string.IsNullOrEmpty(Model.Error))
+{
+  <div class="alert alert-err">@Model.Error</div>
+}
+
+<form method="post" action="@actionUrl">
+  @Html.AntiForgeryToken()
+
+  <div class="card">
+    <h2 class="card-title">Details</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label for="Target">Where does it belong?</label>
+        <select id="Target" name="Target" required>
+          <option value="">Choose...</option>
+          @foreach (var loc in Model.Locations)
+          {
+            <option value="@loc.Value" selected="@(loc.Value == Model.Target)">@loc.Label</option>
+          }
+        </select>
+        <span class="hint">Pick "Category › Subcategory" for a question without a subject.</span>
+      </div>
+      <div class="field">
+        <label for="Difficulty">Difficulty</label>
+        <select id="Difficulty" name="Difficulty">
+          @foreach (var d in new[] { "easy", "medium", "hard" })
+          {
+            <option value="@d" selected="@(d == Model.Difficulty)">@d</option>
+          }
+        </select>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <label for="QuestionText">Question</label>
+      <textarea id="QuestionText" name="QuestionText" required>@Model.QuestionText</textarea>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Options</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label for="OptionA">Option A</label>
+        <input id="OptionA" name="OptionA" value="@Model.OptionA">
+      </div>
+      <div class="field">
+        <label for="OptionB">Option B</label>
+        <input id="OptionB" name="OptionB" value="@Model.OptionB">
+      </div>
+      <div class="field">
+        <label for="OptionC">Option C (optional)</label>
+        <input id="OptionC" name="OptionC" value="@Model.OptionC">
+      </div>
+      <div class="field">
+        <label for="OptionD">Option D (optional)</label>
+        <input id="OptionD" name="OptionD" value="@Model.OptionD">
+      </div>
+    </div>
+    <div class="field" style="max-width:240px;margin-bottom:0">
+      <label for="Correct">Correct answer</label>
+      <select id="Correct" name="Correct">
+        @foreach (var letter in new[] { "a", "b", "c", "d" })
+        {
+          <option value="@letter" selected="@(letter == Model.Correct)">@letter.ToUpper()</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Explanation</h2>
+    <div class="field" style="margin-bottom:0">
+      <label for="Explanation">Shown after the student answers (optional)</label>
+      <textarea id="Explanation" name="Explanation">@Model.Explanation</textarea>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn" type="submit">Save question</button>
+    <a class="btn btn-secondary" href="/admin/questions?target=@Model.Target">Cancel</a>
+  </div>
+</form>
