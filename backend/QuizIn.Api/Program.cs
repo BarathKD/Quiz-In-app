@@ -113,6 +113,10 @@ using (var scope = app.Services.CreateScope())
         });
         db.SaveChanges();
     }
+
+    // Development convenience: load the app's old sample categories into an empty database
+    if (builder.Configuration.GetValue<bool>("Seed:SampleContent"))
+        SampleSeeder.SeedAsync(db, Path.Combine(app.Environment.ContentRootPath, "Data", "seed.json")).GetAwaiter().GetResult();
 }
 
 app.UseForwardedHeaders();

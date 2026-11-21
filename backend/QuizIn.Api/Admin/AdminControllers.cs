@@ -73,6 +73,72 @@ public class AdminContentController : Controller
         return Back("Category added.");
     }
 
+    [HttpGet("category/{id:int}/edit")]
+    public async Task<IActionResult> EditCategory(int id)
+    {
+        var cat = await _db.Categories.AsNoTracking()
+            .Include(c => c.Subcategories).ThenInclude(s => s.Subjects)
+            .FirstOrDefaultAsync(c => c.Id == id);
+        if (cat == null) return NotFound();
+        return View("EditCategory", cat);
+    }
+
+    [HttpPost("category/{id:int}/edit")]
+    public async Task<IActionResult> EditCategorySave(int id, string? name, string? description, int? timerMinutes, double? backgroundOpacity)
+    {
+        var cat = await _db.Categories
+            .Include(c => c.Subcategories).ThenInclude(s => s.Subjects)
+            .FirstOrDefaultAsync(c => c.Id == id);
+        if (cat == null) return NotFound();
+
+        name = name?.Trim();
+        if (string.IsNullOrEmpty(name)) return EditBack(id, "Category name is required.");
+        if (await _db.Categories.AnyAsync(c => c.Name == name && c.Id != id)) return EditBack(id, "Another category already has that name.");
+
+        cat.Name = name;
+        cat.Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        if (timerMinutes != null) cat.TimerMinutes = Math.Clamp(timerMinutes.Value, 1, 180);
+        if (backgroundOpacity != null) cat.BackgroundOpacity = Math.Clamp(backgroundOpacity.Value, 0, 1);
+
+        var form = Request.Form;
+        var subNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var sub in cat.Subcategories)
+        {
+            var newName = form[$"subName_{sub.Id}"].ToString().Trim();
+            if (newName != "") sub.Name = newName;
+            if (!subNames.Add(sub.Name)) return EditBack(id, $"Two subcategories are named \"{sub.Name}\".");
+
+            var subjectNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var subject in sub.Subjects)
+            {
+                var subjectName = form[$"subjName_{subject.Id}"].ToString().Trim();
+                if (subjectName != "") subject.Name = subjectName;
+                if (!subjectNames.Add(subject.Name)) return EditBack(id, $"Two subjects in \"{sub.Name}\" are named \"{subject.Name}\".");
+
+                var timerText = form[$"subjTimer_{subject.Id}"].ToString().Trim();
+                subject.TimerMinutes = int.TryParse(timerText, out var minutes) ? Math.Clamp(minutes, 1, 180) : null;
+            }
+        }
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return EditBack(id, "Could not save: a name clashes with an existing one.");
+        }
+
+        TempData["Msg"] = "Category updated.";
+        return Redirect("/admin/content");
+    }
+
+    private IActionResult EditBack(int id, string message)
+    {
+        TempData["Err"] = message;
+        return Redirect($"/admin/content/category/{id}/edit");
+    }
+
     [HttpPost("category/{id:int}/delete")]
     public async Task<IActionResult> DeleteCategory(int id)
     {
@@ -151,20 +217,38 @@ public class AdminQuestionsController : Controller
     private readonly AppDbContext _db;
     public AdminQuestionsController(AppDbContext db) => _db = db;
 
-    [HttpGet("")]
-    public async Task<IActionResult> Index(string? target, string? difficulty, int page = 1)
+    // Applies the list filters; "any" tells whether at least one filter is active.
+    private static IQueryable<Question> ApplyFilters(IQueryable<Question> q, string? target, string? difficulty, string? search, out bool any)
     {
-        var q = _db.Questions.AsNoTracking()
-            .Include(x => x.Subcategory).ThenInclude(s => s!.Category)
-            .Include(x => x.Subject)
-            .AsQueryable();
-
+        any = false;
         if (AdminHelpers.TryParseTarget(target, out var subId, out var subjId))
         {
+            any = true;
             q = q.Where(x => x.SubcategoryId == subId);
             if (subjId != null) q = q.Where(x => x.SubjectId == subjId);
         }
-        if (!string.IsNullOrEmpty(difficulty)) q = q.Where(x => x.Difficulty == difficulty);
+        if (!string.IsNullOrEmpty(difficulty))
+        {
+            any = true;
+            q = q.Where(x => x.Difficulty == difficulty);
+        }
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            any = true;
+            var term = search.Trim();
+            q = q.Where(x => x.QuestionText.Contains(term));
+        }
+        return q;
+    }
+
+    [HttpGet("")]
+    public async Task<IActionResult> Index(string? target, string? difficulty, string? search, int page = 1)
+    {
+        var q = ApplyFilters(
+            _db.Questions.AsNoTracking()
+                .Include(x => x.Subcategory).ThenInclude(s => s!.Category)
+                .Include(x => x.Subject),
+            target, difficulty, search, out _);
 
         var total = await q.CountAsync();
         var pages = Math.Max(1, (int)Math.Ceiling(total / (double)PageSize));
@@ -177,10 +261,26 @@ public class AdminQuestionsController : Controller
             Locations = await AdminHelpers.GetLocations(_db),
             Target = target,
             Difficulty = difficulty,
+            Search = search,
             Page = page,
             TotalPages = pages,
             Total = total,
         });
+    }
+
+    // Deletes every question matching the current filters (at least one filter is required).
+    [HttpPost("bulk-delete")]
+    public async Task<IActionResult> BulkDelete(string? target, string? difficulty, string? search)
+    {
+        var q = ApplyFilters(_db.Questions, target, difficulty, search, out var any);
+        if (!any)
+        {
+            TempData["Err"] = "Pick a location, difficulty or search text first. To remove everything, delete the categories instead.";
+            return Redirect("/admin/questions");
+        }
+        var deleted = await q.ExecuteDeleteAsync();
+        TempData["Msg"] = $"Deleted {deleted} question(s).";
+        return Redirect("/admin/questions");
     }
 
     [HttpGet("new")]
@@ -313,24 +413,33 @@ public class AdminImportController : Controller
             vm.Error = "Category and subcategory are required.";
             return View("Index", await Fill(vm));
         }
-        if (file == null || file.Length == 0)
+
+        // A chosen file wins; otherwise use the pasted text
+        string content;
+        if (file != null && file.Length > 0)
         {
-            vm.Error = "Choose a CSV file.";
+            using var reader = new StreamReader(file.OpenReadStream());
+            content = await reader.ReadToEndAsync();
+        }
+        else content = vm.Text ?? "";
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            vm.Error = "Choose a file or paste the questions.";
             return View("Index", await Fill(vm));
         }
 
-        string csv;
-        using (var reader = new StreamReader(file.OpenReadStream()))
-            csv = await reader.ReadToEndAsync();
-
-        var result = await ContentEndpoints.ImportCsvAsync(
-            _db, csv, vm.Category, vm.Subcategory, vm.Subject, vm.Difficulty ?? "easy");
+        var difficulty = vm.Difficulty ?? "easy";
+        var result = vm.Format == "json"
+            ? await ContentEndpoints.ImportJsonAsync(_db, content, vm.Category, vm.Subcategory, vm.Subject, difficulty)
+            : await ContentEndpoints.ImportCsvAsync(_db, content, vm.Category, vm.Subcategory, vm.Subject, difficulty);
 
         if (result.Error != null) vm.Error = "Import failed: " + result.Error;
         else
         {
             vm.Added = result.Added;
             vm.Skipped = result.Skipped;
+            vm.Text = null;
         }
         return View("Index", await Fill(vm));
     }

@@ -119,6 +119,7 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - 2026-11-20: Phase 2 step 1-2 written: backend skeleton, all entities, DbContext, JWT auth endpoints. Dev DB = SQLite (Codespaces), prod = SQL Server (Azure SQL free tier). Decision: office PC cannot install tools, so all dev happens in Codespaces.
 - 2026-11-20: Backend auth tested OK in Codespaces (register/login/admin). Step 3 written: content endpoints + CSV import + `backend/smoke-test.sh`.
 - 2026-11-20: Smoke test PASSED in Codespaces. Admin web v1 written (login, dashboard, content tree, questions CRUD, CSV import) in the same project; login rate limiting added. NOT yet compiled.
+- 2026-11-21: Admin web parity pass (written, not compiled): sample categories seeded in Development, category edit (name/description/timer/opacity/renames/subject timers), question search, bulk delete, JSON import + paste import. STILL MISSING vs the old in-app admin: category background images and subject images (needs file storage decision), Excel .xlsx import (use CSV UTF-8 instead).
 - NEXT: build + try /admin in Codespaces, then progress/daily/leaderboard endpoints. (earlier: build backend in Codespaces, then content endpoints. (earlier: test Phase 1B on phone), then Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
 
 ## Redesign progress (branch `ui-redesign`)

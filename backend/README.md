@@ -19,7 +19,8 @@ curl -X POST http://localhost:5080/api/auth/register -H "Content-Type: applicati
 
 ## Admin web panel
 Open `/admin` (e.g. http://localhost:5080/admin) and log in with the admin account.
-Pages: Dashboard, Content (categories/subcategories/subjects), Questions (list, add, edit, delete), CSV import.
+Pages: Dashboard, Content (add/edit/delete categories, subcategories, subjects; timers and background opacity), Questions (filter, search, add, edit, delete, bulk delete), Bulk import (CSV or JSON, file or pasted text).
+In Development the app's old sample categories are loaded into an empty database (`Data/seed.json`, `Seed:SampleContent`).
 It is part of this same project (Razor views + cookie login), so one deployment serves both the API and the panel.
 
 ## Migrations (recommended once the model is stable)

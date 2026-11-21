@@ -33,6 +33,7 @@ public class QuestionListVm
     public List<LocationOption> Locations { get; set; } = new();
     public string? Target { get; set; }
     public string? Difficulty { get; set; }
+    public string? Search { get; set; }
     public int Page { get; set; }
     public int TotalPages { get; set; }
     public int Total { get; set; }
@@ -60,6 +61,8 @@ public class ImportVm
     public string? Subcategory { get; set; }
     public string? Subject { get; set; }
     public string? Difficulty { get; set; } = "easy";
+    public string? Format { get; set; } = "csv";
+    public string? Text { get; set; }
     public string? Error { get; set; }
     public int? Added { get; set; }
     public List<string>? Skipped { get; set; }

@@ -19,6 +19,8 @@
     <div class="row">
       <h2 style="margin:0">@cat.Name</h2>
       <span class="pill">@cat.TimerMinutes min</span>
+      <span class="pill">opacity @cat.BackgroundOpacity.ToString("0.##")</span>
+      <a class="btn alt" href="/admin/content/category/@cat.Id/edit">Edit</a>
       <form class="inline" method="post" action="/admin/content/category/@cat.Id/delete" onsubmit="return confirm('Delete this category and ALL its questions?');">
         @Html.AntiForgeryToken()
         <button class="danger" type="submit">Delete</button>

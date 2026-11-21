@@ -1,0 +1,48 @@
+@model Category
+@{ ViewData["Title"] = "Edit category"; }
+<h1>Edit category</h1>
+<div class="card">
+  <form method="post" action="/admin/content/category/@Model.Id/edit">
+    @Html.AntiForgeryToken()
+
+    <label for="name">Name</label>
+    <input id="name" name="name" value="@Model.Name" style="width:100%" required>
+
+    <label for="description">Description</label>
+    <input id="description" name="description" value="@Model.Description" style="width:100%">
+
+    <div class="row">
+      <div>
+        <label for="timerMinutes">Quiz timer (minutes)</label>
+        <input id="timerMinutes" name="timerMinutes" type="number" min="1" max="180" value="@Model.TimerMinutes" style="width:140px">
+      </div>
+      <div>
+        <label for="backgroundOpacity">Background opacity (0 to 1)</label>
+        <input id="backgroundOpacity" name="backgroundOpacity" type="number" min="0" max="1" step="0.05" value="@Model.BackgroundOpacity.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" style="width:140px">
+      </div>
+    </div>
+
+    <h2 style="margin-top:22px">Subcategories and subjects</h2>
+    <p class="muted">Rename them here. A subject timer overrides the category timer; leave it empty to use the category timer.</p>
+
+    @foreach (var sub in Model.Subcategories.OrderBy(s => s.Id))
+    {
+      <div class="tree-sub">
+        <label for="subName_@sub.Id">Subcategory</label>
+        <input id="subName_@sub.Id" name="subName_@sub.Id" value="@sub.Name" style="width:100%">
+        @foreach (var subject in sub.Subjects.OrderBy(x => x.Id))
+        {
+          <div class="tree-sub row">
+            <input name="subjName_@subject.Id" value="@subject.Name" aria-label="Subject name">
+            <input name="subjTimer_@subject.Id" type="number" min="1" max="180" value="@subject.TimerMinutes" placeholder="Timer (min)" style="width:130px" aria-label="Subject timer in minutes">
+          </div>
+        }
+      </div>
+    }
+
+    <p class="row">
+      <button type="submit">Save</button>
+      <a class="btn alt" href="/admin/content">Cancel</a>
+    </p>
+  </form>
+</div>

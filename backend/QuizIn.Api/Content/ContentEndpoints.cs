@@ -219,9 +219,60 @@ public static class ContentEndpoints
                 ? Results.BadRequest(new { error = result.Error })
                 : Results.Ok(new { added = result.Added, skipped = result.Skipped });
         });
+
+        admin.MapPost("/import/json", async (HttpRequest req, AppDbContext db,
+            string category, string subcategory, string? subject, string? difficulty) =>
+        {
+            using var reader = new StreamReader(req.Body);
+            var body = await reader.ReadToEndAsync();
+            var result = await ImportJsonAsync(db, body, category, subcategory, subject, difficulty ?? "easy");
+            return result.Error != null
+                ? Results.BadRequest(new { error = result.Error })
+                : Results.Ok(new { added = result.Added, skipped = result.Skipped });
+        });
     }
 
     public record ImportResult(int Added, List<string> Skipped, string? Error);
+
+    // JSON body: an array of { questionText, options: [{id,text}], correctOptionId, explanation } (same as the app's old JSON import)
+    public static async Task<ImportResult> ImportJsonAsync(
+        AppDbContext db, string json, string category, string subcategory, string? subject, string difficulty)
+    {
+        var diff = difficulty.ToLowerInvariant();
+        if (!Difficulties.Contains(diff)) return new ImportResult(0, new List<string>(), "invalid_difficulty");
+
+        List<QuestionInput>? items;
+        try { items = JsonSerializer.Deserialize<List<QuestionInput>>(json, Json); }
+        catch (JsonException) { return new ImportResult(0, new List<string>(), "invalid_json"); }
+        if (items == null || items.Count == 0) return new ImportResult(0, new List<string>(), "json_empty");
+
+        var valid = new List<QuestionInput>();
+        var skipped = new List<string>();
+        for (var i = 0; i < items.Count; i++)
+        {
+            var item = items[i] with { Difficulty = diff };
+            var error = Validate(item, requireTarget: false);
+            if (error != null) { skipped.Add($"Item {i + 1}: {error}"); continue; }
+            valid.Add(item);
+        }
+        if (valid.Count == 0) return new ImportResult(0, skipped, null);
+
+        var target = await Resolve(db, category, subcategory, subject, create: true);
+        if (target.Error != null) return new ImportResult(0, skipped, target.Error);
+
+        db.Questions.AddRange(valid.Select(item => new Question
+        {
+            SubcategoryId = target.Subcategory!.Id,
+            SubjectId = target.Subject?.Id,
+            Difficulty = diff,
+            QuestionText = item.QuestionText!.Trim(),
+            OptionsJson = JsonSerializer.Serialize(item.Options, Json),
+            CorrectOptionId = item.CorrectOptionId!,
+            Explanation = string.IsNullOrWhiteSpace(item.Explanation) ? null : item.Explanation.Trim(),
+        }));
+        await db.SaveChangesAsync();
+        return new ImportResult(valid.Count, skipped, null);
+    }
 
     // Shared by the API endpoint and the admin web page.
     public static async Task<ImportResult> ImportCsvAsync(

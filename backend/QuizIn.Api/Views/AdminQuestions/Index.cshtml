@@ -18,10 +18,25 @@
         <option value="@d" selected="@(d == Model.Difficulty)">@d</option>
       }
     </select>
+    <input name="search" value="@Model.Search" placeholder="Search text">
     <button type="submit">Filter</button>
     <a class="btn alt" href="/admin/questions/new?target=@Model.Target">Add question</a>
   </form>
 </div>
+
+@if ((!string.IsNullOrEmpty(Model.Target) || !string.IsNullOrEmpty(Model.Difficulty) || !string.IsNullOrWhiteSpace(Model.Search)) && Model.Total > 0)
+{
+  <div class="card">
+    <form method="post" action="/admin/questions/bulk-delete" class="row" onsubmit="return confirm('Delete ALL @Model.Total question(s) matching these filters? This cannot be undone.');">
+      @Html.AntiForgeryToken()
+      <input type="hidden" name="target" value="@Model.Target">
+      <input type="hidden" name="difficulty" value="@Model.Difficulty">
+      <input type="hidden" name="search" value="@Model.Search">
+      <span class="muted">Bulk delete: remove every question matching the current filters.</span>
+      <button class="danger" type="submit">Delete all @Model.Total matching</button>
+    </form>
+  </div>
+}
 
 <div class="card">
   @if (Model.Items.Count == 0)
@@ -53,12 +68,12 @@
     <p class="row">
       @if (Model.Page > 1)
       {
-        <a class="btn alt" href="/admin/questions?target=@Model.Target&difficulty=@Model.Difficulty&page=@(Model.Page - 1)">Previous</a>
+        <a class="btn alt" href="/admin/questions?target=@Model.Target&difficulty=@Model.Difficulty&search=@Model.Search&page=@(Model.Page - 1)">Previous</a>
       }
       <span class="muted">Page @Model.Page of @Model.TotalPages</span>
       @if (Model.Page < Model.TotalPages)
       {
-        <a class="btn alt" href="/admin/questions?target=@Model.Target&difficulty=@Model.Difficulty&page=@(Model.Page + 1)">Next</a>
+        <a class="btn alt" href="/admin/questions?target=@Model.Target&difficulty=@Model.Difficulty&search=@Model.Search&page=@(Model.Page + 1)">Next</a>
       }
     </p>
   }
