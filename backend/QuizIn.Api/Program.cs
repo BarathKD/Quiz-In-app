@@ -136,6 +136,7 @@ app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", time = DateTime.UtcNow }));
 app.MapAuth();
 app.MapContent();
+app.MapUserData();
 app.MapControllers();
 app.MapGet("/", () => Results.Redirect("/admin"));
 

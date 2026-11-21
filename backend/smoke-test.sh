@@ -36,6 +36,17 @@ U="Authorization: Bearer $USERTOKEN"
 curl -s $B/api/categories -H "$U" | jq -c '.[] | select(.name=="Smoke Test")'
 echo "question count: $(curl -s "$B/api/questions?category=Smoke%20Test&subcategory=Class%2010&subject=History&difficulty=easy" -H "$U" | jq length)  (expected 4)"
 
+say "user data: levels, answers, bookmarks, daily, leaderboard"
+QID=$(curl -s "$B/api/questions?category=Smoke%20Test&subcategory=Class%2010&subject=History&difficulty=easy" -H "$U" | jq -r '.[0].id')
+D=$(date -u +%F)
+echo "level passed (expect 204): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/levels -H "$J" -H "$U" -d '{"category":"Smoke Test","subcategory":"Class 10","subject":"History","difficulty":"hard","levelNumber":1}')"
+echo "wrong answer (expect 204): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/answers -H "$J" -H "$U" -d "{\"questionId\":$QID,\"correct\":false}")"
+echo "bookmark toggle (expect bookmarked true): $(curl -s -X POST $B/api/me/bookmarks/$QID -H "$U")"
+echo "daily complete: $(curl -s -X POST $B/api/me/daily -H "$J" -H "$U" -d "{\"date\":\"$D\",\"score\":7,\"total\":10}")"
+echo "my data: $(curl -s $B/api/me/data -H "$U" | jq -c '{levels: (.levels|length), mistakes, bookmarks, stats, daily}')"
+echo "daily questions (expect up to 10): $(curl -s "$B/api/daily?date=$D" -H "$U" | jq length)"
+echo "leaderboard (expect hard level = 150 points for this user): $(curl -s $B/api/leaderboard -H "$U" | jq -c '.[0]')"
+
 say "normal user must NOT be able to use admin endpoints (expect 403)"
 curl -s -o /dev/null -w "%{http_code}\n" -X POST $B/api/admin/categories -H "$J" -H "$U" -d '{"name":"Hack"}'
 

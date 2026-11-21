@@ -352,12 +352,12 @@ public static class ContentEndpoints
     }
 
     // ---------- helpers ----------
-    private static IQueryable<Question> QuestionQuery(AppDbContext db) =>
+    internal static IQueryable<Question> QuestionQuery(AppDbContext db) =>
         db.Questions.AsNoTracking()
             .Include(x => x.Subcategory).ThenInclude(s => s!.Category)
             .Include(x => x.Subject);
 
-    private static QuestionDto ToDto(Question q) => new(
+    internal static QuestionDto ToDto(Question q) => new(
         q.Id, q.Subcategory!.Category!.Name, q.Subcategory.Name, q.Subject?.Name, q.Difficulty,
         q.QuestionText,
         JsonSerializer.Deserialize<List<OptionDto>>(q.OptionsJson, Json) ?? new List<OptionDto>(),
