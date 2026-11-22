@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { View, Text, StyleSheet,Image } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { getLoggedInUserSession } from "../utils/api";
+import { getLoggedInUserSession, USE_SERVER } from "../utils/api";
 import { useLang } from "../utils/i18n";
 import { colors } from "../utils/theme";
 
@@ -16,7 +16,7 @@ export default function SplashScreen() {
         
         const timer = setTimeout(() => {
           if (user) {
-            if (user.isAdmin) {
+            if (user.isAdmin && !USE_SERVER) {
               navigation.replace("Admin", { user });
             } else {
               navigation.replace("Categories", { user });

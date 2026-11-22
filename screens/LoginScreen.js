@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { authenticateUser, registerUser, loginUserSession } from "../utils/api";
+import { authenticateUser, registerUser, loginUserSession, USE_SERVER } from "../utils/api";
 import { useLang } from "../utils/i18n";
 import { colors, fonts, shadow } from "../utils/theme";
 import LanguageToggle from "../components/LanguageToggle";
@@ -32,7 +32,7 @@ export default function LoginScreen({ navigation }) {
 
       await loginUserSession(user);
 
-      if (user.isAdmin) {
+      if (user.isAdmin && !USE_SERVER) {
         navigation.reset({ index: 0, routes: [{ name: "Admin", params: { user } }] });
       } else {
         navigation.reset({ index: 0, routes: [{ name: "Categories", params: { user } }] });

@@ -158,3 +158,11 @@ Pages, by priority:
 ## Privacy policy
 - Page: `docs/privacy.html`, hosted by GitHub Pages (Settings > Pages > main /docs) at https://barathkd.github.io/Quiz-In-app/privacy.html
 - It describes the CURRENT local-only app. Update it (and the Play Data safety form) before releasing Phase 2 (server accounts), Phase 3 (purchases) and Phase 4 (AdMob).
+
+## Server mode (app <-> backend)
+- `utils/config.js`: `API_BASE_URL` (or env `EXPO_PUBLIC_API_URL`). Empty = local mode (all data on the phone, as before).
+- `utils/server.js`: HTTP client, JWT in expo-secure-store, offline cache of content, per-session memory cache.
+- `utils/api.js`: in server mode swaps accounts, content, progress, bookmarks, mistakes, daily, leaderboard to the backend; screens unchanged.
+- Admins use the web panel (`/admin`); in server mode the app opens the normal home screen for them.
+- Known limits: writes made while offline are not queued yet; content cache lives in AsyncStorage (fine for a few thousand questions).
+- Before release: deploy backend (HTTPS), set `API_BASE_URL`, update privacy policy + Play Data safety form (accounts now stored on a server).
