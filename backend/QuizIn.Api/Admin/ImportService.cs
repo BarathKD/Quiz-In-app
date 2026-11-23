@@ -24,6 +24,7 @@ public class DraftRow
     public string? Error { get; set; }
     public string Status { get; set; } = "new";       // new | duplicate | update | error
     public int? ExistingId { get; set; }
+    public string? ExistingWhere { get; set; }        // where the existing duplicate lives
     public string? SkipReason { get; set; }           // filled in on import
     public string CorrectId { get; set; } = "";
     public List<OptionDto> Options { get; set; } = new();
@@ -77,9 +78,24 @@ public static class ImportService
     };
 
     private static string Norm(string s) => new string(s.Trim().ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
-    internal static string NormText(string s) => string.Join(' ', s.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
-    private static string Key(string cat, string sub, string subj, string text) =>
-        $"{cat.Trim().ToLowerInvariant()}|{sub.Trim().ToLowerInvariant()}|{subj.Trim().ToLowerInvariant()}|{NormText(text)}";
+    // Duplicate key: the question text only, ignoring case, spaces and punctuation, so "What is 2+2?" and "what is 2 + 2"
+    // match. Letters, digits and combining marks are kept (Tamil vowel signs are combining marks).
+    internal static string NormText(string s)
+    {
+        var sb = new System.Text.StringBuilder(s.Length);
+        var lastSpace = true;
+        foreach (var ch in s)
+        {
+            var cat = char.GetUnicodeCategory(ch);
+            var keep = char.IsLetterOrDigit(ch)
+                || cat == System.Globalization.UnicodeCategory.NonSpacingMark
+                || cat == System.Globalization.UnicodeCategory.SpacingCombiningMark
+                || cat == System.Globalization.UnicodeCategory.EnclosingMark;
+            if (keep) { sb.Append(char.ToLowerInvariant(ch)); lastSpace = false; }
+            else if (!lastSpace) { sb.Append(' '); lastSpace = true; }
+        }
+        return sb.ToString().Trim();
+    }
 
     // ---------- parsing ----------
     // Spreadsheet / CSV. With a header row, columns are found by name (category, subcategory, subject, difficulty, question,
@@ -235,10 +251,9 @@ public static class ImportService
     public static async Task AnnotateAsync(AppDbContext db, ImportDraft d)
     {
         var valid = d.Rows.Where(r => r.Error == null).ToList();
-        var cats = valid.Select(r => r.Category).Distinct().ToList();
 
+        // A question is a duplicate when the same text exists ANYWHERE (any category, class or subject).
         var existing = await db.Questions.AsNoTracking()
-            .Where(q => cats.Contains(q.Subcategory!.Category!.Name))
             .Select(q => new
             {
                 q.Id,
@@ -248,8 +263,9 @@ public static class ImportService
                 q.QuestionText,
             }).ToListAsync();
 
-        var byKey = new Dictionary<string, int>();
-        foreach (var e in existing) byKey.TryAdd(Key(e.Cat, e.Sub, e.Subj, e.QuestionText), e.Id);
+        var byKey = new Dictionary<string, (int Id, string Where)>();
+        foreach (var e in existing)
+            byKey.TryAdd(NormText(e.QuestionText), (e.Id, e.Cat + " › " + e.Sub + (e.Subj != "" ? " › " + e.Subj : "")));
 
         var qids = valid.Where(r => r.Qid != null).Select(r => r.Qid!.Value).Distinct().ToList();
         var knownIds = qids.Count == 0 ? new HashSet<int>()
@@ -259,6 +275,7 @@ public static class ImportService
         foreach (var r in d.Rows)
         {
             r.ExistingId = null;
+            r.ExistingWhere = null;
             if (r.Error != null) { r.Status = "error"; continue; }
             if (r.Qid != null)
             {
@@ -266,8 +283,8 @@ public static class ImportService
                 else { r.Status = "error"; r.Error = $"question #{r.Qid} does not exist"; }
                 continue;
             }
-            var key = Key(r.Category, r.Subcategory, r.Subject, r.QuestionText);
-            if (byKey.TryGetValue(key, out var existingId)) { r.Status = "duplicate"; r.ExistingId = existingId; }
+            var key = NormText(r.QuestionText);
+            if (byKey.TryGetValue(key, out var hit)) { r.Status = "duplicate"; r.ExistingId = hit.Id; r.ExistingWhere = hit.Where; }
             else if (!seen.Add(key)) r.Status = "duplicate";   // repeated inside the same file
             else r.Status = "new";
         }
@@ -298,7 +315,7 @@ public static class ImportService
             var updateId = r.Status == "update" ? r.ExistingId : dup == "update" && r.Status == "duplicate" ? r.ExistingId : null;
             if (r.Status == "duplicate" && (dup == "skip" || (dup == "update" && r.ExistingId == null)))
             {
-                r.SkipReason = r.ExistingId != null ? $"duplicate of question #{r.ExistingId}" : "repeated in this file";
+                r.SkipReason = r.ExistingId != null ? $"duplicate of question #{r.ExistingId} ({r.ExistingWhere})" : "repeated in this file";
                 result.Skipped.Add(r);
                 continue;
             }

@@ -71,7 +71,7 @@
     <h2 class="card-title">Options</h2>
     <div class="form-grid">
       <div class="field">
-        <label for="duplicates">When a question already exists in the same place</label>
+        <label for="duplicates">When the same question already exists anywhere</label>
         <select id="duplicates" name="duplicates">
           <option value="skip">Skip it</option>
           <option value="update">Update the existing question</option>
@@ -121,6 +121,7 @@
               <td>
                 @(r.QuestionText.Length > 110 ? r.QuestionText.Substring(0, 110) + "…" : r.QuestionText)
                 @if (isError) { <div class="row-error">@r.Error</div> }
+                @if (r.Status == "duplicate") { <div class="row-dup">@(r.ExistingId != null ? "Already exists: #" + r.ExistingId + " in " + r.ExistingWhere : "Repeated in this file")</div> }
               </td>
               <td class="col-ans">@(r.CorrectId == "" ? "-" : r.CorrectId.ToUpperInvariant())</td>
             </tr>

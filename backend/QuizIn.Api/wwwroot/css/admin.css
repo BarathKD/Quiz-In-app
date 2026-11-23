@@ -379,3 +379,4 @@ table.preview tr.row-duplicate td { background: #F6F8F9; }
 .split-inputs label { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
 .split-inputs input { width: 90px; text-align: center; }
 .split-inputs input[readonly] { background: var(--bg); }
+.row-dup { margin-top: 4px; font-size: 13px; color: var(--muted); }
