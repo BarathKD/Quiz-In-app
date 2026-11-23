@@ -1,44 +1,40 @@
 @model ImportVm
 @{ ViewData["Title"] = "Bulk import"; }
-<div class="page-head"><h1>Bulk import</h1></div>
+<div class="page-head">
+  <h1>Bulk import</h1>
+  <a class="btn btn-secondary" href="/admin/import/history">Import history</a>
+</div>
 
 @if (!string.IsNullOrEmpty(Model.Error))
 {
   <div class="alert alert-err">@Model.Error</div>
 }
-@if (Model.Added != null)
-{
-  <div class="alert alert-ok">Imported @Model.Added question(s).</div>
-  @if (Model.Skipped != null && Model.Skipped.Count > 0)
-  {
-    <div class="card">
-      <h2 class="card-title">Skipped (@Model.Skipped.Count)</h2>
-      <ul class="help-list">
-        @foreach (var line in Model.Skipped)
-        {
-          <li>@line</li>
-        }
-      </ul>
-    </div>
-  }
-}
 
 <div class="card">
   <h2 class="card-title">Formats</h2>
-  <p class="muted"><b>Excel (.xlsx)</b> or <b>CSV</b>: first sheet, columns <b>id, question, A, B, C, D, answer, explanation</b>. The answer can be A-D, 1-4 or the answer text. The first row may be a header. For CSV save as UTF-8 (needed for Tamil). <a href="/templates/quiz-import-template.xlsx" download>Download the Excel template</a>.</p>
-  <p class="muted"><b>JSON</b>: an array like this:</p>
+  <p class="muted"><b>Excel (.xlsx)</b> or <b>CSV</b> with a header row. Columns (any order, extra columns are ignored):</p>
+  <p class="muted"><b>category, subcategory, subject, difficulty, question, A, B, C, D, answer, explanation</b></p>
+  <ul class="help-list muted">
+    <li>The answer can be A-D, 1-4 or the answer text. For CSV save as UTF-8 (needed for Tamil).</li>
+    <li>If the file has <b>category</b> columns, each row goes where it says (missing ones are created). Otherwise every row goes to the default location below.</li>
+    <li>If the <b>difficulty</b> column is empty you can split the rows by count (for example 20 easy, 30 medium, 50 hard) on the next screen.</li>
+    <li>A <b>qid</b> column (from <i>Export</i> on the Questions page) updates those questions instead of adding new ones.</li>
+    <li>Old files without a header row (id, question, A, B, C, D, answer, explanation) still work.</li>
+  </ul>
+  <p class="muted"><a href="/admin/import/template">Download the Excel template</a></p>
+  <p class="muted"><b>JSON</b>: an array like this (category, subcategory, subject and difficulty are optional per item):</p>
 <pre class="code">[
   { "questionText": "Capital of India?",
     "options": [ {"id":"a","text":"Delhi"}, {"id":"b","text":"Mumbai"} ],
     "correctOptionId": "a",
     "explanation": "New Delhi is the capital." }
 ]</pre>
-  <p class="muted" style="margin:0">Missing categories, subcategories and subjects are created automatically. All questions in one import get the same difficulty.</p>
+  <p class="muted" style="margin:0">You always get a preview first: nothing is saved until you press Import.</p>
 </div>
 
 <div class="card">
-  <h2 class="card-title">Import questions</h2>
-  <form method="post" action="/admin/import" enctype="multipart/form-data">
+  <h2 class="card-title">Choose the file</h2>
+  <form method="post" action="/admin/import/preview" enctype="multipart/form-data">
     @Html.AntiForgeryToken()
 
     <input type="hidden" id="Category" name="Category" value="@Model.Category">
@@ -46,17 +42,17 @@
     <input type="hidden" id="Subject" name="Subject" value="@Model.Subject">
 
     <div class="field">
-      <label for="catSel">Category</label>
+      <label for="catSel">Default category <span class="hint">(used for rows without a category column)</span></label>
       <select id="catSel"></select>
       <input id="catNew" type="text" placeholder="New category name" hidden>
     </div>
     <div class="field">
-      <label for="subSel">Subcategory</label>
+      <label for="subSel">Default subcategory</label>
       <select id="subSel"></select>
       <input id="subNew" type="text" placeholder="New subcategory name" hidden>
     </div>
     <div class="field">
-      <label for="sbjSel">Subject (optional)</label>
+      <label for="sbjSel">Default subject (optional)</label>
       <select id="sbjSel"></select>
       <input id="sbjNew" type="text" placeholder="New subject name" hidden>
     </div>
@@ -70,7 +66,7 @@
         </select>
       </div>
       <div class="field">
-        <label for="Difficulty">Difficulty</label>
+        <label for="Difficulty">Default difficulty</label>
         <select id="Difficulty" name="Difficulty">
           @foreach (var d in new[] { "easy", "medium", "hard" })
           {
@@ -90,7 +86,7 @@
       <textarea id="Text" name="Text">@Model.Text</textarea>
     </div>
 
-    <button class="btn" type="submit">Import questions</button>
+    <button class="btn" type="submit">Preview</button>
   </form>
 </div>
 
@@ -157,7 +153,7 @@
   sel.sub.addEventListener("change", function () { sel.sbj.value = ""; txt.sbj.value = ""; refresh(false); });
   sel.sbj.addEventListener("change", function () { refresh(false); });
   ["cat", "sub", "sbj"].forEach(function (k) { txt[k].addEventListener("input", sync); });
-  document.querySelector("form[action='/admin/import']").addEventListener("submit", sync);
+  document.querySelector("form[action='/admin/import/preview']").addEventListener("submit", sync);
 
   refresh(true);
 })();

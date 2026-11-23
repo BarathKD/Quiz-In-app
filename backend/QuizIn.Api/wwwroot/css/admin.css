@@ -343,3 +343,39 @@ table.data tr.total-row td { font-weight: 700; }
 .edit-subjects .subject-img { grid-column: 1 / -1; padding-bottom: 6px; }
 .edit-subjects .subject-img input[type="file"] { flex: 1 1 240px; width: auto; }
 table.data .col-date { width: 140px; color: var(--muted); white-space: nowrap; }
+
+/* ---------- Import preview ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 999px; background: var(--tint); color: var(--primary-dark); font-size: 14px; }
+.chip-ok { background: var(--ok-tint); color: var(--ok); }
+.chip-info { background: var(--accent-tint); color: var(--accent); }
+.chip-warn { background: #E4E9EC; color: #3D5560; }
+.chip-err { background: var(--danger-tint); color: var(--danger); }
+.badge-err { background: var(--danger-tint); color: var(--danger); }
+.badge-warn { background: #E4E9EC; color: #3D5560; }
+.badge-info { background: var(--accent-tint); color: var(--accent); }
+.preview-wrap { max-height: 520px; overflow: auto; }
+table.preview { min-width: 860px; }
+table.preview thead th { position: sticky; top: 0; z-index: 1; }
+table.data .col-check { width: 44px; text-align: center; }
+table.data .col-status { width: 120px; }
+table.data .col-ans { width: 80px; text-align: center; }
+table.preview tr.row-error td { background: #FFF6F4; }
+table.preview tr.row-duplicate td { background: #F6F8F9; }
+.row-error { margin-top: 4px; font-size: 13px; color: var(--danger); }
+.check input { width: 16px; height: 16px; accent-color: var(--primary); }
+
+.splitbar { position: relative; display: flex; height: 18px; border-radius: 999px; background: var(--tint); margin: 10px 8px 14px; touch-action: none; }
+.splitbar .seg { height: 100%; }
+.splitbar .seg-easy { background: var(--ok); border-radius: 999px 0 0 999px; }
+.splitbar .seg-medium { background: var(--primary); }
+.splitbar .seg-hard { background: var(--accent); border-radius: 0 999px 999px 0; }
+.splitbar .handle {
+  position: absolute; top: 50%; width: 22px; height: 30px; margin: -15px 0 0 -11px;
+  background: #fff; border: 2px solid var(--primary-dark); border-radius: 8px; cursor: ew-resize; touch-action: none;
+}
+.splitbar .handle:focus-visible { outline: 3px solid rgba(12, 100, 120, .35); }
+.split-inputs { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.split-inputs label { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+.split-inputs input { width: 90px; text-align: center; }
+.split-inputs input[readonly] { background: var(--bg); }

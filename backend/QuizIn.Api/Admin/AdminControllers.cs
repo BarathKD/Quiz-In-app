@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -317,6 +319,30 @@ public class AdminQuestionsController : Controller
         return Redirect("/admin/questions");
     }
 
+    // Excel export of the filtered questions. Keep the qid column to update them by re-uploading the edited file.
+    [HttpGet("export")]
+    public async Task<IActionResult> Export(string? target, string? difficulty, string? search)
+    {
+        var list = await ApplyFilters(
+            _db.Questions.AsNoTracking()
+                .Include(x => x.Subcategory).ThenInclude(s => s!.Category)
+                .Include(x => x.Subject),
+            target, difficulty, search, out _).OrderBy(x => x.Id).Take(20000).ToListAsync();
+
+        var rows = new List<List<string>> { new() { "qid", "category", "subcategory", "subject", "difficulty", "question", "A", "B", "C", "D", "answer", "explanation" } };
+        foreach (var q in list)
+        {
+            var options = JsonSerializer.Deserialize<List<OptionDto>>(q.OptionsJson, Json) ?? new List<OptionDto>();
+            string Opt(string id) => options.FirstOrDefault(o => o.Id == id)?.Text ?? "";
+            rows.Add(new List<string>
+            {
+                q.Id.ToString(), q.Subcategory?.Category?.Name ?? "", q.Subcategory?.Name ?? "", q.Subject?.Name ?? "",
+                q.Difficulty, q.QuestionText, Opt("a"), Opt("b"), Opt("c"), Opt("d"), q.CorrectOptionId.ToUpperInvariant(), q.Explanation ?? "",
+            });
+        }
+        return File(XlsxWriter.Write(rows), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "quiz-questions.xlsx");
+    }
+
     [HttpGet("new")]
     public async Task<IActionResult> New(string? target)
     {
@@ -426,43 +452,57 @@ public class AdminQuestionsController : Controller
     }
 }
 
-// ---------------- CSV import ----------------
+// ---------------- Bulk import ----------------
 [Route("admin/import")]
 [AutoValidateAntiforgeryToken]
 [Authorize(AuthenticationSchemes = AdminHelpers.Scheme, Roles = "Admin")]
 public class AdminImportController : Controller
 {
     private readonly AppDbContext _db;
-    public AdminImportController(AppDbContext db) => _db = db;
+    private readonly IMemoryCache _cache;
+    public AdminImportController(AppDbContext db, IMemoryCache cache) { _db = db; _cache = cache; }
+
+    private static readonly string[] Difficulties = { "easy", "medium", "hard" };
+    private const string XlsxType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    private ImportDraft? GetDraft(Guid token) => _cache.TryGetValue(token, out ImportDraft? d) ? d : null;
+    private IActionResult Expired()
+    {
+        TempData["Err"] = "That import expired. Upload the file again.";
+        return Redirect("/admin/import");
+    }
 
     [HttpGet("")]
     public async Task<IActionResult> Index() => View(await Fill(new ImportVm()));
 
-    [HttpPost("")]
+    // Step 1: read the file / pasted text into a draft and show the preview. Nothing is saved yet.
+    [HttpPost("preview")]
     [RequestSizeLimit(20_000_000)]
-    public async Task<IActionResult> Upload(ImportVm vm, IFormFile? file)
+    public async Task<IActionResult> Preview(ImportVm vm, IFormFile? file)
     {
-        if (string.IsNullOrWhiteSpace(vm.Category) || string.IsNullOrWhiteSpace(vm.Subcategory))
-        {
-            vm.Error = "Category and subcategory are required.";
-            return View("Index", await Fill(vm));
-        }
-
-        var difficulty = vm.Difficulty ?? "easy";
+        var difficulty = Difficulties.Contains((vm.Difficulty ?? "").ToLowerInvariant()) ? vm.Difficulty!.ToLowerInvariant() : "easy";
+        var defaults = new ImportDefaults(vm.Category, vm.Subcategory, vm.Subject, difficulty);
         var hasFile = file != null && file.Length > 0;
-        var isXlsx = hasFile && file!.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase);
+        var name = hasFile ? Path.GetFileName(file!.FileName) : "pasted text";
 
-        ContentEndpoints.ImportResult result;
-        if (isXlsx)
+        ImportDraft? draft;
+        string? error;
+        if (hasFile && name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
         {
             using var buffer = new MemoryStream();
             await file!.CopyToAsync(buffer);
             buffer.Position = 0;
-            result = await ContentEndpoints.ImportXlsxAsync(_db, buffer, vm.Category, vm.Subcategory, vm.Subject, difficulty);
+            List<List<string>> rows;
+            try { rows = XlsxReader.ReadFirstSheet(buffer); }
+            catch (Exception ex) when (ex is InvalidDataException or System.Xml.XmlException or IOException)
+            {
+                vm.Error = "That does not look like a valid .xlsx file.";
+                return View("Index", await Fill(vm));
+            }
+            draft = ImportService.BuildFromTable(rows, defaults, name, out error);
         }
         else
         {
-            // A chosen file wins; otherwise use the pasted text
             string content;
             if (hasFile)
             {
@@ -477,19 +517,107 @@ public class AdminImportController : Controller
                 return View("Index", await Fill(vm));
             }
 
-            result = vm.Format == "json"
-                ? await ContentEndpoints.ImportJsonAsync(_db, content, vm.Category, vm.Subcategory, vm.Subject, difficulty)
-                : await ContentEndpoints.ImportCsvAsync(_db, content, vm.Category, vm.Subcategory, vm.Subject, difficulty);
+            var isJson = name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) || (!hasFile && vm.Format == "json");
+            draft = isJson
+                ? ImportService.BuildFromJson(content, defaults, name, out error)
+                : ImportService.BuildFromTable(CsvParser.Parse(content), defaults, name, out error);
         }
 
-        if (result.Error != null) vm.Error = "Import failed: " + result.Error;
-        else
+        if (draft == null)
         {
-            vm.Added = result.Added;
-            vm.Skipped = result.Skipped;
-            vm.Text = null;
+            vm.Error = error;
+            return View("Index", await Fill(vm));
         }
-        return View("Index", await Fill(vm));
+
+        _cache.Set(draft.Token, draft, TimeSpan.FromHours(1));
+        return Redirect("/admin/import/preview/" + draft.Token);
+    }
+
+    [HttpGet("preview/{token:guid}")]
+    public async Task<IActionResult> PreviewPage(Guid token)
+    {
+        var draft = GetDraft(token);
+        if (draft == null) return Expired();
+        ImportService.ApplySplit(draft);
+        await ImportService.AnnotateAsync(_db, draft);
+        return View("Preview", draft);
+    }
+
+    // Re-applies the difficulty split without importing.
+    [HttpPost("preview/{token:guid}/split")]
+    public IActionResult Split(Guid token, string? splitMode, string? defaultDifficulty, int easyCount, int mediumCount)
+    {
+        var draft = GetDraft(token);
+        if (draft == null) return Expired();
+        ApplySplitFields(draft, splitMode, defaultDifficulty, easyCount, mediumCount);
+        return Redirect("/admin/import/preview/" + token);
+    }
+
+    private static void ApplySplitFields(ImportDraft draft, string? mode, string? defaultDifficulty, int easy, int medium)
+    {
+        draft.SplitMode = mode == "split" ? "split" : "single";
+        if (defaultDifficulty != null && Difficulties.Contains(defaultDifficulty)) draft.DefaultDifficulty = defaultDifficulty;
+        draft.EasyCount = Math.Max(0, easy);
+        draft.MediumCount = Math.Max(0, medium);
+        ImportService.ApplySplit(draft);
+    }
+
+    // Step 2: save the ticked rows.
+    [HttpPost("commit/{token:guid}")]
+    public async Task<IActionResult> Commit(Guid token, int[]? sel, string? duplicates, bool shuffle,
+        string? splitMode, string? defaultDifficulty, int easyCount, int mediumCount)
+    {
+        var draft = GetDraft(token);
+        if (draft == null) return Expired();
+        if (draft.Result != null) return Redirect("/admin/import/result/" + token); // double click / refresh
+
+        ApplySplitFields(draft, splitMode, defaultDifficulty, easyCount, mediumCount);
+        var policy = duplicates is "update" or "allow" ? duplicates : "skip";
+        var email = User.FindFirstValue(ClaimTypes.Email) ?? "admin";
+        await ImportService.CommitAsync(_db, draft, (sel ?? Array.Empty<int>()).ToHashSet(), policy, shuffle, email);
+        return Redirect("/admin/import/result/" + token);
+    }
+
+    [HttpGet("result/{token:guid}")]
+    public IActionResult Result(Guid token)
+    {
+        var draft = GetDraft(token);
+        if (draft?.Result == null) return Expired();
+        return View("Result", draft);
+    }
+
+    [HttpGet("errors/{token:guid}")]
+    public IActionResult ErrorReport(Guid token)
+    {
+        var draft = GetDraft(token);
+        if (draft == null) return Expired();
+        return File(XlsxWriter.Write(ImportService.ErrorSheet(draft), "Not imported"), XlsxType, "quiz-import-errors.xlsx");
+    }
+
+    [HttpGet("template")]
+    public IActionResult Template() =>
+        File(XlsxWriter.Write(ImportService.TemplateSheet()), XlsxType, "quiz-import-template.xlsx");
+
+    [HttpGet("history")]
+    public async Task<IActionResult> History() =>
+        View(await _db.ImportBatches.AsNoTracking().OrderByDescending(b => b.Id).Take(100).ToListAsync());
+
+    // Removes the questions this import added. Questions it only updated are left as they are now.
+    [HttpPost("undo/{id:int}")]
+    public async Task<IActionResult> Undo(int id)
+    {
+        var batch = await _db.ImportBatches.FirstOrDefaultAsync(b => b.Id == id);
+        if (batch == null) return NotFound();
+        if (batch.Undone)
+        {
+            TempData["Err"] = "That import was already undone.";
+            return Redirect("/admin/import/history");
+        }
+        var removed = await _db.Questions.Where(q => q.ImportBatchId == id).ExecuteDeleteAsync();
+        batch.Undone = true;
+        await _db.SaveChangesAsync();
+        TempData["Msg"] = $"Import #{id} undone: {removed} question(s) removed.";
+        return Redirect("/admin/import/history");
     }
 
     private async Task<ImportVm> Fill(ImportVm vm)

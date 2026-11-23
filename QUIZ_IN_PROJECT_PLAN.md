@@ -166,3 +166,11 @@ Pages, by priority:
 - Admins use the web panel (`/admin`); in server mode the app opens the normal home screen for them.
 - Known limits: writes made while offline are not queued yet; content cache lives in AsyncStorage (fine for a few thousand questions).
 - Before release: deploy backend (HTTPS), set `API_BASE_URL`, update privacy policy + Play Data safety form (accounts now stored on a server).
+
+## Admin bulk import (v2)
+- Flow: choose file / paste -> preview (status per row, tick/untick) -> Import -> result page.
+- Excel/CSV columns: category, subcategory, subject, difficulty, question, A, B, C, D, answer, explanation (+ optional `qid` to update an exported question). Old header-less layout still accepted.
+- Difficulty split: rows without a difficulty can be split by count (drag bar) e.g. 20 easy / 30 medium / 50 hard.
+- Duplicate policy (skip / update / add), shuffle options, error report (Excel), undo per import, import history, Excel export of filtered questions.
+- New table `ImportBatches` + `Questions.ImportBatchId`: delete the dev DB (`rm -f quizin.db*`) after pulling.
+- Next: Game Settings page (questions per level, pass marks, challenge rounds/revives/seconds) served to the app; leaderboard bonus for challenge wins.

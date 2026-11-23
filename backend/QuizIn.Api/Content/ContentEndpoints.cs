@@ -375,7 +375,7 @@ public static class ContentEndpoints
         return null;
     }
 
-    private static string? MatchCorrect(string answer, string a, string b, string c, string d)
+    internal static string? MatchCorrect(string answer, string a, string b, string c, string d)
     {
         var key = answer.Trim().ToUpperInvariant();
         switch (key)
@@ -392,10 +392,10 @@ public static class ContentEndpoints
         return null; // unlike the old local importer, never guess "a"
     }
 
-    private record Target(Subcategory? Subcategory, Subject? Subject, string? Error);
+    internal record Target(Subcategory? Subcategory, Subject? Subject, string? Error);
 
     // Finds category > subcategory > subject by name. With create=true, missing ones are created.
-    private static async Task<Target> Resolve(AppDbContext db, string category, string subcategory, string? subject, bool create)
+    internal static async Task<Target> Resolve(AppDbContext db, string category, string subcategory, string? subject, bool create)
     {
         category = category.Trim();
         subcategory = subcategory.Trim();

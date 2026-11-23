@@ -1,0 +1,62 @@
+@model ImportDraft
+@{
+    ViewData["Title"] = "Import result";
+    var result = Model.Result!;
+    var skipped = result.Skipped;
+}
+<div class="page-head">
+  <h1>Import finished</h1>
+  <a class="btn btn-secondary" href="/admin/import">Import another file</a>
+</div>
+
+<div class="stat-grid">
+  <div class="stat"><b>@result.Added</b><span>Added</span></div>
+  <div class="stat"><b>@result.Updated</b><span>Updated</span></div>
+  <div class="stat"><b>@skipped.Count</b><span>Not imported</span></div>
+  <div class="stat"><b>#@result.BatchId</b><span>Import number</span></div>
+</div>
+
+<div class="card">
+  <h2 class="card-title">What next?</h2>
+  <div class="form-actions">
+    <a class="btn" href="/admin/questions">View questions</a>
+    @if (skipped.Count > 0)
+    {
+      <a class="btn btn-secondary" href="/admin/import/errors/@Model.Token">Download the rows not imported (Excel)</a>
+    }
+    @if (result.Added > 0)
+    {
+      <form method="post" action="/admin/import/undo/@result.BatchId" onsubmit="return confirm('Remove the @result.Added question(s) added by this import?');">
+        @Html.AntiForgeryToken()
+        <button class="btn btn-danger" type="submit">Undo this import</button>
+      </form>
+    }
+  </div>
+  @if (result.Updated > 0)
+  {
+    <p class="muted" style="margin:12px 0 0">Undo removes the questions this import added. Questions it only updated stay as they are now.</p>
+  }
+</div>
+
+@if (skipped.Count > 0)
+{
+  <div class="card">
+    <h2 class="card-title">Not imported (@skipped.Count)</h2>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th class="col-id">Row</th><th>Question</th><th>Reason</th></tr></thead>
+        <tbody>
+          @foreach (var r in skipped.Take(200))
+          {
+            <tr>
+              <td class="col-id">@r.RowNo</td>
+              <td>@(r.QuestionText.Length > 110 ? r.QuestionText.Substring(0, 110) + "…" : r.QuestionText)</td>
+              <td>@r.SkipReason</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    @if (skipped.Count > 200) { <p class="muted" style="margin:12px 0 0">Showing the first 200. The Excel download has all of them.</p> }
+  </div>
+}

@@ -52,6 +52,19 @@ public class Question
     public string OptionsJson { get; set; } = "[]";  // [{"id":"a","text":"..."}]
     public string CorrectOptionId { get; set; } = "";
     public string? Explanation { get; set; }
+    public int? ImportBatchId { get; set; }          // set when the question came from a bulk import (for undo)
+}
+
+// One admin bulk import; lets the admin see history and undo it.
+public class ImportBatch
+{
+    public int Id { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string FileName { get; set; } = "";
+    public string AdminEmail { get; set; } = "";
+    public int Added { get; set; }
+    public int Updated { get; set; }
+    public bool Undone { get; set; }
 }
 
 // One row per level a user has passed

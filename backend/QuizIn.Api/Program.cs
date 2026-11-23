@@ -76,6 +76,9 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddMemoryCache();
+// Import preview posts one checkbox per row
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.ValueCountLimit = 20000);
 
 // Behind a host's HTTPS proxy (Azure, Render, Codespaces) keep the real scheme so cookies are marked Secure
 builder.Services.Configure<ForwardedHeadersOptions>(options =>

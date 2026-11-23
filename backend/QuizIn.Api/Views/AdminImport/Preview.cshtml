@@ -1,0 +1,220 @@
+@model ImportDraft
+@{
+    ViewData["Title"] = "Import preview";
+    var rows = Model.Rows;
+    var total = rows.Count;
+    var errors = rows.Count(r => r.Status == "error");
+    var dups = rows.Count(r => r.Status == "duplicate");
+    var updates = rows.Count(r => r.Status == "update");
+    var fresh = rows.Count(r => r.Status == "new");
+    var assignable = Model.Assignable;
+    var hard = assignable - Model.EasyCount - Model.MediumCount;
+}
+<div class="page-head">
+  <h1>Import preview</h1>
+  <a class="btn btn-secondary" href="/admin/import">Choose another file</a>
+</div>
+
+<form method="post" action="/admin/import/commit/@Model.Token">
+  @Html.AntiForgeryToken()
+
+  <div class="card">
+    <h2 class="card-title">@Model.FileName</h2>
+    <div class="chips">
+      <span class="chip"><b>@total</b> rows</span>
+      <span class="chip chip-ok"><b>@fresh</b> new</span>
+      @if (updates > 0) { <span class="chip chip-info"><b>@updates</b> will update</span> }
+      @if (dups > 0) { <span class="chip chip-warn"><b>@dups</b> duplicates</span> }
+      @if (errors > 0) { <span class="chip chip-err"><b>@errors</b> with errors</span> }
+    </div>
+  </div>
+
+  @if (assignable > 0)
+  {
+    <div class="card">
+      <h2 class="card-title">Difficulty</h2>
+      <p class="muted">@assignable question(s) have no difficulty in the file.</p>
+      <div class="toolbar" style="margin-bottom:12px">
+        <label class="check"><input type="radio" name="splitMode" value="single" checked="@(Model.SplitMode != "split")"> Same difficulty for all</label>
+        <select class="fixed" name="defaultDifficulty" aria-label="Difficulty for all">
+          @foreach (var d in new[] { "easy", "medium", "hard" })
+          {
+            <option value="@d" selected="@(d == Model.DefaultDifficulty)">@d</option>
+          }
+        </select>
+        <label class="check push"><input type="radio" name="splitMode" value="split" checked="@(Model.SplitMode == "split")"> Split by count (in file order)</label>
+      </div>
+
+      <div id="split" data-total="@assignable">
+        <div class="splitbar" id="splitbar">
+          <div class="seg seg-easy" id="segEasy"></div>
+          <div class="seg seg-medium" id="segMedium"></div>
+          <div class="seg seg-hard" id="segHard"></div>
+          <span class="handle" id="handle1" role="slider" aria-label="Easy / medium boundary" tabindex="0"></span>
+          <span class="handle" id="handle2" role="slider" aria-label="Medium / hard boundary" tabindex="0"></span>
+        </div>
+        <div class="split-inputs">
+          <label>Easy <input type="number" min="0" max="@assignable" name="easyCount" id="easyCount" value="@Model.EasyCount"></label>
+          <label>Medium <input type="number" min="0" max="@assignable" name="mediumCount" id="mediumCount" value="@Model.MediumCount"></label>
+          <label>Hard <input type="number" id="hardCount" value="@hard" readonly tabindex="-1"></label>
+          <span class="muted">of @assignable</span>
+        </div>
+        <p class="muted" id="splitNote" style="margin:8px 0 0">Drag the two handles or type the numbers, then press <b>Update preview</b>.</p>
+      </div>
+      <div class="form-actions" style="margin-top:14px">
+        <button class="btn btn-secondary" type="submit" formaction="/admin/import/preview/@Model.Token/split">Update preview</button>
+      </div>
+    </div>
+  }
+
+  <div class="card">
+    <h2 class="card-title">Options</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label for="duplicates">When a question already exists in the same place</label>
+        <select id="duplicates" name="duplicates">
+          <option value="skip">Skip it</option>
+          <option value="update">Update the existing question</option>
+          <option value="allow">Add it anyway</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Answer positions</label>
+        <label class="check"><input type="checkbox" name="shuffle" value="true"> Shuffle the options of every question</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="page-head" style="margin-bottom:12px;min-height:0">
+      <h2 class="card-title" style="margin:0">Rows</h2>
+      <div class="actions">
+        <button class="btn btn-secondary btn-sm" type="button" id="selAll">Select all</button>
+        <button class="btn btn-secondary btn-sm" type="button" id="selNone">Select none</button>
+      </div>
+    </div>
+    <div class="table-wrap preview-wrap">
+      <table class="data preview">
+        <thead>
+          <tr><th class="col-check"></th><th class="col-id">Row</th><th class="col-status">Status</th><th class="col-where">Where</th><th class="col-level">Level</th><th>Question</th><th class="col-ans">Answer</th></tr>
+        </thead>
+        <tbody>
+          @foreach (var r in rows)
+          {
+            var isError = r.Status == "error";
+            <tr class="row-@r.Status">
+              <td class="col-check">
+                <input type="checkbox" name="sel" value="@r.RowNo" class="rowcheck" checked="@(r.Status == "new" || r.Status == "update")" disabled="@isError" aria-label="Import row @r.RowNo">
+              </td>
+              <td class="col-id">@r.RowNo</td>
+              <td class="col-status">
+                @switch (r.Status)
+                {
+                  case "error": <span class="badge badge-err" title="@r.Error">Error</span> break;
+                  case "duplicate": <span class="badge badge-warn">Duplicate</span> break;
+                  case "update": <span class="badge badge-info">Update #@r.ExistingId</span> break;
+                  default: <span class="badge badge-easy">New</span> break;
+                }
+              </td>
+              <td class="col-where">@(r.Category == "" ? "-" : r.Category + " › " + r.Subcategory + (r.Subject != "" ? " › " + r.Subject : ""))</td>
+              <td class="col-level">@if (!isError) { <span class="badge badge-@r.Difficulty">@r.Difficulty</span> }</td>
+              <td>
+                @(r.QuestionText.Length > 110 ? r.QuestionText.Substring(0, 110) + "…" : r.QuestionText)
+                @if (isError) { <div class="row-error">@r.Error</div> }
+              </td>
+              <td class="col-ans">@(r.CorrectId == "" ? "-" : r.CorrectId.ToUpperInvariant())</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="form-actions" style="margin-top:16px;align-items:center">
+      <button class="btn" type="submit" id="importBtn">Import selected (<span id="selCount">0</span>)</button>
+      <a class="btn btn-secondary" href="/admin/import">Cancel</a>
+      <span class="muted">Nothing is saved until you press Import.</span>
+    </div>
+  </div>
+</form>
+
+<script>
+(function () {
+  var checks = Array.prototype.slice.call(document.querySelectorAll(".rowcheck"));
+  var count = document.getElementById("selCount");
+  function recount() {
+    count.textContent = checks.filter(function (c) { return c.checked && !c.disabled; }).length;
+  }
+  checks.forEach(function (c) { c.addEventListener("change", recount); });
+  document.getElementById("selAll").addEventListener("click", function () {
+    checks.forEach(function (c) { if (!c.disabled) c.checked = true; }); recount();
+  });
+  document.getElementById("selNone").addEventListener("click", function () {
+    checks.forEach(function (c) { c.checked = false; }); recount();
+  });
+  recount();
+
+  var box = document.getElementById("split");
+  if (!box) return;
+  var total = parseInt(box.getAttribute("data-total"), 10) || 0;
+  var bar = document.getElementById("splitbar");
+  var easy = document.getElementById("easyCount");
+  var medium = document.getElementById("mediumCount");
+  var hardOut = document.getElementById("hardCount");
+  var segs = { e: document.getElementById("segEasy"), m: document.getElementById("segMedium"), h: document.getElementById("segHard") };
+  var h1 = document.getElementById("handle1");
+  var h2 = document.getElementById("handle2");
+  var radioSplit = document.querySelector("input[name='splitMode'][value='split']");
+
+  function num(el) { var v = parseInt(el.value, 10); return isNaN(v) ? 0 : v; }
+  function draw() {
+    var e = Math.min(Math.max(num(easy), 0), total);
+    var m = Math.min(Math.max(num(medium), 0), total - e);
+    var pct = function (n) { return total === 0 ? 0 : (n / total) * 100; };
+    segs.e.style.width = pct(e) + "%";
+    segs.m.style.width = pct(m) + "%";
+    segs.h.style.width = pct(total - e - m) + "%";
+    h1.style.left = pct(e) + "%";
+    h2.style.left = pct(e + m) + "%";
+    hardOut.value = total - e - m;
+  }
+  function setBoundaries(e, m) {
+    e = Math.min(Math.max(e, 0), total);
+    m = Math.min(Math.max(m, e), total);
+    easy.value = e;
+    medium.value = m - e;
+    if (radioSplit) radioSplit.checked = true;
+    draw();
+  }
+  function drag(handle, which) {
+    handle.addEventListener("pointerdown", function (ev) {
+      ev.preventDefault();
+      handle.setPointerCapture(ev.pointerId);
+      function move(me) {
+        var rect = bar.getBoundingClientRect();
+        var pos = Math.round(((me.clientX - rect.left) / rect.width) * total);
+        var e = num(easy), m = num(easy) + num(medium);
+        if (which === 1) setBoundaries(Math.min(pos, m), m);
+        else setBoundaries(e, Math.max(pos, e));
+      }
+      function up() {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+      }
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+    });
+    handle.addEventListener("keydown", function (ev) {
+      var step = ev.key === "ArrowRight" ? 1 : ev.key === "ArrowLeft" ? -1 : 0;
+      if (!step) return;
+      ev.preventDefault();
+      var e = num(easy), m = num(easy) + num(medium);
+      if (which === 1) setBoundaries(Math.min(e + step, m), m); else setBoundaries(e, m + step);
+    });
+  }
+  drag(h1, 1);
+  drag(h2, 2);
+  [easy, medium].forEach(function (el) {
+    el.addEventListener("input", function () { if (radioSplit) radioSplit.checked = true; draw(); });
+  });
+  draw();
+})();
+</script>

@@ -5,7 +5,10 @@
 }
 <div class="page-head">
   <h1>Questions <span class="count">(@Model.Total)</span></h1>
-  <a class="btn" href="/admin/questions/new?target=@Model.Target">Add question</a>
+  <div class="actions">
+    <a class="btn btn-secondary" href="/admin/questions/export?target=@Model.Target&difficulty=@Model.Difficulty&search=@Model.Search">Export Excel</a>
+    <a class="btn" href="/admin/questions/new?target=@Model.Target">Add question</a>
+  </div>
 </div>
 
 <div class="card">

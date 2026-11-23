@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<UserStats> UserStats => Set<UserStats>();
     public DbSet<Bookmark> Bookmarks => Set<Bookmark>();
     public DbSet<Mistake> Mistakes => Set<Mistake>();
+    public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -45,6 +46,8 @@ public class AppDbContext : DbContext
             .HasOne<Subject>().WithMany().HasForeignKey(p => p.SubjectId).OnDelete(DeleteBehavior.NoAction);
         b.Entity<LevelProgress>()
             .HasIndex(p => new { p.UserId, p.SubcategoryId, p.SubjectId, p.Difficulty, p.LevelNumber });
+
+        b.Entity<Question>().HasIndex(q => q.ImportBatchId);
 
         b.Entity<DailyStreak>().HasKey(d => d.UserId);
         b.Entity<DailyStreak>().HasOne(d => d.User).WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);

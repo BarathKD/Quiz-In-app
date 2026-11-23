@@ -1,0 +1,51 @@
+@model List<ImportBatch>
+@{ ViewData["Title"] = "Import history"; }
+<div class="page-head">
+  <h1>Import history</h1>
+  <a class="btn btn-secondary" href="/admin/import">Back to import</a>
+</div>
+
+<div class="card">
+  @if (Model.Count == 0)
+  {
+    <p class="muted" style="margin:0">No imports yet.</p>
+  }
+  else
+  {
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th class="col-id">#</th><th class="col-date">When (UTC)</th><th>File</th><th>By</th><th class="num">Added</th><th class="num">Updated</th><th class="col-actions"></th></tr>
+        </thead>
+        <tbody>
+          @foreach (var b in Model)
+          {
+            <tr>
+              <td class="col-id">@b.Id</td>
+              <td class="col-date">@b.CreatedAt.ToString("dd MMM yyyy HH:mm")</td>
+              <td>@b.FileName</td>
+              <td>@b.AdminEmail</td>
+              <td class="num">@b.Added</td>
+              <td class="num">@b.Updated</td>
+              <td class="col-actions">
+                <div class="actions">
+                  @if (b.Undone)
+                  {
+                    <span class="badge">Undone</span>
+                  }
+                  else if (b.Added > 0)
+                  {
+                    <form method="post" action="/admin/import/undo/@b.Id" onsubmit="return confirm('Remove the @b.Added question(s) added by import #@b.Id?');">
+                      @Html.AntiForgeryToken()
+                      <button class="btn btn-danger btn-sm" type="submit">Undo</button>
+                    </form>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
