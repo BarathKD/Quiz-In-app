@@ -28,6 +28,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
     levelNumber,
     totalLevels = 1,
     difficultyCompleted = false,
+    passMark,
     mode,
   } = params;
   const isCustom = !!mode;
@@ -64,10 +65,13 @@ export default function QuizSummaryScreen({ route, navigation }) {
     percentage >= 90 ? t("msgExcellent") : percentage >= 70 ? t("msgGreat") : percentage >= 50 ? t("msgGood") : t("msgKeepTrying");
 
   const handleRetry = () => {
-    navigation.replace("Quiz", { category, subcategory, subject, difficulty, user, levelStart, levelEnd, levelNumber });
+    navigation.replace("Quiz", {
+      category, subcategory, subject, difficulty, user, levelStart, levelEnd, levelNumber,
+      ...(mode === "challenge" ? { mode } : {}),
+    });
   };
 
-  const hasNextLevel = !!levelNumber && levelNumber < totalLevels;
+  const hasNextLevel = !isCustom && !!levelNumber && levelNumber < totalLevels;
 
   const handleNextLevel = () => {
     navigation.replace("Quiz", {
@@ -97,7 +101,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <Header title={isCustom ? t(mode === "daily" ? "dailyChallenge" : "practiceTitle") : t("quizComplete")} onBack={goHome} />
+      <Header title={isCustom ? t(mode === "daily" ? "dailyChallenge" : mode === "challenge" ? "challengeTitle" : "practiceTitle") : t("quizComplete")} onBack={goHome} />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <FadeInUp index={0}>
@@ -112,8 +116,11 @@ export default function QuizSummaryScreen({ route, navigation }) {
             {passed && (
               <View style={styles.passedBadge}>
                 <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                <Text style={styles.passedText}>{t("passed")}</Text>
+                <Text style={styles.passedText}>{mode === "challenge" ? t("challengeWon") : t("passed")}</Text>
               </View>
+            )}
+            {!passed && !isCustom && !!passMark && (
+              <Text style={styles.messageText}>{t("passMarkNeed", { p: Math.round(passMark * 100) })}</Text>
             )}
           </View>
         </FadeInUp>
@@ -149,7 +156,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
 
         <FadeInUp index={3}>
           <View style={styles.actions}>
-            {!isCustom && (
+            {(!isCustom || mode === "challenge") && (
               <PressableScale style={styles.primaryBtn} onPress={handleRetry}>
                 <Ionicons name="refresh" size={20} color="#FFFFFF" />
                 <Text style={styles.primaryBtnText}>{t("tryAgain")}</Text>

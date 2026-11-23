@@ -8,8 +8,10 @@ import { colors, fonts, shadow } from "../utils/theme";
 import {
   getAllQuestions, markLevelPassed, getCategoryByName, getCategoryImage, QUESTIONS_PER_LEVEL,
   getDailyQuestions, getMistakeIds, getBookmarkIds, getQuestionsByIds, toggleBookmark,
-  recordAnswer, completeDaily,
+  recordAnswer, completeDaily, getQuestionsByFilter, passMarkFor,
+  CHALLENGE_QUESTIONS, CHALLENGE_MAX_REVIVES, recordChallengeWin,
 } from "../utils/api";
+import { showRewardedAd } from "../utils/ads";
 
 /** Utility shuffle (Fisher-Yates) */
 function shuffleArray(arr) {
@@ -25,6 +27,8 @@ export default function QuizScreen({ navigation, route }) {
   // mode: undefined = normal level quiz; "daily" | "mistakes" | "bookmarks" = custom practice
   const { category, subcategory, difficulty, user, subject, levelStart, levelEnd, levelNumber, mode } = route.params;
   const isCustom = !!mode;
+  const isChallenge = mode === "challenge";
+  const revivesRef = useRef(0); // wrong answers forgiven by watching an ad (challenge only)
   const [bookmarked, setBookmarked] = useState(false);
   const { t } = useLang();
   const shake = useRef(new Animated.Value(0)).current;
@@ -118,6 +122,14 @@ export default function QuizScreen({ navigation, route }) {
           list = await getDailyQuestions();
           setTotalTime(600);
           setTimeLeft(600); // 10 minutes for the daily challenge
+        } else if (isChallenge) {
+          // 10 random questions out of this level's questions
+          const levelQs = (await getQuestionsByFilter(category, subcategory, subject || null, difficulty))
+            .slice(levelStart, levelEnd);
+          list = shuffleArray(levelQs).slice(0, CHALLENGE_QUESTIONS);
+          const seconds = Math.max(1, list.length) * 30;
+          setTotalTime(seconds);
+          setTimeLeft(seconds);
         } else {
           const ids = mode === "mistakes" ? await getMistakeIds(user?.id) : await getBookmarkIds(user?.id);
           list = shuffleArray(await getQuestionsByIds(ids)); // practice is untimed
@@ -248,14 +260,20 @@ export default function QuizScreen({ navigation, route }) {
   const handleQuizComplete = async (finalScore) => {
     if (timerRef.current) clearInterval(timerRef.current);
 
-    // Any wrong answer restarts the quiz, so a level counts as passed
-    // only when every question in it was answered correctly.
-    const passed = questions.length > 0 && finalScore === questions.length;
+    // Practice: pass with enough correct answers (pass mark by difficulty). Challenge: no mistakes
+    // (wrong answers forgiven by a revive count as correct). Daily / mistakes / bookmarks: all correct.
+    let passed;
+    if (isChallenge) passed = questions.length > 0 && finalScore + revivesRef.current === questions.length;
+    else if (isCustom) passed = questions.length > 0 && finalScore === questions.length;
+    else passed = questions.length > 0 && finalScore / questions.length >= passMarkFor(difficulty);
 
     if (isCustom) {
       // Daily streak only counts when every question was answered (no skipping to farm streaks)
       if (mode === "daily" && user?.id && Object.keys(answers).length >= questions.length) {
         try { await completeDaily(user.id, finalScore, questions.length); } catch (e) { console.error(e); }
+      }
+      if (isChallenge && passed && user?.id) {
+        try { await recordChallengeWin(user.id); } catch (e) { console.error(e); }
       }
       navigation.replace("QuizSummary", {
         mode,
@@ -265,6 +283,7 @@ export default function QuizScreen({ navigation, route }) {
         passed,
         user,
         totalQuestions: questions.length,
+        category, subcategory, subject, difficulty, levelStart, levelEnd, levelNumber,
       });
       return;
     }
@@ -304,7 +323,8 @@ export default function QuizScreen({ navigation, route }) {
       levelEnd,
       levelNumber,
       totalLevels,
-      difficultyCompleted
+      difficultyCompleted,
+      passMark: passMarkFor(difficulty),
     });
   };
 
@@ -401,24 +421,46 @@ export default function QuizScreen({ navigation, route }) {
   const handleExplanationClose = () => {
     setShowExplanation(false);
 
-    if (isCorrect || isCustom) {
-      // Correct answer (or any answer in daily/practice mode) - next question or finish
+    const goNext = () => {
       if (index < questions.length - 1) {
         setIndex(i => i + 1);
         setSelectedAnswer(null);
         setIsCorrect(false);
       } else {
-        // Quiz completed successfully
         handleQuizComplete(score);
       }
-    } else {
-      // Wrong answer or timeout - show failure message and reset
-      Alert.alert(
-        t("studyWellTitle"),
-        t("studyWellMsg"),
-        [{ text: t("tryAgain"), onPress: () => resetSession() }]
-      );
+    };
+
+    if (isCorrect || !isChallenge) {
+      // Correct answer, or any answer outside challenge mode (practice just keeps going and is graded at the end)
+      goNext();
+      return;
     }
+
+    // Challenge: a wrong answer ends it, unless the player revives (max CHALLENGE_MAX_REVIVES per challenge)
+    const left = CHALLENGE_MAX_REVIVES - revivesRef.current;
+    const fail = () => handleQuizComplete(score);
+    if (left <= 0) {
+      Alert.alert(t("challengeFailTitle"), t("challengeFailMsg"), [{ text: t("viewResults"), onPress: fail }], { cancelable: false });
+      return;
+    }
+    Alert.alert(
+      t("reviveTitle"),
+      t("reviveMsg", { n: left }),
+      [
+        { text: t("giveUp"), style: "cancel", onPress: fail },
+        {
+          text: t("reviveWatch"),
+          onPress: async () => {
+            const earned = await showRewardedAd();
+            if (!earned) { fail(); return; }
+            revivesRef.current += 1;
+            goNext();
+          },
+        },
+      ],
+      { cancelable: false }
+    );
   };
 
   const handleFinish = async () => {

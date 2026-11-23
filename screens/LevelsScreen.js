@@ -5,7 +5,7 @@ import Header from "../components/header";
 import BottomNav from "../components/BottomNav";
 import FadeInUp from "../components/FadeInUp";
 import PressableScale from "../components/PressableScale";
-import { getQuestionsByFilter, getUserProgress, QUESTIONS_PER_LEVEL } from "../utils/api";
+import { getQuestionsByFilter, getUserProgress, passMarkFor, QUESTIONS_PER_LEVEL } from "../utils/api";
 import { useLang } from "../utils/i18n";
 import { colors, difficultyColors, shadow } from "../utils/theme";
 
@@ -91,7 +91,7 @@ export default function LevelsScreen({ navigation, route }) {
       Alert.alert(t("levelLockedTitle"), t("levelLockedMsg", { n: level.levelNumber - 1 }));
       return;
     }
-    navigation.navigate("Quiz", {
+    const params = {
       category,
       subcategory,
       subject,
@@ -100,7 +100,16 @@ export default function LevelsScreen({ navigation, route }) {
       levelStart: level.start,
       levelEnd: level.end,
       levelNumber: level.levelNumber,
-    });
+    };
+    Alert.alert(
+      t("chooseModeTitle"),
+      t("modeHint", { p: Math.round(passMarkFor(difficulty) * 100) }),
+      [
+        { text: t("modePractice", { n: level.levelNumber }), onPress: () => navigation.navigate("Quiz", params) },
+        { text: t("modeChallenge"), onPress: () => navigation.navigate("Quiz", { ...params, mode: "challenge" }) },
+        { text: t("cancel"), style: "cancel" },
+      ]
+    );
   };
 
   const color = difficultyColors[difficulty] || colors.primary;

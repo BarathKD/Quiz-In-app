@@ -3,7 +3,14 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from "expo-crypto";
 
 // Number of questions in one level (shared by LevelsScreen and QuizScreen)
-export const QUESTIONS_PER_LEVEL = 50;
+// Questions per level. EXPO_PUBLIC_QPL=5 makes levels tiny so testing is quick; release builds use 50.
+export const QUESTIONS_PER_LEVEL = Number(process.env.EXPO_PUBLIC_QPL) > 0 ? Number(process.env.EXPO_PUBLIC_QPL) : 50;
+
+// Practice mode: share of correct answers needed to pass a level. Challenge: 10 random questions, no mistakes.
+export const PASS_MARKS = { easy: 0.7, medium: 0.8, hard: 0.9 };
+export const passMarkFor = (difficulty) => PASS_MARKS[difficulty] || 0.8;
+export const CHALLENGE_QUESTIONS = 10;
+export const CHALLENGE_MAX_REVIVES = 2;
 
 const QUESTIONS_KEY = "quiz_questions";
 const USERS_KEY = "quiz_users";
@@ -1052,6 +1059,19 @@ export const recordAnswer = async (userId, questionId, correct, countStats = tru
   }
 };
 
+// Challenge wins (per user, kept on the device)
+export const getChallengeWins = async (userId) => {
+  const v = await readJson(userKey("challenges", userId), { wins: 0 });
+  return v.wins || 0;
+};
+
+export const recordChallengeWin = async (userId) => {
+  if (!userId) return 0;
+  const wins = (await getChallengeWins(userId)) + 1;
+  await writeJson(userKey("challenges", userId), { wins });
+  return wins;
+};
+
 export const getUserStats = (userId) => readJson(userKey("stats", userId), { answered: 0, correct: 0 });
 
 // ----- Daily challenge -----
@@ -1128,6 +1148,7 @@ export const getAchievements = async (userId) => {
   const progress = await getUserProgress(userId);
   const stats = await getUserStats(userId);
   const daily = await getDailyStatus(userId);
+  const challengeWins = await getChallengeWins(userId);
 
   let levelsPassed = 0;
   let hardPassed = 0;
@@ -1150,6 +1171,7 @@ export const getAchievements = async (userId) => {
     { id: "streak7", icon: "calendar-number", value: daily.best, target: 7 },
     { id: "correct100", icon: "checkmark-done", value: stats.correct, target: 100 },
     { id: "correct500", icon: "trophy", value: stats.correct, target: 500 },
+    { id: "challenger", icon: "flash", value: challengeWins, target: 1 },
   ];
   return defs.map((d) => ({ ...d, value: Math.min(d.value, d.target), unlocked: d.value >= d.target }));
 };
@@ -1167,6 +1189,7 @@ export const deleteUserAccount = async (userId) => {
       userKey("bookmarks", userId),
       userKey("stats", userId),
       userKey("daily", userId),
+      userKey("challenges", userId),
       SESSION_KEY,
     ]);
     return true;

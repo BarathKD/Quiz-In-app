@@ -300,6 +300,7 @@ server.getAchievements = async (userId) => {
   const progress = await server.getUserProgress();
   const stats = await server.getUserStats();
   const daily = await server.getDailyStatus(userId);
+  const challengeWins = await local.getChallengeWins(userId);
 
   let levelsPassed = 0;
   let hardPassed = 0;
@@ -322,6 +323,7 @@ server.getAchievements = async (userId) => {
     { id: "streak7", icon: "calendar-number", value: daily.best, target: 7 },
     { id: "correct100", icon: "checkmark-done", value: stats.correct, target: 100 },
     { id: "correct500", icon: "trophy", value: stats.correct, target: 500 },
+    { id: "challenger", icon: "flash", value: challengeWins, target: 1 },
   ];
   return defs.map((d) => ({ ...d, value: Math.min(d.value, d.target), unlocked: d.value >= d.target }));
 };
