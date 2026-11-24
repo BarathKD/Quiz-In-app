@@ -110,6 +110,12 @@ export default function LoginScreen({ navigation }) {
           <PressableScale style={[styles.btn, styles.secondary]} onPress={signup} disabled={busy}>
             <Text style={styles.secondaryText}>{t("signup")}</Text>
           </PressableScale>
+
+          {USE_SERVER && (
+            <PressableScale style={styles.linkBtn} onPress={() => navigation.navigate("ForgotPassword", { email: email.trim() })} disabled={busy}>
+              <Text style={styles.linkText}>{t("forgotLink")}</Text>
+            </PressableScale>
+          )}
         </FadeInUp>
 
         <FadeInUp index={2} style={styles.infoContainer}>
@@ -188,6 +194,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 17,
   },
+  linkBtn: { alignItems: "center", paddingTop: 16, paddingBottom: 4 },
+  linkText: { color: colors.primaryDark, fontWeight: "700", fontSize: 15 },
   infoContainer: {
     backgroundColor: colors.accentTint,
     marginHorizontal: 20,

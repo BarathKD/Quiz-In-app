@@ -53,6 +53,19 @@ echo "my data: $(curl -s $B/api/me/data -H "$U" | jq -c '{levels: (.levels|lengt
 echo "daily questions (expect up to 10): $(curl -s "$B/api/daily?date=$D" -H "$U" | jq length)"
 echo "leaderboard (expect hard level = 150 points for this user): $(curl -s $B/api/leaderboard -H "$U" | jq -c '.[0]')"
 
+say "forgot / reset password"
+RMAIL="reset$RANDOM@test.com"
+curl -s -o /dev/null -X POST $B/api/auth/register -H "$J" -d "{\"email\":\"$RMAIL\",\"password\":\"oldpass1\"}"
+FORGOT=$(curl -s -X POST $B/api/auth/forgot -H "$J" -d "{\"email\":\"$RMAIL\"}")
+RCODE=$(echo "$FORGOT" | jq -r .devCode)
+echo "forgot (expect ok true and a 6-digit dev code): $(echo "$FORGOT" | jq -c .)"
+echo "reset with wrong code (expect 400): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/auth/reset -H "$J" -d "{\"email\":\"$RMAIL\",\"code\":\"000000x\",\"newPassword\":\"newpass1\"}")"
+echo "reset with right code (expect 204): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/auth/reset -H "$J" -d "{\"email\":\"$RMAIL\",\"code\":\"$RCODE\",\"newPassword\":\"newpass1\"}")"
+echo "login with the new password (expect 200): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$RMAIL\",\"password\":\"newpass1\"}")"
+echo "login with the old password (expect 401): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$RMAIL\",\"password\":\"oldpass1\"}")"
+echo "same code twice (expect 400): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/auth/reset -H "$J" -d "{\"email\":\"$RMAIL\",\"code\":\"$RCODE\",\"newPassword\":\"another1\"}")"
+echo "unknown e-mail gives the same answer (expect ok true): $(curl -s -X POST $B/api/auth/forgot -H "$J" -d '{"email":"nobody@nowhere.test"}' | jq -c .)"
+
 say "normal user must NOT be able to use admin endpoints (expect 403)"
 curl -s -o /dev/null -w "%{http_code}\n" -X POST $B/api/admin/categories -H "$J" -H "$U" -d '{"name":"Hack"}'
 

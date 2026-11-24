@@ -77,6 +77,11 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddMemoryCache();
+// Password-reset e-mails: real SMTP when Email:Host is set, otherwise just logged (development)
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Host"]))
+    builder.Services.AddSingleton<QuizIn.Api.Auth.IEmailSender, QuizIn.Api.Auth.SmtpEmailSender>();
+else
+    builder.Services.AddSingleton<QuizIn.Api.Auth.IEmailSender, QuizIn.Api.Auth.LogEmailSender>();
 // Import preview posts one checkbox per row
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.ValueCountLimit = 20000);
 
@@ -95,6 +100,11 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("login", httpContext => RateLimitPartition.GetFixedWindowLimiter(
         httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+
+    // "Forgot password" and "reset": 6 per minute per IP
+    options.AddPolicy("reset", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 6, Window = TimeSpan.FromMinutes(1) }));
 });
 
 var app = builder.Build();

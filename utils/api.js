@@ -384,6 +384,14 @@ export const reportQuestion = async (questionId, reason, note, userId) => {
   return true;
 };
 
+// Forgot password (server mode only): e-mail a 6-digit code, then set a new password with it.
+export const requestPasswordReset = async (email) => {
+  await request("POST", "/api/auth/forgot", { email });
+};
+export const resetPassword = async (email, code, newPassword) => {
+  await request("POST", "/api/auth/reset", { email, code, newPassword });
+};
+
 // Game rules from the admin Settings page (server mode only; local mode keeps the built-in defaults).
 export const loadGameSettings = async () => {
   if (!USE_SERVER) return;

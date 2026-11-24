@@ -14,6 +14,7 @@ import SubcategoriesScreen from "./screens/SubcategoriesScreen";
 import SubjectsScreen from "./screens/SubjectsScreen";
 import DifficultyScreen from "./screens/DifficultyScreen";
 import LoginScreen from "./screens/LoginScreen";
+import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import LevelsScreen from "./screens/LevelsScreen";
 import QuizScreen from "./screens/QuizScreen";
 import QuizSummaryScreen from "./screens/QuizSummaryScreen";
@@ -100,6 +101,7 @@ export default function App() {
             {/* Splash handles session check & navigates to Login or home */}
             <Stack.Screen name="Splash" component={SplashScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             
             {/* Category-based flow */}
             <Stack.Screen name="Categories" component={CategoriesScreen} />

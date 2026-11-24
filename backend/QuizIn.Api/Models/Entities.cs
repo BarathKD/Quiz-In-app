@@ -55,6 +55,19 @@ public class Question
     public int? ImportBatchId { get; set; }          // set when the question came from a bulk import (for undo)
 }
 
+// A "forgot password" code e-mailed to the player. Only a hash of the 6-digit code is stored.
+public class PasswordReset
+{
+    public int Id { get; set; }
+    public Guid UserId { get; set; }
+    public User? User { get; set; }
+    public string CodeHash { get; set; } = "";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime ExpiresAt { get; set; }
+    public int Attempts { get; set; }
+    public bool Used { get; set; }
+}
+
 // A player's report that a question is wrong, has a typo or is unclear.
 public class QuestionReport
 {
