@@ -154,8 +154,8 @@ export default function SplashScreen() {
 
         <Animated.View style={[styles.logoWrap, { opacity: logo, transform: [{ scale: logoScale }] }]}>
           <View style={styles.logoBox}>
-            <Text style={styles.logoText}>Quiz-IN</Text>
             <Text style={styles.logoTamil}>வினாடி வினா</Text>
+            <Text style={styles.logoText}>Quiz-IN</Text>
             <Animated.View style={[styles.shine, { transform: [{ translateX: shineX }, { rotate: "18deg" }] }]} />
           </View>
         </Animated.View>
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
   },
   logoText: { fontFamily: fonts.heading, fontSize: 46, color: "#F4F9F8", lineHeight: 62 },
-  logoTamil: { fontFamily: fonts.headingSemi, fontSize: 20, color: "#CBB8F0", marginTop: -4 },
+  logoTamil: { fontFamily: fonts.headingSemi, fontSize: 20, color: "#CBB8F0", marginBottom: -6 },
   shine: { position: "absolute", top: -20, bottom: -20, width: 36, backgroundColor: "rgba(255,255,255,0.28)" },
   taglines: { height: 80, alignItems: "center", marginTop: 8 },
   tagTa: { fontFamily: fonts.headingSemi, fontSize: 20, color: "#DCEEF2" },
