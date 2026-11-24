@@ -8,7 +8,7 @@ import { fonts } from "../utils/theme";
 // Animated opening: 3D-looking cards float in, merge into the logo, then Tamil + English taglines appear.
 // Always shows both languages. Uses only core Animated (works in Expo Go). No red or yellow.
 const { width: W } = Dimensions.get("window");
-const MIN_MS = 2600;
+const HOLD_MS = 700; // pause on the finished logo before moving on
 const BG = "#062F3A";
 
 const CARDS = [
@@ -25,6 +25,7 @@ export default function SplashScreen() {
   const done = useRef(false);
   const skip = useRef(false);
   const target = useRef(null);
+  const animDone = useRef(false);
 
   const enter = useRef(CARDS.map(() => new Animated.Value(0))).current;
   const spin = useRef(new Animated.Value(0)).current;
@@ -38,6 +39,7 @@ export default function SplashScreen() {
 
   const go = () => {
     if (done.current || !target.current) return;
+    if (!animDone.current && !skip.current) return; // wait for the full animation unless the user taps to skip
     done.current = true;
     navigation.replace(target.current.name, target.current.params);
   };
@@ -69,10 +71,12 @@ export default function SplashScreen() {
         ]),
       ]),
     ]);
-    timeline.start();
-
-    const started = Date.now();
     let timer;
+    timeline.start(({ finished }) => {
+      if (!finished) return;
+      timer = setTimeout(() => { animDone.current = true; go(); }, HOLD_MS);
+    });
+
     (async () => {
       let next;
       try {
@@ -85,8 +89,7 @@ export default function SplashScreen() {
         next = { name: "Login" };
       }
       target.current = next;
-      if (skip.current) return go();
-      timer = setTimeout(go, Math.max(0, MIN_MS - (Date.now() - started)));
+      go(); // moves on only when the animation has finished (or the user tapped to skip)
     })();
 
     return () => {
