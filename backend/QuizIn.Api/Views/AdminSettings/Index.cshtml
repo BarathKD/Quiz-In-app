@@ -86,6 +86,17 @@
   </div>
 
   <div class="card">
+    <h2 class="card-title">App updates</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label for="MinAppVersion">Minimum app version</label>
+        <input id="MinAppVersion" name="MinAppVersion" value="@Model.MinAppVersion" pattern="\d{1,4}(\.\d{1,4}){0,2}" maxlength="14">
+        <span class="hint">Players on an older version see an "Update the app" screen. Keep it at 1.0.0 until you really need to force an update (for example 1.2.0).</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
     <h2 class="card-title">Daily challenge</h2>
     <div class="form-grid">
       <div class="field">

@@ -27,6 +27,9 @@ public class GameSettings
     public int ChallengeRevives { get; set; } = 1;
     public int ChallengeBonusMultiplier { get; set; } = 2;
 
+    // App updates: versions older than this must update before playing (e.g. "1.2.0")
+    public string MinAppVersion { get; set; } = "1.0.0";
+
     // Daily challenge
     public int DailyQuestionCount { get; set; } = 10;
     public int DailyTimerMinutes { get; set; } = 10;
@@ -47,6 +50,8 @@ public class GameSettings
         ChallengeBonusMultiplier = Math.Clamp(ChallengeBonusMultiplier, 1, 10);
         DailyQuestionCount = Math.Clamp(DailyQuestionCount, 3, 50);
         DailyTimerMinutes = Math.Clamp(DailyTimerMinutes, 1, 60);
+        MinAppVersion = System.Text.RegularExpressions.Regex.IsMatch(MinAppVersion ?? "", @"^\d{1,4}(\.\d{1,4}){0,2}$")
+            ? MinAppVersion!.Trim() : "1.0.0";
         return this;
     }
 }

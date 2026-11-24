@@ -1,0 +1,84 @@
+@model ReportsVm
+@{
+    ViewData["Title"] = "Reported questions";
+    string Label(string reason) => reason switch
+    {
+        "wrong_answer" => "Wrong answer",
+        "typo" => "Spelling mistake",
+        "unclear" => "Unclear",
+        _ => "Other",
+    };
+}
+<div class="page-head">
+  <h1>Reported questions <span class="count">(@Model.OpenCount open)</span></h1>
+  <div class="actions">
+    <a class="btn @(Model.Status == "open" ? "" : "btn-secondary")" href="/admin/reports">Open</a>
+    <a class="btn @(Model.Status == "fixed" ? "" : "btn-secondary")" href="/admin/reports?status=fixed">Fixed</a>
+    <a class="btn @(Model.Status == "dismissed" ? "" : "btn-secondary")" href="/admin/reports?status=dismissed">Dismissed</a>
+  </div>
+</div>
+
+<div class="card">
+  @if (Model.Groups.Count == 0)
+  {
+    <p class="muted" style="margin:0">Nothing here.</p>
+  }
+  else
+  {
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th class="col-id">#</th><th>Question</th><th class="col-where">Where</th><th class="num">Reports</th><th>Reasons</th><th class="col-actions"></th></tr>
+        </thead>
+        <tbody>
+          @foreach (var g in Model.Groups)
+          {
+            var q = g.Question;
+            <tr>
+              <td class="col-id">@q.Id</td>
+              <td>
+                @q.QuestionText
+                <div class="row-dup">
+                  @foreach (var o in g.Options)
+                  {
+                    <span style="margin-right:10px">@(o.Id.ToUpperInvariant() + ". " + o.Text)@(o.Id == q.CorrectOptionId ? " ✓" : "")</span>
+                  }
+                </div>
+                @foreach (var note in g.Notes)
+                {
+                  <div class="row-dup">“@note”</div>
+                }
+              </td>
+              <td class="col-where">@q.Subcategory?.Category?.Name › @q.Subcategory?.Name@(q.Subject != null ? " › " + q.Subject.Name : "")</td>
+              <td class="num">@g.Count</td>
+              <td>
+                @foreach (var r in g.Reasons)
+                {
+                  <span class="badge" style="margin:0 6px 6px 0">@Label(r.Key) × @r.Value</span>
+                }
+              </td>
+              <td class="col-actions">
+                <div class="actions">
+                  <a class="btn btn-secondary btn-sm" href="/admin/questions/@q.Id/edit">Edit</a>
+                  @if (Model.Status == "open")
+                  {
+                    <form method="post" action="/admin/reports/resolve/@q.Id">
+                      @Html.AntiForgeryToken()
+                      <input type="hidden" name="status" value="fixed">
+                      <button class="btn btn-sm" type="submit">Fixed</button>
+                    </form>
+                    <form method="post" action="/admin/reports/resolve/@q.Id">
+                      @Html.AntiForgeryToken()
+                      <input type="hidden" name="status" value="dismissed">
+                      <button class="btn btn-secondary btn-sm" type="submit">Dismiss</button>
+                    </form>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

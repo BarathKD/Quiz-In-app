@@ -23,7 +23,10 @@ import DailyChallengeScreen from "./screens/DailyChallengeScreen";
 import ReviewScreen from "./screens/ReviewScreen";
 import AchievementsScreen from "./screens/AchievementsScreen";
 import SplashScreen from "./screens/SplashScreen";
-import { initStorageWithSample, loadGameSettings } from "./utils/api";
+import Constants from "expo-constants";
+import { initStorageWithSample, loadGameSettings, gameSettings } from "./utils/api";
+import { compareVersions } from "./utils/version";
+import UpdateRequiredScreen from "./screens/UpdateRequiredScreen";
 
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -32,6 +35,7 @@ const Stack = createNativeStackNavigator();
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
+  const [updateRequired, setUpdateRequired] = useState(false);
   const [fontsLoaded, fontError] = useFonts({ BalooThambi2_600SemiBold, BalooThambi2_800ExtraBold });
 
   useEffect(() => {
@@ -39,6 +43,7 @@ export default function App() {
       try {
         await initStorageWithSample();
         await loadGameSettings();
+        setUpdateRequired(compareVersions(Constants.expoConfig?.version, gameSettings.minAppVersion) < 0);
       } catch (error) {
         console.error("Storage initialization error:", error);
       } finally {
@@ -59,6 +64,14 @@ export default function App() {
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
+    );
+  }
+
+  if (updateRequired) {
+    return (
+      <LanguageProvider>
+        <UpdateRequiredScreen />
+      </LanguageProvider>
     );
   }
 

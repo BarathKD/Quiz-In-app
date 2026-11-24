@@ -327,6 +327,13 @@ server.getAchievements = async (userId) => {
   return defs.map((d) => ({ ...d, value: Math.min(d.value, d.target), unlocked: d.value >= d.target }));
 };
 
+// "Report this question" (server mode only). reason: wrong_answer | typo | unclear | other
+export const reportQuestion = async (questionId, reason, note) => {
+  if (!USE_SERVER) return false;
+  await request("POST", "/api/me/reports", { questionId, reason, note });
+  return true;
+};
+
 // Game rules from the admin Settings page (server mode only; local mode keeps the built-in defaults).
 export const loadGameSettings = async () => {
   if (!USE_SERVER) return;

@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<Mistake> Mistakes => Set<Mistake>();
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+    public DbSet<QuestionReport> QuestionReports => Set<QuestionReport>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -49,6 +50,10 @@ public class AppDbContext : DbContext
             .HasIndex(p => new { p.UserId, p.SubcategoryId, p.SubjectId, p.Difficulty, p.LevelNumber });
 
         b.Entity<Question>().HasIndex(q => q.ImportBatchId);
+        b.Entity<QuestionReport>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<QuestionReport>().HasOne(x => x.Question).WithMany().HasForeignKey(x => x.QuestionId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<QuestionReport>().HasIndex(x => new { x.Status, x.QuestionId });
+        b.Entity<QuestionReport>().Property(x => x.Note).HasMaxLength(500);
         b.Entity<AppSetting>().HasKey(s => s.Key);
         b.Entity<AppSetting>().Property(s => s.Key).HasMaxLength(64);
 

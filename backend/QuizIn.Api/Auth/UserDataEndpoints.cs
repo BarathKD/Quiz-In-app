@@ -8,6 +8,7 @@ namespace QuizIn.Api.Auth;
 
 public record LevelPassedInput(string? Category, string? Subcategory, string? Subject, string? Difficulty, int LevelNumber);
 public record AnswerInput(int QuestionId, bool Correct, bool CountStats = true);
+public record ReportInput(int QuestionId, string? Reason, string? Note);
 public record DailyInput(string? Date, int Score, int Total);
 public record PassedLevelDto(string Category, string Subcategory, string? Subject, string Difficulty, int LevelNumber);
 public record LeaderboardRow(int Rank, Guid Id, string Name, int Levels, int Points);
@@ -17,6 +18,7 @@ public static class UserDataEndpoints
 {
     private static readonly string[] Difficulties = { "easy", "medium", "hard" };
     private const int QuestionsPerLevel = 50;
+    private static readonly string[] ReportReasons = { "wrong_answer", "typo", "unclear", "other" };
 
     private static int Weight(string difficulty) => difficulty == "hard" ? 3 : difficulty == "medium" ? 2 : 1;
 
@@ -108,6 +110,32 @@ public static class UserDataEndpoints
                 stats.Answered += 1;
                 if (input.Correct) stats.Correct += 1;
             }
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        // "Report this question": wrong answer, typo, unclear. The admin sees these under Reports.
+        g.MapPost("/reports", async (ReportInput input, ClaimsPrincipal p, AppDbContext db) =>
+        {
+            if (AuthEndpoints.UserId(p) is not Guid uid) return Results.Unauthorized();
+            var reason = (input.Reason ?? "").ToLowerInvariant();
+            if (!ReportReasons.Contains(reason)) return Results.BadRequest(new { error = "invalid_reason" });
+            if (!await db.Questions.AnyAsync(q => q.Id == input.QuestionId)) return Results.NotFound(new { error = "question_not_found" });
+
+            // Reporting the same question twice does nothing; a daily cap stops spam.
+            if (await db.QuestionReports.AnyAsync(r => r.UserId == uid && r.QuestionId == input.QuestionId && r.Status == "open"))
+                return Results.NoContent();
+            var since = DateTime.UtcNow.AddHours(-24);
+            if (await db.QuestionReports.CountAsync(r => r.UserId == uid && r.CreatedAt > since) >= 30)
+                return Results.StatusCode(StatusCodes.Status429TooManyRequests);
+
+            var note = input.Note?.Trim();
+            if (note != null && note.Length > 500) note = note[..500];
+            db.QuestionReports.Add(new QuestionReport
+            {
+                QuestionId = input.QuestionId, UserId = uid, Reason = reason,
+                Note = string.IsNullOrEmpty(note) ? null : note,
+            });
             await db.SaveChangesAsync();
             return Results.NoContent();
         });

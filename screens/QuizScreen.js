@@ -8,7 +8,7 @@ import { colors, fonts, shadow } from "../utils/theme";
 import {
   getAllQuestions, markLevelPassed, getCategoryByName, getCategoryImage, gameSettings, challengeSecondsFor,
   getDailyQuestions, getMistakeIds, getBookmarkIds, getQuestionsByIds, toggleBookmark,
-  recordAnswer, completeDaily, getQuestionsByFilter, passMarkFor,
+  recordAnswer, completeDaily, getQuestionsByFilter, passMarkFor, reportQuestion, USE_SERVER,
   recordChallengeWin,
 } from "../utils/api";
 import { showRewardedAd } from "../utils/ads";
@@ -30,6 +30,7 @@ export default function QuizScreen({ navigation, route }) {
   const isChallenge = mode === "challenge";
   const revivesRef = useRef(0); // wrong answers forgiven by watching an ad (challenge only)
   const [bookmarked, setBookmarked] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const { t } = useLang();
   const shake = useRef(new Animated.Value(0)).current;
   const [pool, setPool] = useState([]);
@@ -253,6 +254,24 @@ export default function QuizScreen({ navigation, route }) {
     }
     return () => { active = false; };
   }, [q?.id, user?.id]);
+
+  const REPORT_REASONS = [
+    { id: "wrong_answer", key: "reportWrongAnswer" },
+    { id: "typo", key: "reportTypo" },
+    { id: "unclear", key: "reportUnclear" },
+    { id: "other", key: "reportOther" },
+  ];
+
+  const submitReport = async (reason) => {
+    setReportOpen(false);
+    try {
+      await reportQuestion(q.id, reason);
+      Alert.alert(t("reportThanks"));
+    } catch (error) {
+      console.error("Report failed:", error);
+      Alert.alert(t("reportFailed"));
+    }
+  };
 
   const handleBookmark = async () => {
     if (!user?.id || !q) return;
@@ -516,6 +535,11 @@ export default function QuizScreen({ navigation, route }) {
           <Text style={styles.questionCounter}>
             {t("questionOf", { a: index + 1, b: questions.length })}
           </Text>
+          {USE_SERVER && !!user?.id && (
+            <PressableScale onPress={() => setReportOpen(true)} style={styles.starBtn} accessibilityLabel={t("reportQuestion")}>
+              <Ionicons name="flag-outline" size={22} color={colors.muted} />
+            </PressableScale>
+          )}
           <PressableScale onPress={handleBookmark} style={styles.starBtn} accessibilityLabel={t("bookmarks")}>
             <Ionicons
               name={bookmarked ? "star" : "star-outline"}
@@ -531,6 +555,22 @@ export default function QuizScreen({ navigation, route }) {
           </View>
         )}
       </View>
+
+      <Modal visible={reportOpen} transparent animationType="fade" onRequestClose={() => setReportOpen(false)}>
+        <View style={styles.reportBackdrop}>
+          <View style={styles.reportSheet}>
+            <Text style={styles.reportTitle}>{t("reportTitle")}</Text>
+            {REPORT_REASONS.map((r) => (
+              <PressableScale key={r.id} style={styles.reportOption} onPress={() => submitReport(r.id)}>
+                <Text style={styles.reportOptionText}>{t(r.key)}</Text>
+              </PressableScale>
+            ))}
+            <PressableScale style={styles.reportCancel} onPress={() => setReportOpen(false)}>
+              <Text style={styles.reportCancelText}>{t("cancel")}</Text>
+            </PressableScale>
+          </View>
+        </View>
+      </Modal>
 
       <View style={styles.progressBarContainer}>
         <View style={styles.progressBar}>
@@ -696,6 +736,13 @@ const styles = StyleSheet.create({
   questionCounter: { fontSize: 16, fontWeight: "700", color: colors.ink },
   counterRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   starBtn: { padding: 4 },
+  reportBackdrop: { flex: 1, backgroundColor: "rgba(11,42,51,0.5)", justifyContent: "center", padding: 24 },
+  reportSheet: { backgroundColor: colors.surface, borderRadius: 18, padding: 20 },
+  reportTitle: { fontSize: 18, fontWeight: "800", color: colors.ink, marginBottom: 12, textAlign: "center" },
+  reportOption: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: colors.bg, marginBottom: 8 },
+  reportOptionText: { fontSize: 16, color: colors.ink, fontWeight: "600" },
+  reportCancel: { paddingVertical: 12, alignItems: "center", marginTop: 4 },
+  reportCancelText: { fontSize: 16, color: colors.muted, fontWeight: "600" },
   timerPill: {
     flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
   },

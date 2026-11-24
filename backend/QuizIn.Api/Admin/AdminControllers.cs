@@ -719,3 +719,76 @@ public class AdminSettingsController : Controller
         return Redirect("/admin/settings");
     }
 }
+
+
+// ---------------- Reported questions ----------------
+public class ReportGroupVm
+{
+    public Question Question { get; set; } = null!;
+    public int Count { get; set; }
+    public Dictionary<string, int> Reasons { get; set; } = new();
+    public List<string> Notes { get; set; } = new();
+    public DateTime Latest { get; set; }
+    public List<OptionDto> Options { get; set; } = new();
+}
+
+public class ReportsVm
+{
+    public string Status { get; set; } = "open";
+    public int OpenCount { get; set; }
+    public List<ReportGroupVm> Groups { get; set; } = new();
+}
+
+[Route("admin/reports")]
+[AutoValidateAntiforgeryToken]
+[Authorize(AuthenticationSchemes = AdminHelpers.Scheme, Roles = "Admin")]
+public class AdminReportsController : Controller
+{
+    private readonly AppDbContext _db;
+    public AdminReportsController(AppDbContext db) => _db = db;
+    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    [HttpGet("")]
+    public async Task<IActionResult> Index(string? status)
+    {
+        status = (status == "fixed" || status == "dismissed") ? status : "open";
+        var reports = await _db.QuestionReports.AsNoTracking()
+            .Where(r => r.Status == status).OrderByDescending(r => r.CreatedAt).Take(1000).ToListAsync();
+        var ids = reports.Select(r => r.QuestionId).Distinct().ToList();
+        var questions = ids.Count == 0 ? new List<Question>()
+            : await ContentEndpoints.QuestionQuery(_db).Where(q => ids.Contains(q.Id)).ToListAsync();
+        var byId = questions.ToDictionary(q => q.Id);
+
+        var groups = reports.GroupBy(r => r.QuestionId)
+            .Where(g => byId.ContainsKey(g.Key))
+            .Select(g => new ReportGroupVm
+            {
+                Question = byId[g.Key],
+                Count = g.Count(),
+                Reasons = g.GroupBy(r => r.Reason).ToDictionary(x => x.Key, x => x.Count()),
+                Notes = g.Where(r => !string.IsNullOrWhiteSpace(r.Note)).Select(r => r.Note!).Take(3).ToList(),
+                Latest = g.Max(r => r.CreatedAt),
+                Options = JsonSerializer.Deserialize<List<OptionDto>>(byId[g.Key].OptionsJson, JsonOpts) ?? new List<OptionDto>(),
+            })
+            .OrderByDescending(x => x.Count).ThenByDescending(x => x.Latest).ToList();
+
+        return View(new ReportsVm
+        {
+            Status = status,
+            OpenCount = await _db.QuestionReports.Where(r => r.Status == "open").Select(r => r.QuestionId).Distinct().CountAsync(),
+            Groups = groups,
+        });
+    }
+
+    // Closes every open report of one question. status: fixed | dismissed
+    [HttpPost("resolve/{questionId:int}")]
+    public async Task<IActionResult> Resolve(int questionId, string status)
+    {
+        if (status != "fixed" && status != "dismissed") return BadRequest();
+        var now = DateTime.UtcNow;
+        await _db.QuestionReports.Where(r => r.QuestionId == questionId && r.Status == "open")
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, status).SetProperty(r => r.ResolvedAt, (DateTime?)now));
+        TempData["Msg"] = status == "fixed" ? "Marked as fixed." : "Reports dismissed.";
+        return Redirect("/admin/reports");
+    }
+}

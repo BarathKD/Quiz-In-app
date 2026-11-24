@@ -42,6 +42,10 @@ D=$(date -u +%F)
 echo "level passed (expect 204): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/levels -H "$J" -H "$U" -d '{"category":"Smoke Test","subcategory":"Class 10","subject":"History","difficulty":"hard","levelNumber":1}')"
 echo "wrong answer (expect 204): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/answers -H "$J" -H "$U" -d "{\"questionId\":$QID,\"correct\":false}")"
 echo "bookmark toggle (expect bookmarked true): $(curl -s -X POST $B/api/me/bookmarks/$QID -H "$U")"
+echo "report question (expect 204): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/reports -H "$J" -H "$U" -d "{\"questionId\":$QID,\"reason\":\"typo\",\"note\":\"spelling\"}")"
+echo "report again (expect 204, no duplicate): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/reports -H "$J" -H "$U" -d "{\"questionId\":$QID,\"reason\":\"typo\"}")"
+echo "report bad reason (expect 400): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/reports -H "$J" -H "$U" -d "{\"questionId\":$QID,\"reason\":\"nope\"}")"
+echo "settings (expect minAppVersion 1.0.0): $(curl -s $B/api/settings | jq -c '{questionsPerLevel, challengeRounds, minAppVersion}')"
 echo "daily complete: $(curl -s -X POST $B/api/me/daily -H "$J" -H "$U" -d "{\"date\":\"$D\",\"score\":7,\"total\":10}")"
 echo "my data: $(curl -s $B/api/me/data -H "$U" | jq -c '{levels: (.levels|length), mistakes, bookmarks, stats, daily}')"
 echo "daily questions (expect up to 10): $(curl -s "$B/api/daily?date=$D" -H "$U" | jq length)"
@@ -59,3 +63,13 @@ curl -s -o /dev/null -w "%{http_code}\n" -X DELETE $B/api/admin/categories/$CID 
 say "admin web pages"
 echo "login page (expect 200): $(curl -s -o /dev/null -w "%{http_code}" $B/admin/login)"
 echo "dashboard without login (expect 302 redirect to login): $(curl -s -o /dev/null -w "%{http_code}" $B/admin)"
+
+say "admin pages after login (every page must answer 200)"
+JAR=$(mktemp)
+TOKEN=$(curl -s -c $JAR $B/admin/login | grep -o 'name="__RequestVerificationToken"[^>]*value="[^"]*"' | sed 's/.*value="//;s/"$//')
+LOGIN=$(curl -s -o /dev/null -w "%{http_code}" -b $JAR -c $JAR -X POST $B/admin/login \
+  --data-urlencode "__RequestVerificationToken=$TOKEN" --data-urlencode "Email=admin@quizin.local" --data-urlencode "Password=Admin@12345")
+echo "admin web login (expect 302): $LOGIN"
+for P in /admin /admin/content /admin/questions /admin/questions/new /admin/import /admin/import/history /admin/import/template /admin/questions/export /admin/users /admin/reports /admin/settings; do
+  echo "$P (expect 200): $(curl -s -o /dev/null -w "%{http_code}" -b $JAR $B$P)"
+done

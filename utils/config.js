@@ -10,3 +10,6 @@ export const PRIVACY_POLICY_URL = "https://barathkd.github.io/Quiz-In-app/privac
 export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || "").replace(/\/+$/, "");
 
 export const USE_SERVER = API_BASE_URL.length > 0;
+
+// Where the "Update the app" screen sends players (works once the app is published).
+export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.barath78.Quizin";

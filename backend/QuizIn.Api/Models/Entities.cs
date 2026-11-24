@@ -55,6 +55,21 @@ public class Question
     public int? ImportBatchId { get; set; }          // set when the question came from a bulk import (for undo)
 }
 
+// A player's report that a question is wrong, has a typo or is unclear.
+public class QuestionReport
+{
+    public int Id { get; set; }
+    public int QuestionId { get; set; }
+    public Question? Question { get; set; }
+    public Guid UserId { get; set; }
+    public User? User { get; set; }
+    public string Reason { get; set; } = "other";   // wrong_answer | typo | unclear | other
+    public string? Note { get; set; }
+    public string Status { get; set; } = "open";    // open | fixed | dismissed
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ResolvedAt { get; set; }
+}
+
 // Key / value settings (the game rules are one JSON value under the key "game").
 public class AppSetting
 {

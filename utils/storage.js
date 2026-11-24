@@ -22,6 +22,7 @@ export const gameSettings = {
   challengeBonusMultiplier: 2,
   dailyQuestionCount: 10,
   dailyTimerMinutes: 10,
+  minAppVersion: "0.0.0", // raised from the admin Settings page to force an update
 };
 
 export const applyGameSettings = (incoming) => {
