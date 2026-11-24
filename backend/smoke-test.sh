@@ -42,6 +42,8 @@ D=$(date -u +%F)
 echo "level passed (expect 204): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/levels -H "$J" -H "$U" -d '{"category":"Smoke Test","subcategory":"Class 10","subject":"History","difficulty":"hard","levelNumber":1}')"
 echo "wrong answer (expect 204): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/answers -H "$J" -H "$U" -d "{\"questionId\":$QID,\"correct\":false}")"
 echo "bookmark toggle (expect bookmarked true): $(curl -s -X POST $B/api/me/bookmarks/$QID -H "$U")"
+echo "bookmark remove (expect 204): $(curl -s -o /dev/null -w "%{http_code}" -X DELETE $B/api/me/bookmarks/$QID -H "$U")"
+echo "bookmark add again, idempotent PUT twice (expect 204 204): $(curl -s -o /dev/null -w "%{http_code}" -X PUT $B/api/me/bookmarks/$QID -H "$U") $(curl -s -o /dev/null -w "%{http_code}" -X PUT $B/api/me/bookmarks/$QID -H "$U")"
 echo "report question (expect 204): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/reports -H "$J" -H "$U" -d "{\"questionId\":$QID,\"reason\":\"typo\",\"note\":\"spelling\"}")"
 echo "report again (expect 204, no duplicate): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/reports -H "$J" -H "$U" -d "{\"questionId\":$QID,\"reason\":\"typo\"}")"
 echo "report bad reason (expect 400): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/reports -H "$J" -H "$U" -d "{\"questionId\":$QID,\"reason\":\"nope\"}")"

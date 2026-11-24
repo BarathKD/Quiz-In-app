@@ -265,7 +265,7 @@ export default function QuizScreen({ navigation, route }) {
   const submitReport = async (reason) => {
     setReportOpen(false);
     try {
-      await reportQuestion(q.id, reason);
+      await reportQuestion(q.id, reason, undefined, user?.id);
       Alert.alert(t("reportThanks"));
     } catch (error) {
       console.error("Report failed:", error);

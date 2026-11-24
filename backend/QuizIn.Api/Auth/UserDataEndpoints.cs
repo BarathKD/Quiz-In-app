@@ -160,6 +160,17 @@ public static class UserDataEndpoints
             return Results.Ok(new { bookmarked = true });
         });
 
+        // Idempotent "add bookmark" (the offline queue replays this safely).
+        g.MapPut("/bookmarks/{questionId:int}", async (int questionId, ClaimsPrincipal p, AppDbContext db) =>
+        {
+            if (AuthEndpoints.UserId(p) is not Guid uid) return Results.Unauthorized();
+            if (await db.Bookmarks.FindAsync(uid, questionId) != null) return Results.NoContent();
+            if (!await db.Questions.AnyAsync(q => q.Id == questionId)) return Results.NotFound(new { error = "question_not_found" });
+            db.Bookmarks.Add(new Bookmark { UserId = uid, QuestionId = questionId });
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
         g.MapDelete("/bookmarks/{questionId:int}", async (int questionId, ClaimsPrincipal p, AppDbContext db) =>
         {
             if (AuthEndpoints.UserId(p) is not Guid uid) return Results.Unauthorized();

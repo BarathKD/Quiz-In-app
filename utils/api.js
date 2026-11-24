@@ -9,7 +9,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as local from "./storage";
 import { API_BASE_URL, USE_SERVER } from "./config";
-import { ApiError, cachedGet, clearCaches, memo, request, setMemo, setToken, getToken } from "./server";
+import {
+  ApiError, cachedGet, clearCaches, memo, request, setMemo, setToken, getToken,
+  isNetworkError, enqueueWrite, flushQueue, clearQueue, pendingWrites,
+} from "./server";
 
 export * from "./storage";
 export { USE_SERVER };
@@ -87,7 +90,9 @@ server.logoutUserSession = async () => {
 
 server.deleteUserAccount = async () => {
   try {
+    const userId = await currentUserId();
     await request("DELETE", "/api/auth/me");
+    await clearQueue(userId);
     await setToken(null);
     await clearCaches();
     await local.logoutUserSession();
@@ -144,10 +149,39 @@ server.getQuestionsByIds = async (ids) => {
 };
 
 // Per-user data (one call, kept in memory and updated after each write)
+const ME_CACHE_KEY = "quizin_cache_/api/me/data";
+
+const currentUserId = async () => (await local.getLoggedInUserSession())?.id || null;
+
+// Sends any writes saved while offline. Returns how many are still waiting.
+export const flushPendingWrites = async () => {
+  if (!USE_SERVER) return 0;
+  return flushQueue(await currentUserId());
+};
+
+export const getPendingWriteCount = async () => (USE_SERVER ? pendingWrites(await currentUserId()) : 0);
+
+// Keeps the saved copy of /api/me/data in step with local changes, so they survive a restart while offline.
+const setMe = (me) => {
+  setMemo("me", me);
+  AsyncStorage.setItem(ME_CACHE_KEY, JSON.stringify(me)).catch(() => {});
+};
+
+// Runs a write against the server. With no connection it is queued and the app carries on with its local copy.
+const writeOrQueue = async (userId, op) => {
+  try {
+    await request(op.method, op.path, op.body);
+    flushQueue(userId).catch(() => {}); // the connection works, so send anything that was waiting
+  } catch (error) {
+    if (!isNetworkError(error)) throw error;
+    await enqueueWrite(userId, { type: op.type, payload: op.payload });
+  }
+};
+
 const loadMe = () => memo("me", async () => {
   try {
-    const data = await cachedGet("/api/me/data");
-    return data;
+    await flushQueue(await currentUserId()); // our own pending changes must reach the server before we read it back
+    return await cachedGet("/api/me/data");
   } catch (error) {
     if (error instanceof ApiError) throw error;
     return { levels: [], mistakes: [], bookmarks: [], stats: { answered: 0, correct: 0 }, daily: {} };
@@ -185,12 +219,13 @@ server.getUserProgress = async () => {
 };
 
 server.markLevelPassed = async (userId, category, subcategory, subject, difficulty, levelNumber, totalLevels) => {
-  await request("POST", "/api/me/levels", { category, subcategory, subject: subject || null, difficulty, levelNumber });
+  const payload = { category, subcategory, subject: subject || null, difficulty, levelNumber };
+  await writeOrQueue(userId, { type: "level", method: "POST", path: "/api/me/levels", body: payload, payload });
   const me = await loadMe();
   const exists = (me.levels || []).some((r) => r.category === category && r.subcategory === subcategory
     && (r.subject || null) === (subject || null) && r.difficulty === difficulty && r.levelNumber === levelNumber);
   if (!exists) me.levels = [...(me.levels || []), { category, subcategory, subject: subject || null, difficulty, levelNumber }];
-  setMemo("me", me);
+  setMe(me);
 
   const progress = await server.getUserProgress();
   const entry = progress[progressKey(category, subcategory, subject)] || {};
@@ -214,27 +249,34 @@ server.getMistakeIds = async () => (await loadMe()).mistakes || [];
 server.getBookmarkIds = async () => (await loadMe()).bookmarks || [];
 server.getUserStats = async () => (await loadMe()).stats || { answered: 0, correct: 0 };
 
+// Decides the new state from our own copy and sends that state (add / remove), so replaying it later is safe.
 server.toggleBookmark = async (userId, questionId) => {
-  const res = await request("POST", `/api/me/bookmarks/${questionId}`);
   const me = await loadMe();
+  const on = !(me.bookmarks || []).includes(questionId);
   const rest = (me.bookmarks || []).filter((id) => id !== questionId);
-  me.bookmarks = res.bookmarked ? [...rest, questionId] : rest;
-  setMemo("me", me);
-  return res.bookmarked;
+  me.bookmarks = on ? [...rest, questionId] : rest;
+  setMe(me);
+  const payload = { questionId, on };
+  await writeOrQueue(userId, {
+    type: "bookmark", method: on ? "PUT" : "DELETE", path: `/api/me/bookmarks/${questionId}`, payload,
+  });
+  return on;
 };
 
 server.removeBookmark = async (userId, questionId) => {
-  await request("DELETE", `/api/me/bookmarks/${questionId}`);
   const me = await loadMe();
   me.bookmarks = (me.bookmarks || []).filter((id) => id !== questionId);
-  setMemo("me", me);
+  setMe(me);
+  const payload = { questionId, on: false };
+  await writeOrQueue(userId, { type: "bookmark", method: "DELETE", path: `/api/me/bookmarks/${questionId}`, payload });
 };
 
 server.removeMistake = async (userId, questionId) => {
-  await request("DELETE", `/api/me/mistakes/${questionId}`);
   const me = await loadMe();
   me.mistakes = (me.mistakes || []).filter((id) => id !== questionId);
-  setMemo("me", me);
+  setMe(me);
+  const payload = { questionId };
+  await writeOrQueue(userId, { type: "mistake_remove", method: "DELETE", path: `/api/me/mistakes/${questionId}`, payload });
 };
 
 server.recordAnswer = async (userId, questionId, correct, countStats = true) => {
@@ -250,8 +292,9 @@ server.recordAnswer = async (userId, questionId, correct, countStats = true) => 
       me.stats.answered += 1;
       if (correct) me.stats.correct += 1;
     }
-    setMemo("me", me);
-    await request("POST", "/api/me/answers", { questionId, correct, countStats });
+    setMe(me);
+    const payload = { questionId, correct, countStats };
+    await writeOrQueue(userId, { type: "answer", method: "POST", path: "/api/me/answers", body: payload, payload });
   } catch (error) {
     console.error("Error recording answer:", error);
   }
@@ -285,10 +328,16 @@ server.getDailyStatus = async (userId) => {
 };
 
 server.completeDaily = async (userId, score, total) => {
-  const res = await request("POST", "/api/me/daily", { date: dateKey(), score, total });
   const me = await loadMe();
-  me.daily = { lastDate: dateKey(), streak: res.streak, best: res.best, lastScore: res.lastScore };
-  setMemo("me", me);
+  const payload = { date: dateKey(), score, total };
+  const today = dateKey();
+  if (me.daily?.lastDate !== today) {
+    // Same rule as the server: yesterday keeps the streak going, anything else starts again at 1
+    const streak = me.daily?.lastDate === yesterdayKey() ? (me.daily.streak || 0) + 1 : 1;
+    me.daily = { lastDate: today, streak, best: Math.max(me.daily?.best || 0, streak), lastScore: `${score}/${total}` };
+    setMe(me);
+  }
+  await writeOrQueue(userId, { type: "daily", method: "POST", path: "/api/me/daily", body: payload, payload });
   const history = [...(await readDailyHistory(userId)).filter((d) => d !== dateKey()), dateKey()].slice(-60);
   await AsyncStorage.setItem(DAILY_HISTORY_KEY + userId, JSON.stringify(history));
   return server.getDailyStatus(userId);
@@ -328,9 +377,10 @@ server.getAchievements = async (userId) => {
 };
 
 // "Report this question" (server mode only). reason: wrong_answer | typo | unclear | other
-export const reportQuestion = async (questionId, reason, note) => {
+export const reportQuestion = async (questionId, reason, note, userId) => {
   if (!USE_SERVER) return false;
-  await request("POST", "/api/me/reports", { questionId, reason, note });
+  const payload = { questionId, reason, note };
+  await writeOrQueue(userId || (await currentUserId()), { type: "report", method: "POST", path: "/api/me/reports", body: payload, payload });
   return true;
 };
 

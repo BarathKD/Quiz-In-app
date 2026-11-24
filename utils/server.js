@@ -111,3 +111,73 @@ export const clearCaches = async () => {
   const keys = await AsyncStorage.getAllKeys();
   await AsyncStorage.multiRemove(keys.filter((k) => k.startsWith(CACHE_PREFIX)));
 };
+
+// ---------- Offline write queue ----------
+// When the phone has no connection, writes (level passed, answers, bookmarks, daily, reports) are kept here
+// and replayed in order as soon as the server can be reached. Every replayed call is safe to repeat.
+const QUEUE_PREFIX = "quizin_queue_";
+const MAX_QUEUE = 500;
+let flushing = false;
+
+// True for "could not reach the server" (no connection, timeout); false when the server answered with an error.
+export const isNetworkError = (error) => !(error instanceof ApiError);
+
+const readQueue = async (userId) => {
+  try {
+    return JSON.parse((await AsyncStorage.getItem(QUEUE_PREFIX + userId)) || "[]");
+  } catch (e) {
+    return [];
+  }
+};
+const writeQueue = (userId, list) => AsyncStorage.setItem(QUEUE_PREFIX + userId, JSON.stringify(list));
+
+export const enqueueWrite = async (userId, op) => {
+  if (!userId) return;
+  let list = await readQueue(userId);
+  // Only the latest bookmark action per question matters
+  if (op.type === "bookmark") list = list.filter((o) => !(o.type === "bookmark" && o.payload.questionId === op.payload.questionId));
+  list.push({ ...op, at: Date.now() });
+  await writeQueue(userId, list.slice(-MAX_QUEUE));
+};
+
+export const pendingWrites = async (userId) => (userId ? (await readQueue(userId)).length : 0);
+export const clearQueue = (userId) => (userId ? AsyncStorage.removeItem(QUEUE_PREFIX + userId) : Promise.resolve());
+
+const sendOp = (op) => {
+  const p = op.payload;
+  switch (op.type) {
+    case "level": return request("POST", "/api/me/levels", p);
+    case "answer": return request("POST", "/api/me/answers", p);
+    case "bookmark": return request(p.on ? "PUT" : "DELETE", `/api/me/bookmarks/${p.questionId}`);
+    case "mistake_remove": return request("DELETE", `/api/me/mistakes/${p.questionId}`);
+    case "daily": return request("POST", "/api/me/daily", p);
+    case "report": return request("POST", "/api/me/reports", p);
+    default: return Promise.resolve(); // unknown op from an older version: drop it
+  }
+};
+
+// Sends queued writes in order. Stops at the first one that cannot be delivered right now (offline, server error,
+// logged out). A write the server rejects for good (400/403/404...) is dropped so it cannot block the rest.
+export const flushQueue = async (userId) => {
+  if (!userId || flushing) return 0;
+  flushing = true;
+  try {
+    const list = await readQueue(userId);
+    while (list.length > 0) {
+      try {
+        await sendOp(list[0]);
+        list.shift();
+        await writeQueue(userId, list);
+      } catch (error) {
+        const permanent = error instanceof ApiError && error.status >= 400 && error.status < 500
+          && ![401, 408, 429].includes(error.status);
+        if (!permanent) break;
+        list.shift();
+        await writeQueue(userId, list);
+      }
+    }
+    return list.length;
+  } finally {
+    flushing = false;
+  }
+};

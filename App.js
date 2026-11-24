@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator, StyleSheet, AppState } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
@@ -24,7 +24,7 @@ import ReviewScreen from "./screens/ReviewScreen";
 import AchievementsScreen from "./screens/AchievementsScreen";
 import SplashScreen from "./screens/SplashScreen";
 import Constants from "expo-constants";
-import { initStorageWithSample, loadGameSettings, gameSettings } from "./utils/api";
+import { initStorageWithSample, loadGameSettings, gameSettings, flushPendingWrites } from "./utils/api";
 import { compareVersions } from "./utils/version";
 import UpdateRequiredScreen from "./screens/UpdateRequiredScreen";
 
@@ -54,6 +54,15 @@ export default function App() {
     };
 
     initializeApp();
+  }, []);
+
+  // Offline queue: send saved writes when the app opens, comes back to the foreground, and every minute.
+  useEffect(() => {
+    const flush = () => flushPendingWrites().catch(() => {});
+    flush();
+    const sub = AppState.addEventListener("change", (state) => { if (state === "active") flush(); });
+    const timer = setInterval(flush, 60000);
+    return () => { sub.remove(); clearInterval(timer); };
   }, []);
 
   // Show a simple spinner while storage initialises.
