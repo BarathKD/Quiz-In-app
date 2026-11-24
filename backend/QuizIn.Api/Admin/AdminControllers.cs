@@ -689,3 +689,33 @@ public class AdminUsersController : Controller
         return Redirect("/admin/users");
     }
 }
+
+
+// ---------------- Game settings ----------------
+[Route("admin/settings")]
+[AutoValidateAntiforgeryToken]
+[Authorize(AuthenticationSchemes = AdminHelpers.Scheme, Roles = "Admin")]
+public class AdminSettingsController : Controller
+{
+    private readonly AppDbContext _db;
+    public AdminSettingsController(AppDbContext db) => _db = db;
+
+    [HttpGet("")]
+    public async Task<IActionResult> Index() => View(await GameSettingsStore.LoadAsync(_db));
+
+    [HttpPost("")]
+    public async Task<IActionResult> Save(GameSettings settings)
+    {
+        await GameSettingsStore.SaveAsync(_db, settings);
+        TempData["Msg"] = "Settings saved. The app picks them up the next time it starts.";
+        return Redirect("/admin/settings");
+    }
+
+    [HttpPost("reset")]
+    public async Task<IActionResult> Reset()
+    {
+        await GameSettingsStore.SaveAsync(_db, new GameSettings());
+        TempData["Msg"] = "Settings reset to the defaults.";
+        return Redirect("/admin/settings");
+    }
+}

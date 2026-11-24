@@ -3,14 +3,40 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from "expo-crypto";
 
 // Number of questions in one level (shared by LevelsScreen and QuizScreen)
-// Questions per level. EXPO_PUBLIC_QPL=5 makes levels tiny so testing is quick; release builds use 50.
-export const QUESTIONS_PER_LEVEL = Number(process.env.EXPO_PUBLIC_QPL) > 0 ? Number(process.env.EXPO_PUBLIC_QPL) : 50;
+// Game rules. The admin changes these on the web (Settings page); the app loads them at start-up
+// (loadGameSettings in utils/api.js). These are the defaults used until then and in local mode.
+// EXPO_PUBLIC_QPL=5 forces tiny levels for quick testing and always wins.
+const ENV_QPL = Number(process.env.EXPO_PUBLIC_QPL) > 0 ? Number(process.env.EXPO_PUBLIC_QPL) : 0;
+export const gameSettings = {
+  questionsPerLevel: ENV_QPL || 50,
+  passMarkEasy: 70,
+  passMarkMedium: 80,
+  passMarkHard: 90,
+  challengeEnabled: true,
+  challengeQuestionsPerRound: 10,
+  challengeRounds: 3,
+  challengeSecondsEasy: 15,
+  challengeSecondsMedium: 15,
+  challengeSecondsHard: 15,
+  challengeRevives: 1,
+  challengeBonusMultiplier: 2,
+  dailyQuestionCount: 10,
+  dailyTimerMinutes: 10,
+};
 
-// Practice mode: share of correct answers needed to pass a level. Challenge: 10 random questions, no mistakes.
-export const PASS_MARKS = { easy: 0.7, medium: 0.8, hard: 0.9 };
-export const passMarkFor = (difficulty) => PASS_MARKS[difficulty] || 0.8;
-export const CHALLENGE_QUESTIONS = 10;
-export const CHALLENGE_MAX_REVIVES = 2;
+export const applyGameSettings = (incoming) => {
+  if (!incoming || typeof incoming !== "object") return;
+  for (const key of Object.keys(gameSettings)) {
+    if (incoming[key] !== undefined && incoming[key] !== null) gameSettings[key] = incoming[key];
+  }
+  if (ENV_QPL) gameSettings.questionsPerLevel = ENV_QPL;
+};
+
+const cap = (difficulty) => (difficulty === "hard" ? "Hard" : difficulty === "medium" ? "Medium" : "Easy");
+// Practice mode: share of correct answers needed to pass a level (0 to 1)
+export const passMarkFor = (difficulty) => (gameSettings[`passMark${cap(difficulty)}`] || 80) / 100;
+// Challenge mode: seconds allowed per question
+export const challengeSecondsFor = (difficulty) => gameSettings[`challengeSeconds${cap(difficulty)}`] || 15;
 
 const QUESTIONS_KEY = "quiz_questions";
 const USERS_KEY = "quiz_users";
@@ -978,7 +1004,7 @@ export const getLeaderboard = async () => {
         for (const [diff, passed] of Object.entries(entry.levels || {})) {
           const count = Object.values(passed).filter(Boolean).length;
           levels += count;
-          points += count * QUESTIONS_PER_LEVEL * (DIFFICULTY_WEIGHT[diff] || 1);
+          points += count * gameSettings.questionsPerLevel * (DIFFICULTY_WEIGHT[diff] || 1);
         }
       }
       rows.push({ id: u.id, name: String(u.email || "user").split("@")[0], levels, points });
@@ -1075,7 +1101,6 @@ export const recordChallengeWin = async (userId) => {
 export const getUserStats = (userId) => readJson(userKey("stats", userId), { answered: 0, correct: 0 });
 
 // ----- Daily challenge -----
-export const DAILY_QUESTION_COUNT = 10;
 
 const dateKey = (d = new Date()) => {
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -1114,7 +1139,7 @@ export const getDailyQuestions = async () => {
     const j = Math.floor(rand() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
-  return arr.slice(0, DAILY_QUESTION_COUNT);
+  return arr.slice(0, gameSettings.dailyQuestionCount);
 };
 
 export const getDailyStatus = async (userId) => {

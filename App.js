@@ -23,7 +23,7 @@ import DailyChallengeScreen from "./screens/DailyChallengeScreen";
 import ReviewScreen from "./screens/ReviewScreen";
 import AchievementsScreen from "./screens/AchievementsScreen";
 import SplashScreen from "./screens/SplashScreen";
-import { initStorageWithSample } from "./utils/api";
+import { initStorageWithSample, loadGameSettings } from "./utils/api";
 
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -38,6 +38,7 @@ export default function App() {
     const initializeApp = async () => {
       try {
         await initStorageWithSample();
+        await loadGameSettings();
       } catch (error) {
         console.error("Storage initialization error:", error);
       } finally {

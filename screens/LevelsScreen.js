@@ -5,7 +5,7 @@ import Header from "../components/header";
 import BottomNav from "../components/BottomNav";
 import FadeInUp from "../components/FadeInUp";
 import PressableScale from "../components/PressableScale";
-import { getQuestionsByFilter, getUserProgress, passMarkFor, QUESTIONS_PER_LEVEL } from "../utils/api";
+import { getQuestionsByFilter, getUserProgress, passMarkFor, gameSettings } from "../utils/api";
 import { useLang } from "../utils/i18n";
 import { colors, difficultyColors, shadow } from "../utils/theme";
 
@@ -55,12 +55,12 @@ export default function LevelsScreen({ navigation, route }) {
       }
 
       // Each level = up to 50 questions
-      const numLevels = Math.ceil(total / QUESTIONS_PER_LEVEL);
+      const numLevels = Math.ceil(total / gameSettings.questionsPerLevel);
       const generatedLevels = [];
 
       for (let i = 0; i < numLevels; i++) {
-        const start = i * QUESTIONS_PER_LEVEL;
-        const end = Math.min(start + QUESTIONS_PER_LEVEL, total);
+        const start = i * gameSettings.questionsPerLevel;
+        const end = Math.min(start + gameSettings.questionsPerLevel, total);
         generatedLevels.push({
           id: `level_${i + 1}`,
           levelNumber: i + 1,
@@ -101,6 +101,10 @@ export default function LevelsScreen({ navigation, route }) {
       levelEnd: level.end,
       levelNumber: level.levelNumber,
     };
+    if (!gameSettings.challengeEnabled) {
+      navigation.navigate("Quiz", params);
+      return;
+    }
     Alert.alert(
       t("chooseModeTitle"),
       t("modeHint", { p: Math.round(passMarkFor(difficulty) * 100) }),
@@ -144,7 +148,7 @@ export default function LevelsScreen({ navigation, route }) {
             {t("levelsAvailable")}: <Text style={styles.summaryBold}>{levels.length}</Text>
           </Text>
           <Text style={styles.summaryText}>
-            {t("perLevel")}: <Text style={styles.summaryBold}>{t("upTo", { n: QUESTIONS_PER_LEVEL })}</Text>
+            {t("perLevel")}: <Text style={styles.summaryBold}>{t("upTo", { n: gameSettings.questionsPerLevel })}</Text>
           </Text>
         </View>
 

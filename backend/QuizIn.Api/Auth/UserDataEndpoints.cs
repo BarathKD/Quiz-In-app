@@ -17,7 +17,6 @@ public static class UserDataEndpoints
 {
     private static readonly string[] Difficulties = { "easy", "medium", "hard" };
     private const int QuestionsPerLevel = 50;
-    private const int DailyCount = 10;
 
     private static int Weight(string difficulty) => difficulty == "hard" ? 3 : difficulty == "medium" ? 2 : 1;
 
@@ -145,6 +144,7 @@ public static class UserDataEndpoints
         app.MapGet("/api/daily", async (string? date, AppDbContext db) =>
         {
             if (!TryDate(date, out var day)) return Results.BadRequest(new { error = "invalid_date" });
+            var dailyCount = (await GameSettingsStore.LoadAsync(db)).DailyQuestionCount;
             var ids = await db.Questions.AsNoTracking().OrderBy(q => q.Id).Select(q => q.Id).ToListAsync();
             var rand = new Random(day.DayNumber);
             for (var i = ids.Count - 1; i > 0; i--)
@@ -152,7 +152,7 @@ public static class UserDataEndpoints
                 var j = rand.Next(i + 1);
                 (ids[i], ids[j]) = (ids[j], ids[i]);
             }
-            var pick = ids.Take(DailyCount).ToList();
+            var pick = ids.Take(dailyCount).ToList();
             var rows = await ContentEndpoints.QuestionQuery(db).Where(q => pick.Contains(q.Id)).ToListAsync();
             var order = pick.Select((id, idx) => (id, idx)).ToDictionary(x => x.id, x => x.idx);
             return Results.Ok(rows.OrderBy(q => order[q.Id]).Select(ContentEndpoints.ToDto));

@@ -1,0 +1,110 @@
+@model GameSettings
+@{
+    ViewData["Title"] = "Game settings";
+}
+@functions {
+    public static string Num(int v) => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="page-head"><h1>Game settings</h1></div>
+
+<form method="post" action="/admin/settings">
+  @Html.AntiForgeryToken()
+
+  <div class="card">
+    <h2 class="card-title">Levels</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label for="QuestionsPerLevel">Questions per level</label>
+        <input id="QuestionsPerLevel" name="QuestionsPerLevel" type="number" min="5" max="200" value="@Num(Model.QuestionsPerLevel)">
+        <span class="hint">5 to 200. Set this before launch. Changing it later moves where levels start and end, so players' progress can look wrong.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Practice mode: pass mark</h2>
+    <p class="muted">Percent of questions a player must answer correctly to pass a level. A wrong answer never restarts the level.</p>
+    <div class="form-grid">
+      <div class="field">
+        <label for="PassMarkEasy">Easy (%)</label>
+        <input id="PassMarkEasy" name="PassMarkEasy" type="number" min="1" max="100" value="@Num(Model.PassMarkEasy)">
+      </div>
+      <div class="field">
+        <label for="PassMarkMedium">Medium (%)</label>
+        <input id="PassMarkMedium" name="PassMarkMedium" type="number" min="1" max="100" value="@Num(Model.PassMarkMedium)">
+      </div>
+      <div class="field">
+        <label for="PassMarkHard">Hard (%)</label>
+        <input id="PassMarkHard" name="PassMarkHard" type="number" min="1" max="100" value="@Num(Model.PassMarkHard)">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Challenge mode</h2>
+    <p class="muted">Random questions from the level, in rounds. One wrong answer ends the challenge unless the player revives by watching an ad.</p>
+    <div class="field">
+      <label class="check"><input type="checkbox" name="ChallengeEnabled" value="true" checked="@Model.ChallengeEnabled"> Challenge mode is on</label>
+      <input type="hidden" name="ChallengeEnabled" value="false">
+      <span class="hint">When off, tapping a level goes straight to Practice.</span>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label for="ChallengeQuestionsPerRound">Questions per round</label>
+        <input id="ChallengeQuestionsPerRound" name="ChallengeQuestionsPerRound" type="number" min="3" max="50" value="@Num(Model.ChallengeQuestionsPerRound)">
+      </div>
+      <div class="field">
+        <label for="ChallengeRounds">Rounds</label>
+        <input id="ChallengeRounds" name="ChallengeRounds" type="number" min="1" max="10" value="@Num(Model.ChallengeRounds)">
+        <span class="hint">If the level has fewer questions, the challenge uses what is available.</span>
+      </div>
+      <div class="field">
+        <label for="ChallengeRevives">Revives per challenge (ads)</label>
+        <input id="ChallengeRevives" name="ChallengeRevives" type="number" min="0" max="5" value="@Num(Model.ChallengeRevives)">
+        <span class="hint">0 turns revives off.</span>
+      </div>
+      <div class="field">
+        <label for="ChallengeBonusMultiplier">Bonus points multiplier</label>
+        <input id="ChallengeBonusMultiplier" name="ChallengeBonusMultiplier" type="number" min="1" max="10" value="@Num(Model.ChallengeBonusMultiplier)">
+        <span class="hint">Saved now; used for the leaderboard later.</span>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label for="ChallengeSecondsEasy">Seconds per question: Easy</label>
+        <input id="ChallengeSecondsEasy" name="ChallengeSecondsEasy" type="number" min="5" max="120" value="@Num(Model.ChallengeSecondsEasy)">
+      </div>
+      <div class="field">
+        <label for="ChallengeSecondsMedium">Seconds per question: Medium</label>
+        <input id="ChallengeSecondsMedium" name="ChallengeSecondsMedium" type="number" min="5" max="120" value="@Num(Model.ChallengeSecondsMedium)">
+      </div>
+      <div class="field">
+        <label for="ChallengeSecondsHard">Seconds per question: Hard</label>
+        <input id="ChallengeSecondsHard" name="ChallengeSecondsHard" type="number" min="5" max="120" value="@Num(Model.ChallengeSecondsHard)">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Daily challenge</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label for="DailyQuestionCount">Questions</label>
+        <input id="DailyQuestionCount" name="DailyQuestionCount" type="number" min="3" max="50" value="@Num(Model.DailyQuestionCount)">
+      </div>
+      <div class="field">
+        <label for="DailyTimerMinutes">Timer (minutes)</label>
+        <input id="DailyTimerMinutes" name="DailyTimerMinutes" type="number" min="1" max="60" value="@Num(Model.DailyTimerMinutes)">
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn" type="submit">Save settings</button>
+  </div>
+</form>
+
+<form method="post" action="/admin/settings/reset" onsubmit="return confirm('Reset every setting to its default?');" style="margin-top:12px">
+  @Html.AntiForgeryToken()
+  <button class="btn btn-secondary" type="submit">Reset to defaults</button>
+</form>

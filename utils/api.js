@@ -14,7 +14,6 @@ import { ApiError, cachedGet, clearCaches, memo, request, setMemo, setToken, get
 export * from "./storage";
 export { USE_SERVER };
 
-const QPL = local.QUESTIONS_PER_LEVEL;
 const DAILY_HISTORY_KEY = "quizin_daily_history_";
 
 // ---------- helpers ----------
@@ -175,7 +174,7 @@ server.getUserProgress = async () => {
         const passedCount = Object.keys(passed).length;
         if (!passedCount) continue;
         const total = all.filter((q) => progressKey(q.category, q.subcategory, q.subject) === key && q.difficulty === diff).length;
-        const totalLevels = Math.max(1, Math.ceil(total / QPL));
+        const totalLevels = Math.max(1, Math.ceil(total / local.gameSettings.questionsPerLevel));
         let allPassed = true;
         for (let i = 1; i <= totalLevels; i++) if (!passed[i]) { allPassed = false; break; }
         progress[key][diff] = allPassed;
@@ -326,6 +325,16 @@ server.getAchievements = async (userId) => {
     { id: "challenger", icon: "flash", value: challengeWins, target: 1 },
   ];
   return defs.map((d) => ({ ...d, value: Math.min(d.value, d.target), unlocked: d.value >= d.target }));
+};
+
+// Game rules from the admin Settings page (server mode only; local mode keeps the built-in defaults).
+export const loadGameSettings = async () => {
+  if (!USE_SERVER) return;
+  try {
+    local.applyGameSettings(await cachedGet("/api/settings"));
+  } catch (error) {
+    console.error("Could not load game settings, using defaults:", error);
+  }
 };
 
 // ---------- public exports: server version in server mode, local version otherwise ----------

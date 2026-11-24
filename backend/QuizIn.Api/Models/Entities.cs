@@ -55,6 +55,13 @@ public class Question
     public int? ImportBatchId { get; set; }          // set when the question came from a bulk import (for undo)
 }
 
+// Key / value settings (the game rules are one JSON value under the key "game").
+public class AppSetting
+{
+    public string Key { get; set; } = "";
+    public string Value { get; set; } = "";
+}
+
 // One admin bulk import; lets the admin see history and undo it.
 public class ImportBatch
 {

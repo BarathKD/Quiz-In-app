@@ -6,10 +6,10 @@ import PressableScale from "../components/PressableScale";
 import { useLang } from "../utils/i18n";
 import { colors, fonts, shadow } from "../utils/theme";
 import {
-  getAllQuestions, markLevelPassed, getCategoryByName, getCategoryImage, QUESTIONS_PER_LEVEL,
+  getAllQuestions, markLevelPassed, getCategoryByName, getCategoryImage, gameSettings, challengeSecondsFor,
   getDailyQuestions, getMistakeIds, getBookmarkIds, getQuestionsByIds, toggleBookmark,
   recordAnswer, completeDaily, getQuestionsByFilter, passMarkFor,
-  CHALLENGE_QUESTIONS, CHALLENGE_MAX_REVIVES, recordChallengeWin,
+  recordChallengeWin,
 } from "../utils/api";
 import { showRewardedAd } from "../utils/ads";
 
@@ -120,14 +120,16 @@ export default function QuizScreen({ navigation, route }) {
         let list = [];
         if (mode === "daily") {
           list = await getDailyQuestions();
-          setTotalTime(600);
-          setTimeLeft(600); // 10 minutes for the daily challenge
+          const dailySeconds = gameSettings.dailyTimerMinutes * 60;
+          setTotalTime(dailySeconds);
+          setTimeLeft(dailySeconds);
         } else if (isChallenge) {
-          // 10 random questions out of this level's questions
+          // Random questions out of this level's questions: rounds x questions per round (fewer if the level is small)
           const levelQs = (await getQuestionsByFilter(category, subcategory, subject || null, difficulty))
             .slice(levelStart, levelEnd);
-          list = shuffleArray(levelQs).slice(0, CHALLENGE_QUESTIONS);
-          const seconds = Math.max(1, list.length) * 30;
+          const wanted = gameSettings.challengeRounds * gameSettings.challengeQuestionsPerRound;
+          list = shuffleArray(levelQs).slice(0, wanted);
+          const seconds = Math.max(1, list.length) * challengeSecondsFor(difficulty);
           setTotalTime(seconds);
           setTimeLeft(seconds);
         } else {
@@ -288,7 +290,7 @@ export default function QuizScreen({ navigation, route }) {
       return;
     }
 
-    const totalLevels = Math.max(1, Math.ceil(totalAvailableQuestions / QUESTIONS_PER_LEVEL));
+    const totalLevels = Math.max(1, Math.ceil(totalAvailableQuestions / gameSettings.questionsPerLevel));
     let difficultyCompleted = false;
 
     if (passed && user?.id) {
@@ -421,14 +423,26 @@ export default function QuizScreen({ navigation, route }) {
   const handleExplanationClose = () => {
     setShowExplanation(false);
 
+    const advance = () => {
+      setIndex(i => i + 1);
+      setSelectedAnswer(null);
+      setIsCorrect(false);
+    };
     const goNext = () => {
-      if (index < questions.length - 1) {
-        setIndex(i => i + 1);
-        setSelectedAnswer(null);
-        setIsCorrect(false);
-      } else {
+      if (index >= questions.length - 1) {
         handleQuizComplete(score);
+        return;
       }
+      // Challenge: a short pause between rounds
+      const perRound = gameSettings.challengeQuestionsPerRound;
+      if (isChallenge && (index + 1) % perRound === 0) {
+        const round = (index + 1) / perRound;
+        const rounds = Math.ceil(questions.length / perRound);
+        Alert.alert(t("roundDoneTitle", { n: round }), t("roundDoneMsg", { n: round + 1, total: rounds }),
+          [{ text: t("nextRound"), onPress: advance }], { cancelable: false });
+        return;
+      }
+      advance();
     };
 
     if (isCorrect || !isChallenge) {
@@ -437,8 +451,8 @@ export default function QuizScreen({ navigation, route }) {
       return;
     }
 
-    // Challenge: a wrong answer ends it, unless the player revives (max CHALLENGE_MAX_REVIVES per challenge)
-    const left = CHALLENGE_MAX_REVIVES - revivesRef.current;
+    // Challenge: a wrong answer ends it, unless the player revives (max gameSettings.challengeRevives per challenge)
+    const left = gameSettings.challengeRevives - revivesRef.current;
     const fail = () => handleQuizComplete(score);
     if (left <= 0) {
       Alert.alert(t("challengeFailTitle"), t("challengeFailMsg"), [{ text: t("viewResults"), onPress: fail }], { cancelable: false });

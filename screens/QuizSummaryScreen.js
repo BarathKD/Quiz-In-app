@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Header from "../components/header";
 import FadeInUp from "../components/FadeInUp";
 import PressableScale from "../components/PressableScale";
-import { QUESTIONS_PER_LEVEL, getDailyStatus } from "../utils/api";
+import { gameSettings, getDailyStatus } from "../utils/api";
 import { useLang } from "../utils/i18n";
 import { colors, fonts, shadow } from "../utils/theme";
 
@@ -80,8 +80,8 @@ export default function QuizSummaryScreen({ route, navigation }) {
       subject,
       difficulty,
       user,
-      levelStart: levelNumber * QUESTIONS_PER_LEVEL,
-      levelEnd: (levelNumber + 1) * QUESTIONS_PER_LEVEL,
+      levelStart: levelNumber * gameSettings.questionsPerLevel,
+      levelEnd: (levelNumber + 1) * gameSettings.questionsPerLevel,
       levelNumber: levelNumber + 1,
     });
   };

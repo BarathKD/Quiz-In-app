@@ -140,6 +140,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", time = DateTime.UtcN
 app.MapAuth();
 app.MapContent();
 app.MapUserData();
+app.MapSettings();
 app.MapControllers();
 app.MapGet("/", () => Results.Redirect("/admin"));
 

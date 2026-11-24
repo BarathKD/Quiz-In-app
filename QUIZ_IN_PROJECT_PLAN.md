@@ -174,3 +174,8 @@ Pages, by priority:
 - Duplicate policy (skip / update / add), shuffle options, error report (Excel), undo per import, import history, Excel export of filtered questions.
 - New table `ImportBatches` + `Questions.ImportBatchId`: delete the dev DB (`rm -f quizin.db*`) after pulling.
 - Next: Game Settings page (questions per level, pass marks, challenge rounds/revives/seconds) served to the app; leaderboard bonus for challenge wins.
+
+## Game settings (web-controlled)
+- Admin > Settings: questions per level, pass marks, challenge (on/off, questions per round, rounds, seconds per question by difficulty, revives, bonus multiplier), daily challenge (count, minutes).
+- Stored as JSON in `AppSettings` (key "game"), served at `GET /api/settings`; the app loads it at start (`loadGameSettings`), cached for offline. Local mode keeps built-in defaults.
+- New table: delete the dev DB (`rm -f quizin.db*`) after pulling. Set questions per level BEFORE launch.
