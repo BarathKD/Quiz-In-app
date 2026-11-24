@@ -62,7 +62,7 @@ export default function LoginScreen({ navigation }) {
       Alert.alert(t("success"), t("signupOk"));
       setPassword("");
     } catch (error) {
-      console.error("Signup error:", error);
+      console.warn("Signup error:", error);
       Alert.alert(t("error"), t("signupFailed"));
     } finally {
       setBusy(false);
