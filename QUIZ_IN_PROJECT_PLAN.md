@@ -57,14 +57,14 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 ### Phase 2: Backend (ASP.NET Core Web API + EF Core + PostgreSQL or SQL Server)
 - [x] Create `QuizIn.Api` project in `/backend/QuizIn.Api` (written, NOT yet compiled: no .NET SDK in Claude's sandbox; build it in Codespaces with `dotnet build` and report errors)
 - [x] Entities (written): User, Category, Subcategory, Subject, Question, Level/Difficulty, Progress, Purchase, AdConfig
-- [~] Auth: register/login/me/delete-account done (BCrypt, JWT 7 days, Admin role, first admin from config). Refresh token still TODO
-- [~] Endpoints: DONE (written, being tested): GET categories, GET questions (filters), admin CRUD for categories/subcategories/subjects/questions, CSV import. TODO: submit result, user progress, daily, bookmarks, mistakes, leaderboard, JSON import, bulk delete, images
+- [~] Auth: register/login/me/delete-account done (BCrypt, JWT 7 days, Admin role, first admin from config). Forgot password DONE (6-digit e-mailed code, 15 min, 5 tries, rate limited; needs `Email__*` SMTP settings in production). Refresh token / token revoke after reset still TODO
+- [x] Endpoints DONE and CI-tested: categories, questions (filters), admin CRUD, CSV/JSON/Excel import, levels, answers, daily, bookmarks, mistakes, reports, leaderboard, settings. TODO: category/subject images (file storage decision)
 - [ ] Deploy to a free/cheap host (Azure App Service, Render or Railway) + managed DB; HTTPS only
-- [ ] Global leaderboard on the server: weekly + all-time tabs, anti-cheat (server computes points from submitted results)
-- [ ] Move Daily Challenge streak, badges, bookmarks and wrong-answers to the server (sync across devices)
-- [ ] Settings: real "delete my account" endpoint (Play policy)
-- [~] Web admin panel (ASP.NET Core MVC, inside QuizIn.Api): v1 written = Dashboard, Content, Questions CRUD, CSV import. TODO: Users page, Leaderboard control, Tamil + English fields, bulk delete, images
-- [ ] Mobile app: login/signup against the API, store JWT in `expo-secure-store`, load data from API (cache offline)
+- [~] Global leaderboard on the server: all-time DONE (server computes points). TODO: weekly tab, challenge-win bonus (multiplier setting already stored)
+- [x] Move Daily Challenge streak, bookmarks and wrong-answers to the server (sync across devices); badges are computed from synced progress
+- [x] Settings: real "delete my account" endpoint (Play policy)
+- [~] Web admin panel (ASP.NET Core MVC, inside QuizIn.Api): DONE = Dashboard, Content, Questions CRUD + search + bulk delete, bulk import v2 (Excel/CSV/JSON, preview, duplicates, difficulty split, undo, history), Reports, Users, Game Settings. TODO: Leaderboard control, user ban/reset, dashboard charts, images
+- [x] Mobile app: login/signup against the API, JWT in `expo-secure-store`, data from API with offline cache and offline write queue (works when `EXPO_PUBLIC_API_URL` is set)
 
 ### Phase 3: Paid levels / difficulty
 - [ ] Use Google Play Billing (required by Play policy for digital content, not Razorpay/UPI inside the app). Library: `react-native-iap` or RevenueCat
@@ -94,7 +94,7 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - [ ] Remove all `console.log` debug output, set versionCode via `autoIncrement`
 
 ### Phase 6: After launch
-- [ ] Push notifications for the Daily Challenge (streak reminder)
+- [x] Daily reminder notification (local, daily at a time chosen in Settings). Server-sent push (announcements, tournaments) still TODO
 - [ ] Weekly tournaments / reset rewards, friends leaderboard
 - [ ] More exam packs from user feedback, analytics-driven content
 
@@ -120,7 +120,7 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - 2026-11-20: Backend auth tested OK in Codespaces (register/login/admin). Step 3 written: content endpoints + CSV import + `backend/smoke-test.sh`.
 - 2026-11-20: Smoke test PASSED in Codespaces. Admin web v1 written (login, dashboard, content tree, questions CRUD, CSV import) in the same project; login rate limiting added. NOT yet compiled.
 - 2026-11-21: Admin web parity pass (written, not compiled): sample categories seeded in Development, category edit (name/description/timer/opacity/renames/subject timers), question search, bulk delete, JSON import + paste import. STILL MISSING vs the old in-app admin: category background images and subject images (needs file storage decision), Excel .xlsx import (use CSV UTF-8 instead).
-- NEXT: build + try /admin in Codespaces, then progress/daily/leaderboard endpoints. (earlier: build backend in Codespaces, then content endpoints. (earlier: test Phase 1B on phone), then Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
+- (old) build + try /admin in Codespaces, then progress/daily/leaderboard endpoints. (earlier: build backend in Codespaces, then content endpoints. (earlier: test Phase 1B on phone), then Phase 2 (backend). Start with the data model + auth endpoints, then swap `utils/api.js` to call them.
 
 ## Redesign progress (branch `ui-redesign`)
 - New "Mayil" (peacock) palette in `utils/theme.js`: peacock blue-teal, lotus violet, jasmine white.
@@ -164,7 +164,7 @@ Pages, by priority:
 - `utils/server.js`: HTTP client, JWT in expo-secure-store, offline cache of content, per-session memory cache.
 - `utils/api.js`: in server mode swaps accounts, content, progress, bookmarks, mistakes, daily, leaderboard to the backend; screens unchanged.
 - Admins use the web panel (`/admin`); in server mode the app opens the normal home screen for them.
-- Known limits: writes made while offline are not queued yet; content cache lives in AsyncStorage (fine for a few thousand questions).
+- Offline: writes made offline are queued and replayed in order (permanent 4xx dropped); content and `me` data cached in AsyncStorage (fine for a few thousand questions).
 - Before release: deploy backend (HTTPS), set `API_BASE_URL`, update privacy policy + Play Data safety form (accounts now stored on a server).
 
 ## Admin bulk import (v2)
@@ -173,9 +173,23 @@ Pages, by priority:
 - Difficulty split: rows without a difficulty can be split by count (drag bar) e.g. 20 easy / 30 medium / 50 hard.
 - Duplicate policy (skip / update / add), shuffle options, error report (Excel), undo per import, import history, Excel export of filtered questions.
 - New table `ImportBatches` + `Questions.ImportBatchId`: delete the dev DB (`rm -f quizin.db*`) after pulling.
-- Next: Game Settings page (questions per level, pass marks, challenge rounds/revives/seconds) served to the app; leaderboard bonus for challenge wins.
+- Done after this: Game Settings page, challenge mode, offline queue. Still next: leaderboard bonus for challenge wins.
 
 ## Game settings (web-controlled)
 - Admin > Settings: questions per level, pass marks, challenge (on/off, questions per round, rounds, seconds per question by difficulty, revives, bonus multiplier), daily challenge (count, minutes).
 - Stored as JSON in `AppSettings` (key "game"), served at `GET /api/settings`; the app loads it at start (`loadGameSettings`), cached for offline. Local mode keeps built-in defaults.
 - New table: delete the dev DB (`rm -f quizin.db*`) after pulling. Set questions per level BEFORE launch.
+
+## Progress log (Nov 21-26)
+- 2026-11-21..24: Bulk import v2, duplicate policy, game settings (practice + challenge modes, revives via ad placeholder), force-update gate, question reports, offline write queue, forgot password (backend + app screen), all verified by GitHub Actions CI (`.github/workflows/ci.yml`: backend build + `backend/smoke-test.sh` + app bundle).
+- 2026-11-24: New animated bilingual splash (3D-looking floating cards merge into the logo, Tamil first then English; tap to skip; waits for the full animation). Native splash colour = #062F3A.
+- 2026-11-26: Daily reminder notification (`utils/reminder.js`, Settings toggle + time chips, `expo-notifications`). Local mode and server mode both use it. Works in Expo Go for local notifications; fully reliable in a real build.
+- Gotcha: after a Codespace restart port 5080 goes back to Private -> app shows HTTP 401. Set it Public again.
+- Gotcha: new tables need `rm -f quizin.db*` before `dotnet run` in dev, then re-import questions.
+
+## NEXT (in order)
+1. Exam mode / mock test (N questions, one timer, score + rank)
+2. Leaderboard bonus for challenge wins (server entity + multiplier)
+3. Deploy backend: Azure App Service/other free host + Azure SQL, HTTPS, persistent `Uploads:Path`, SQL Server migrations, SMTP (Brevo) for forgot-password
+4. Real AdMob (Phase 4) + Play Billing (Phase 3) need an EAS dev build
+5. Play Store release checklist (Phase 5), update privacy policy + Data safety form for server accounts, ads, notifications

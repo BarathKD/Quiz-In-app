@@ -4,7 +4,9 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 import { useFonts, BalooThambi2_600SemiBold, BalooThambi2_800ExtraBold } from "@expo-google-fonts/baloo-thambi-2";
-import { LanguageProvider } from "./utils/i18n";
+import { LanguageProvider, useLang } from "./utils/i18n";
+import { syncReminder } from "./utils/reminder";
+
 import { colors } from "./utils/theme";
 
 // Import screens
@@ -33,6 +35,16 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 const Stack = createNativeStackNavigator();
+
+// Re-schedules the daily reminder with the current language each time the app opens or the language changes.
+function ReminderSync() {
+  const { t, lang } = useLang();
+  useEffect(() => {
+    syncReminder({ title: t("reminderNotifTitle"), body: t("reminderNotifBody") });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
+  return null;
+}
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
@@ -89,6 +101,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <LanguageProvider>
+        <ReminderSync />
         <StatusBar style="light" backgroundColor={colors.primary} translucent={false} />
         <NavigationContainer>
           <Stack.Navigator 

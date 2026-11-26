@@ -37,6 +37,10 @@
           }
         }
       ],
+      [
+        "expo-notifications",
+        { "color": "#0C6478" }
+      ],
       "expo-font",
       "expo-web-browser"
     ],
