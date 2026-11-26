@@ -94,7 +94,7 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - [ ] Remove all `console.log` debug output, set versionCode via `autoIncrement`
 
 ### Phase 6: After launch
-- [x] Daily reminder notification: local, controlled from the admin Settings page (on/off, time, Tamil + English text); the player can only switch it off for themselves. Server-sent push (announcements, tournaments) still TODO
+- [x] Daily reminder notification: local, controlled from the admin Settings page (on/off, time, Tamil + English text); players have no switch in the app (they would forget it is off). Server-sent push (announcements, tournaments) still TODO
 - [ ] Weekly tournaments / reset rewards, friends leaderboard
 - [ ] More exam packs from user feedback, analytics-driven content
 

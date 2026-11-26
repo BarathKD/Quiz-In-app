@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Alert, Linking, Switch } from "react-native";
+import React from "react";
+import { View, Text, StyleSheet, ScrollView, Alert, Linking } from "react-native";
 import Constants from "expo-constants";
 import Header from "../components/header";
 import BottomNav from "../components/BottomNav";
@@ -9,29 +9,11 @@ import { deleteUserAccount, logoutUserSession } from "../utils/api";
 import { PRIVACY_POLICY_URL } from "../utils/config";
 import { useLang } from "../utils/i18n";
 import { colors } from "../utils/theme";
-import { getReminderPrefs, setReminderOptOut } from "../utils/reminder";
-import { gameSettings } from "../utils/storage";
 
 export default function SettingsScreen({ navigation, route }) {
   const { user } = route.params || {};
-  const { t, lang } = useLang();
+  const { t } = useLang();
   const version = Constants.expoConfig?.version || "1.0.0";
-  const [reminderOn, setReminderOn] = useState(true);
-
-  useEffect(() => { getReminderPrefs().then((p) => setReminderOn(!p.optOut)); }, []);
-
-  const toggleReminder = async (on) => {
-    setReminderOn(on);
-    const result = await setReminderOptOut(!on, lang);
-    if (on && result === "denied") {
-      setReminderOn(false);
-      await setReminderOptOut(true, lang);
-      Alert.alert(t("reminderTitle"), t("reminderDenied"));
-    } else if (on && result === "unavailable") {
-      Alert.alert(t("reminderTitle"), t("reminderUnavailable"));
-    }
-  };
-
   const openPrivacy = async () => {
     if (!PRIVACY_POLICY_URL) {
       Alert.alert(t("privacyPolicy"), t("privacyComingSoon"));
@@ -84,22 +66,6 @@ export default function SettingsScreen({ navigation, route }) {
         <MenuRow icon="language-outline" title={t("language")} right={<LanguageToggle variant="light" />} />
         <MenuRow icon="shield-checkmark-outline" title={t("privacyPolicy")} onPress={openPrivacy} />
         <MenuRow icon="information-circle-outline" title={t("aboutApp")} subtitle={`Quiz-IN  •  ${t("versionLabel", { v: version })}`} />
-
-        {gameSettings.reminderEnabled ? (
-          <MenuRow
-            icon="notifications-outline"
-            title={t("reminderTitle")}
-            subtitle={t("reminderSub")}
-            right={
-              <Switch
-                value={reminderOn}
-                onValueChange={toggleReminder}
-                trackColor={{ false: colors.track, true: colors.primary }}
-                thumbColor="#FFFFFF"
-              />
-            }
-          />
-        ) : null}
 
         <Text style={styles.section}>{t("settingsAccount")}</Text>
         {user?.email ? <MenuRow icon="person-circle-outline" title={user.email} /> : null}
