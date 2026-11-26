@@ -22,6 +22,11 @@ export const gameSettings = {
   challengeBonusMultiplier: 2,
   dailyQuestionCount: 10,
   dailyTimerMinutes: 10,
+  examEnabled: true, // mock test, controlled from the admin Settings page
+  examQuestionCount: 25,
+  examMinutes: 30,
+  examNegativePercent: 25,
+  examPassMark: 40,
   reminderEnabled: true, // the daily reminder is controlled from the admin Settings page
   reminderHour: 20,
   reminderMinute: 0,

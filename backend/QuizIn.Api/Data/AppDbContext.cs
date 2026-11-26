@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<QuestionReport> QuestionReports => Set<QuestionReport>();
     public DbSet<PasswordReset> PasswordResets => Set<PasswordReset>();
+    public DbSet<ExamResult> ExamResults => Set<ExamResult>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -55,6 +56,9 @@ public class AppDbContext : DbContext
         b.Entity<QuestionReport>().HasOne(x => x.Question).WithMany().HasForeignKey(x => x.QuestionId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<QuestionReport>().HasIndex(x => new { x.Status, x.QuestionId });
         b.Entity<QuestionReport>().Property(x => x.Note).HasMaxLength(500);
+        b.Entity<ExamResult>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<ExamResult>().HasOne(x => x.Subcategory).WithMany().HasForeignKey(x => x.SubcategoryId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<ExamResult>().HasIndex(x => new { x.SubcategoryId, x.SubjectId });
         b.Entity<PasswordReset>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<PasswordReset>().HasIndex(x => new { x.UserId, x.Used });
         b.Entity<AppSetting>().HasKey(s => s.Key);

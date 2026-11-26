@@ -17,6 +17,7 @@ import SubjectsScreen from "./screens/SubjectsScreen";
 import DifficultyScreen from "./screens/DifficultyScreen";
 import LoginScreen from "./screens/LoginScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
+import ExamScreen from "./screens/ExamScreen";
 import LevelsScreen from "./screens/LevelsScreen";
 import QuizScreen from "./screens/QuizScreen";
 import QuizSummaryScreen from "./screens/QuizSummaryScreen";
@@ -122,6 +123,7 @@ export default function App() {
             {/* Common screens */}
             <Stack.Screen name="Difficulty" component={DifficultyScreen} />
             <Stack.Screen name="Levels" component={LevelsScreen} />
+            <Stack.Screen name="Exam" component={ExamScreen} />
             <Stack.Screen name="Quiz" component={QuizScreen} />
             <Stack.Screen name="QuizSummary" component={QuizSummaryScreen} />
             <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />

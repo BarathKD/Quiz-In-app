@@ -10,6 +10,8 @@ public record LevelPassedInput(string? Category, string? Subcategory, string? Su
 public record AnswerInput(int QuestionId, bool Correct, bool CountStats = true);
 public record ReportInput(int QuestionId, string? Reason, string? Note);
 public record DailyInput(string? Date, int Score, int Total);
+public record ExamAnswer(int QuestionId, string? OptionId);
+public record ExamInput(List<ExamAnswer>? Answers, int Seconds);
 public record PassedLevelDto(string Category, string Subcategory, string? Subject, string Difficulty, int LevelNumber);
 public record LeaderboardRow(int Rank, Guid Id, string Name, int Levels, int Points);
 
@@ -112,6 +114,57 @@ public static class UserDataEndpoints
             }
             await db.SaveChangesAsync();
             return Results.NoContent();
+        });
+
+        // Mock test result. The server grades it itself from the stored correct options (the phone cannot cheat),
+        // saves it, and answers with the score and the player's rank among everyone who took the same test.
+        g.MapPost("/exams", async (ExamInput input, ClaimsPrincipal p, AppDbContext db) =>
+        {
+            if (AuthEndpoints.UserId(p) is not Guid uid) return Results.Unauthorized();
+            var settings = await GameSettingsStore.LoadAsync(db);
+            if (!settings.ExamEnabled) return Results.BadRequest(new { error = "exam_disabled" });
+
+            var answers = (input.Answers ?? new()).GroupBy(a => a.QuestionId).Select(x => x.First()).ToList();
+            if (answers.Count == 0 || answers.Count > settings.ExamQuestionCount) return Results.BadRequest(new { error = "invalid_exam" });
+
+            var ids = answers.Select(a => a.QuestionId).ToList();
+            var questions = await db.Questions.AsNoTracking().Where(q => ids.Contains(q.Id))
+                .Select(q => new { q.Id, q.SubcategoryId, q.SubjectId, q.CorrectOptionId }).ToListAsync();
+            if (questions.Count != ids.Count) return Results.BadRequest(new { error = "invalid_exam" });
+
+            // A test is for one subcategory (and subject)
+            var subcategoryId = questions[0].SubcategoryId;
+            var subjectId = questions[0].SubjectId;
+            if (questions.Any(q => q.SubcategoryId != subcategoryId || q.SubjectId != subjectId))
+                return Results.BadRequest(new { error = "invalid_exam" });
+
+            var correctById = questions.ToDictionary(q => q.Id, q => q.CorrectOptionId);
+            var correct = answers.Count(a => !string.IsNullOrEmpty(a.OptionId) && a.OptionId == correctById[a.QuestionId]);
+            var wrong = answers.Count(a => !string.IsNullOrEmpty(a.OptionId) && a.OptionId != correctById[a.QuestionId]);
+            var total = answers.Count;
+            var score = Math.Max(0, Math.Round(correct - wrong * settings.ExamNegativePercent / 100.0, 2));
+            var percent = (int)Math.Round(score * 100.0 / total);
+
+            db.ExamResults.Add(new ExamResult
+            {
+                UserId = uid, SubcategoryId = subcategoryId, SubjectId = subjectId,
+                Total = total, Correct = correct, Wrong = wrong, Score = score, Percent = percent,
+                Seconds = Math.Clamp(input.Seconds, 0, settings.ExamMinutes * 60 + 60),
+            });
+            await db.SaveChangesAsync();
+
+            // Rank: everyone's best percent in this same test scope
+            var best = await db.ExamResults.AsNoTracking()
+                .Where(r => r.SubcategoryId == subcategoryId && r.SubjectId == subjectId)
+                .GroupBy(r => r.UserId).Select(x => new { UserId = x.Key, Best = x.Max(r => r.Percent) }).ToListAsync();
+            var mine = best.First(b => b.UserId == uid).Best;
+            return Results.Ok(new
+            {
+                total, correct, wrong, unanswered = total - correct - wrong, score, percent,
+                passed = percent >= settings.ExamPassMark,
+                rank = 1 + best.Count(b => b.Best > mine),
+                participants = best.Count,
+            });
         });
 
         // "Report this question": wrong answer, typo, unclear. The admin sees these under Reports.

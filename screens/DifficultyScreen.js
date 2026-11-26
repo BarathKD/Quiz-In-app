@@ -5,7 +5,7 @@ import Header from "../components/header";
 import BottomNav from "../components/BottomNav";
 import FadeInUp from "../components/FadeInUp";
 import PressableScale from "../components/PressableScale";
-import { getUserProgress } from "../utils/api";
+import { getUserProgress, gameSettings } from "../utils/api";
 import { useLang } from "../utils/i18n";
 import { colors, difficultyColors, shadow } from "../utils/theme";
 
@@ -88,6 +88,23 @@ export default function DifficultyScreen({ navigation, route }) {
         <Text style={styles.categoryInfo}>
           {category} › {subcategory}{subject ? ` › ${subject}` : ""}
         </Text>
+
+        {gameSettings.examEnabled ? (
+          <FadeInUp index={0} style={{ marginBottom: 12 }}>
+            <PressableScale
+              style={[styles.card, { borderLeftColor: colors.accent }]}
+              onPress={() => navigation.navigate("Exam", { category, subcategory, subject, user })}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: colors.accent }]}>
+                <Ionicons name="school" size={26} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{t("examTitle")}</Text>
+                <Text style={styles.sub}>{t("examCardSub")}</Text>
+              </View>
+            </PressableScale>
+          </FadeInUp>
+        ) : null}
 
         {DIFFICULTIES.map((difficulty, index) => {
           const locked = getDifficultyStatus(difficulty) === "locked";

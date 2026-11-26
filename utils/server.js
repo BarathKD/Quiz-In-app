@@ -152,6 +152,7 @@ const sendOp = (op) => {
     case "mistake_remove": return request("DELETE", `/api/me/mistakes/${p.questionId}`);
     case "daily": return request("POST", "/api/me/daily", p);
     case "report": return request("POST", "/api/me/reports", p);
+    case "exam": return request("POST", "/api/me/exams", p);
     default: return Promise.resolve(); // unknown op from an older version: drop it
   }
 };

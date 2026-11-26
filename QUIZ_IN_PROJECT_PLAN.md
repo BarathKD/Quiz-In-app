@@ -188,8 +188,14 @@ Pages, by priority:
 - Gotcha: new tables need `rm -f quizin.db*` before `dotnet run` in dev, then re-import questions.
 
 ## NEXT (in order)
-1. Exam mode / mock test (N questions, one timer, score + rank)
+1. ~~Exam mode / mock test~~ DONE 2026-11-26 (Difficulty screen > Mock test; admin Settings > Exam mode; server grades + rank; table `ExamResults`)
 2. Leaderboard bonus for challenge wins (server entity + multiplier)
 3. Deploy backend: Azure App Service/other free host + Azure SQL, HTTPS, persistent `Uploads:Path`, SQL Server migrations, SMTP (Brevo) for forgot-password
 4. Real AdMob (Phase 4) + Play Billing (Phase 3) need an EAS dev build
 5. Play Store release checklist (Phase 5), update privacy policy + Data safety form for server accounts, ads, notifications
+
+## Exam mode (mock test)
+- App: Difficulty screen > "Mock test" card (all difficulties mixed, N random questions, ONE timer, negative marking, answers shown only at the end, question palette, auto-submit at 0, leave-confirmation). Result = score, pass/fail, rank, review of every answer. Answered questions feed "My mistakes".
+- Admin > Settings > Exam mode: on/off, questions per test (25), minutes (30), negative marking % (25), pass mark % (40).
+- Server: `POST /api/me/exams` re-grades from stored correct options (anti-cheat), saves `ExamResults`, returns rank = position by best percent among all players who took the same subcategory/subject test. Offline: the result is queued and the rank shows next time only on the server side.
+- New table: delete the dev DB (`rm -f quizin.db*`) after pulling.

@@ -68,6 +68,24 @@ public class PasswordReset
     public bool Used { get; set; }
 }
 
+// One finished mock test. Scope = the subcategory (+ subject when the test was for a subject).
+public class ExamResult
+{
+    public int Id { get; set; }
+    public Guid UserId { get; set; }
+    public User? User { get; set; }
+    public int SubcategoryId { get; set; }
+    public Subcategory? Subcategory { get; set; }
+    public int? SubjectId { get; set; }              // plain column: no foreign key, so deleting a subject never conflicts
+    public int Total { get; set; }
+    public int Correct { get; set; }
+    public int Wrong { get; set; }
+    public double Score { get; set; }
+    public int Percent { get; set; }
+    public int Seconds { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
 // A player's report that a question is wrong, has a typo or is unclear.
 public class QuestionReport
 {

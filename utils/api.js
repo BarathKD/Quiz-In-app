@@ -384,6 +384,20 @@ export const reportQuestion = async (questionId, reason, note, userId) => {
   return true;
 };
 
+// Mock test result. Server mode: the server grades it again and answers with the rank (null when offline: it is queued).
+// Local mode: nothing to send.
+server.submitExam = async (userId, answers, seconds) => {
+  const payload = { answers, seconds };
+  try {
+    return await request("POST", "/api/me/exams", payload);
+  } catch (error) {
+    if (!isNetworkError(error)) return null; // the server refused it (for example exam mode was turned off): keep the local result
+    await enqueueWrite(userId, { type: "exam", payload });
+    return null;
+  }
+};
+export const submitExam = USE_SERVER ? server.submitExam : async () => null;
+
 // Forgot password (server mode only): e-mail a 6-digit code, then set a new password with it.
 export const requestPasswordReset = async (email) => {
   await request("POST", "/api/auth/forgot", { email });

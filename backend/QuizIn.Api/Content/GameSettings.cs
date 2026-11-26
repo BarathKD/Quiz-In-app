@@ -34,6 +34,13 @@ public class GameSettings
     public int DailyQuestionCount { get; set; } = 10;
     public int DailyTimerMinutes { get; set; } = 10;
 
+    // Exam mode (mock test): mixed-difficulty questions, one timer, negative marking, score + rank
+    public bool ExamEnabled { get; set; } = true;
+    public int ExamQuestionCount { get; set; } = 25;
+    public int ExamMinutes { get; set; } = 30;
+    public int ExamNegativePercent { get; set; } = 25; // part of one mark lost per wrong answer (25 = a quarter mark, 0 = off)
+    public int ExamPassMark { get; set; } = 40;        // percent of the marks needed to pass
+
     // Daily reminder notification: the admin decides whether it is sent, when, and what it says.
     public bool ReminderEnabled { get; set; } = true;
     public int ReminderHour { get; set; } = 20;
@@ -66,6 +73,10 @@ public class GameSettings
         ChallengeBonusMultiplier = Math.Clamp(ChallengeBonusMultiplier, 1, 10);
         DailyQuestionCount = Math.Clamp(DailyQuestionCount, 3, 50);
         DailyTimerMinutes = Math.Clamp(DailyTimerMinutes, 1, 60);
+        ExamQuestionCount = Math.Clamp(ExamQuestionCount, 5, 200);
+        ExamMinutes = Math.Clamp(ExamMinutes, 1, 240);
+        ExamNegativePercent = Math.Clamp(ExamNegativePercent, 0, 100);
+        ExamPassMark = Math.Clamp(ExamPassMark, 1, 100);
         var defaults = new GameSettings();
         ReminderHour = Math.Clamp(ReminderHour, 0, 23);
         ReminderMinute = Math.Clamp(ReminderMinute, 0, 59);

@@ -111,6 +111,36 @@
   </div>
 
   <div class="card">
+    <h2 class="card-title">Exam mode (mock test)</h2>
+    <p class="muted">A full mock test for a subject: random questions of every difficulty, one timer for the whole test, no answers shown until the end. The player sees score, pass or fail, and rank among everyone who took the same test.</p>
+    <div class="field">
+      <label class="check"><input type="checkbox" name="ExamEnabled" value="true" checked="@Model.ExamEnabled"> Exam mode is on</label>
+      <input type="hidden" name="ExamEnabled" value="false">
+      <span class="hint">When off, the Mock test card is hidden in the app.</span>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label for="ExamQuestionCount">Questions per test</label>
+        <input id="ExamQuestionCount" name="ExamQuestionCount" type="number" min="5" max="200" value="@Num(Model.ExamQuestionCount)">
+        <span class="hint">If a subject has fewer questions, the test uses what is there.</span>
+      </div>
+      <div class="field">
+        <label for="ExamMinutes">Time for the whole test (minutes)</label>
+        <input id="ExamMinutes" name="ExamMinutes" type="number" min="1" max="240" value="@Num(Model.ExamMinutes)">
+      </div>
+      <div class="field">
+        <label for="ExamNegativePercent">Negative marking (%)</label>
+        <input id="ExamNegativePercent" name="ExamNegativePercent" type="number" min="0" max="100" value="@Num(Model.ExamNegativePercent)">
+        <span class="hint">Part of one mark taken off for each wrong answer. 25 = a quarter mark, 0 = no negative marking. Unanswered questions lose nothing.</span>
+      </div>
+      <div class="field">
+        <label for="ExamPassMark">Pass mark (%)</label>
+        <input id="ExamPassMark" name="ExamPassMark" type="number" min="1" max="100" value="@Num(Model.ExamPassMark)">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
     <h2 class="card-title">Daily reminder notification</h2>
     <p class="muted">Sent by the phone once a day at this time (India time on the player's phone). Players have no switch for it in the app, so only you control it.</p>
     <div class="field">

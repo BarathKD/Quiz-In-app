@@ -52,6 +52,12 @@ echo "reminder settings (expect enabled true, hour 20): $(curl -s $B/api/setting
 echo "daily complete: $(curl -s -X POST $B/api/me/daily -H "$J" -H "$U" -d "{\"date\":\"$D\",\"score\":7,\"total\":10}")"
 echo "my data: $(curl -s $B/api/me/data -H "$U" | jq -c '{levels: (.levels|length), mistakes, bookmarks, stats, daily}')"
 echo "daily questions (expect up to 10): $(curl -s "$B/api/daily?date=$D" -H "$U" | jq length)"
+echo "exam settings (expect true 25 30 25 40): $(curl -s $B/api/settings | jq -c '[.examEnabled, .examQuestionCount, .examMinutes, .examNegativePercent, .examPassMark]')"
+QJSON=$(curl -s "$B/api/questions?category=Smoke%20Test&subcategory=Class%2010&subject=History" -H "$U")
+EX=$(echo "$QJSON" | jq -c '{seconds: 60, answers: [ (.[0] | {questionId: .id, optionId: .correctOptionId}), (.[1] | {questionId: .id, optionId: .correctOptionId}), (.[2] | {questionId: .id, optionId: "zzz"}), (.[3] | {questionId: .id, optionId: null}) ]}')
+echo "exam: 2 right, 1 wrong, 1 skipped, 25% negative (expect score 1.75, percent 44, rank 1 of 1): $(curl -s -X POST $B/api/me/exams -H "$J" -H "$U" -d "$EX" | jq -c '{total, correct, wrong, unanswered, score, percent, passed, rank, participants}')"
+echo "exam with an empty answer list (expect 400): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/exams -H "$J" -H "$U" -d '{"answers":[],"seconds":5}')"
+echo "exam with a made-up question id (expect 400): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/exams -H "$J" -H "$U" -d '{"answers":[{"questionId":99999999,"optionId":"a"}],"seconds":5}')"
 echo "leaderboard (expect hard level = 150 points for this user): $(curl -s $B/api/leaderboard -H "$U" | jq -c '.[0]')"
 
 say "forgot / reset password"
