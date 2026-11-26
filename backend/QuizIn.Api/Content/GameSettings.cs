@@ -34,6 +34,22 @@ public class GameSettings
     public int DailyQuestionCount { get; set; } = 10;
     public int DailyTimerMinutes { get; set; } = 10;
 
+    // Daily reminder notification: the admin decides whether it is sent, when, and what it says.
+    public bool ReminderEnabled { get; set; } = true;
+    public int ReminderHour { get; set; } = 20;
+    public int ReminderMinute { get; set; } = 0;
+    public string ReminderTitleTa { get; set; } = "Quiz-IN வினாடி வினா";
+    public string ReminderTitleEn { get; set; } = "Quiz-IN";
+    public string ReminderBodyTa { get; set; } = "இன்றைய தினசரி சவாலை முடித்து உங்கள் streak-ஐ காப்பாற்றுங்கள்!";
+    public string ReminderBodyEn { get; set; } = "Finish today's daily challenge and keep your streak alive!";
+
+    private static string Text(string? value, string fallback, int max)
+    {
+        var v = (value ?? "").Trim();
+        if (v.Length == 0) return fallback;
+        return v.Length > max ? v[..max] : v;
+    }
+
     // Keeps every value inside a sensible range so a typo cannot break the app.
     public GameSettings Normalize()
     {
@@ -50,6 +66,13 @@ public class GameSettings
         ChallengeBonusMultiplier = Math.Clamp(ChallengeBonusMultiplier, 1, 10);
         DailyQuestionCount = Math.Clamp(DailyQuestionCount, 3, 50);
         DailyTimerMinutes = Math.Clamp(DailyTimerMinutes, 1, 60);
+        var defaults = new GameSettings();
+        ReminderHour = Math.Clamp(ReminderHour, 0, 23);
+        ReminderMinute = Math.Clamp(ReminderMinute, 0, 59);
+        ReminderTitleTa = Text(ReminderTitleTa, defaults.ReminderTitleTa, 60);
+        ReminderTitleEn = Text(ReminderTitleEn, defaults.ReminderTitleEn, 60);
+        ReminderBodyTa = Text(ReminderBodyTa, defaults.ReminderBodyTa, 160);
+        ReminderBodyEn = Text(ReminderBodyEn, defaults.ReminderBodyEn, 160);
         MinAppVersion = System.Text.RegularExpressions.Regex.IsMatch(MinAppVersion ?? "", @"^\d{1,4}(\.\d{1,4}){0,2}$")
             ? MinAppVersion!.Trim() : "1.0.0";
         return this;

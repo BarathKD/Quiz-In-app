@@ -22,6 +22,13 @@ export const gameSettings = {
   challengeBonusMultiplier: 2,
   dailyQuestionCount: 10,
   dailyTimerMinutes: 10,
+  reminderEnabled: true, // the daily reminder is controlled from the admin Settings page
+  reminderHour: 20,
+  reminderMinute: 0,
+  reminderTitleTa: "Quiz-IN வினாடி வினா",
+  reminderTitleEn: "Quiz-IN",
+  reminderBodyTa: "இன்றைய தினசரி சவாலை முடித்து உங்கள் streak-ஐ காப்பாற்றுங்கள்!",
+  reminderBodyEn: "Finish today's daily challenge and keep your streak alive!",
   minAppVersion: "0.0.0", // raised from the admin Settings page to force an update
 };
 

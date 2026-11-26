@@ -9,27 +9,27 @@ import { deleteUserAccount, logoutUserSession } from "../utils/api";
 import { PRIVACY_POLICY_URL } from "../utils/config";
 import { useLang } from "../utils/i18n";
 import { colors } from "../utils/theme";
-import PressableScale from "../components/PressableScale";
-import { getReminder, setReminder, REMINDER_HOURS } from "../utils/reminder";
-
-const hourLabel = (h) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? "AM" : "PM"}`;
+import { getReminderPrefs, setReminderOptOut } from "../utils/reminder";
+import { gameSettings } from "../utils/storage";
 
 export default function SettingsScreen({ navigation, route }) {
   const { user } = route.params || {};
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const version = Constants.expoConfig?.version || "1.0.0";
-  const [reminder, setReminderState] = useState({ enabled: false, hour: 20 });
+  const [reminderOn, setReminderOn] = useState(true);
 
-  useEffect(() => { getReminder().then(setReminderState); }, []);
+  useEffect(() => { getReminderPrefs().then((p) => setReminderOn(!p.optOut)); }, []);
 
-  const changeReminder = async (enabled, hour) => {
-    const result = await setReminder({
-      enabled,
-      hour,
-      text: { title: t("reminderNotifTitle"), body: t("reminderNotifBody") },
-    });
-    setReminderState(result.reminder);
-    if (!result.ok) Alert.alert(t("reminderTitle"), result.reason === "denied" ? t("reminderDenied") : t("reminderUnavailable"));
+  const toggleReminder = async (on) => {
+    setReminderOn(on);
+    const result = await setReminderOptOut(!on, lang);
+    if (on && result === "denied") {
+      setReminderOn(false);
+      await setReminderOptOut(true, lang);
+      Alert.alert(t("reminderTitle"), t("reminderDenied"));
+    } else if (on && result === "unavailable") {
+      Alert.alert(t("reminderTitle"), t("reminderUnavailable"));
+    }
   };
 
   const openPrivacy = async () => {
@@ -85,31 +85,20 @@ export default function SettingsScreen({ navigation, route }) {
         <MenuRow icon="shield-checkmark-outline" title={t("privacyPolicy")} onPress={openPrivacy} />
         <MenuRow icon="information-circle-outline" title={t("aboutApp")} subtitle={`Quiz-IN  •  ${t("versionLabel", { v: version })}`} />
 
-        <MenuRow
-          icon="notifications-outline"
-          title={t("reminderTitle")}
-          subtitle={t("reminderSub")}
-          right={
-            <Switch
-              value={reminder.enabled}
-              onValueChange={(on) => changeReminder(on, reminder.hour)}
-              trackColor={{ false: colors.track, true: colors.primary }}
-              thumbColor="#FFFFFF"
-            />
-          }
-        />
-        {reminder.enabled ? (
-          <View style={styles.hours}>
-            {REMINDER_HOURS.map((h) => (
-              <PressableScale
-                key={h}
-                style={[styles.chip, reminder.hour === h && styles.chipOn]}
-                onPress={() => changeReminder(true, h)}
-              >
-                <Text style={[styles.chipText, reminder.hour === h && styles.chipTextOn]}>{hourLabel(h)}</Text>
-              </PressableScale>
-            ))}
-          </View>
+        {gameSettings.reminderEnabled ? (
+          <MenuRow
+            icon="notifications-outline"
+            title={t("reminderTitle")}
+            subtitle={t("reminderSub")}
+            right={
+              <Switch
+                value={reminderOn}
+                onValueChange={toggleReminder}
+                trackColor={{ false: colors.track, true: colors.primary }}
+                thumbColor="#FFFFFF"
+              />
+            }
+          />
         ) : null}
 
         <Text style={styles.section}>{t("settingsAccount")}</Text>
@@ -134,10 +123,5 @@ export default function SettingsScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16 },
-  hours: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12, paddingHorizontal: 4 },
-  chip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, backgroundColor: colors.tint },
-  chipOn: { backgroundColor: colors.primary },
-  chipText: { color: colors.primaryDark, fontWeight: "700", fontSize: 14 },
-  chipTextOn: { color: colors.onPrimary },
   section: { fontSize: 14, fontWeight: "800", color: colors.muted, marginTop: 8, marginBottom: 10, letterSpacing: 0.5 },
 });

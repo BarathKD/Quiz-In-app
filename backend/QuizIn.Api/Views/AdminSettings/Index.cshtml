@@ -110,6 +110,46 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2 class="card-title">Daily reminder notification</h2>
+    <p class="muted">Sent by the phone once a day at this time (India time on the player's phone). Players can still switch it off in the app, but the time and the message are yours.</p>
+    <div class="field">
+      <label class="check"><input type="checkbox" name="ReminderEnabled" value="true" checked="@Model.ReminderEnabled"> Reminder is on</label>
+      <input type="hidden" name="ReminderEnabled" value="false">
+      <span class="hint">When off, no reminder is scheduled and the switch disappears from the app Settings.</span>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label for="ReminderHour">Hour (0 to 23)</label>
+        <input id="ReminderHour" name="ReminderHour" type="number" min="0" max="23" value="@Num(Model.ReminderHour)">
+        <span class="hint">20 = 8 PM.</span>
+      </div>
+      <div class="field">
+        <label for="ReminderMinute">Minute</label>
+        <input id="ReminderMinute" name="ReminderMinute" type="number" min="0" max="59" value="@Num(Model.ReminderMinute)">
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label for="ReminderTitleTa">Title (Tamil)</label>
+        <input id="ReminderTitleTa" name="ReminderTitleTa" maxlength="60" value="@Model.ReminderTitleTa">
+      </div>
+      <div class="field">
+        <label for="ReminderTitleEn">Title (English)</label>
+        <input id="ReminderTitleEn" name="ReminderTitleEn" maxlength="60" value="@Model.ReminderTitleEn">
+      </div>
+      <div class="field">
+        <label for="ReminderBodyTa">Message (Tamil)</label>
+        <input id="ReminderBodyTa" name="ReminderBodyTa" maxlength="160" value="@Model.ReminderBodyTa">
+      </div>
+      <div class="field">
+        <label for="ReminderBodyEn">Message (English)</label>
+        <input id="ReminderBodyEn" name="ReminderBodyEn" maxlength="160" value="@Model.ReminderBodyEn">
+      </div>
+    </div>
+    <span class="hint">The phone picks the Tamil or English text by the app language. The new time and text reach a phone the next time the app opens.</span>
+  </div>
+
   <div class="form-actions">
     <button class="btn" type="submit">Save settings</button>
   </div>

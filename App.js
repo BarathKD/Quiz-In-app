@@ -36,13 +36,10 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 const Stack = createNativeStackNavigator();
 
-// Re-schedules the daily reminder with the current language each time the app opens or the language changes.
+// Keeps the daily reminder in line with the admin settings (time, text) and the app language, each time the app opens.
 function ReminderSync() {
-  const { t, lang } = useLang();
-  useEffect(() => {
-    syncReminder({ title: t("reminderNotifTitle"), body: t("reminderNotifBody") });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang]);
+  const { lang } = useLang();
+  useEffect(() => { syncReminder(lang); }, [lang]);
   return null;
 }
 

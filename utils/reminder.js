@@ -1,12 +1,12 @@
-// Daily reminder: one local notification every day at a time the player chooses (no server needed).
+// Daily reminder: one local notification every day. The ADMIN decides if it is on, the time and the text
+// (admin Settings page -> gameSettings). The player can only switch it off for themselves.
 // Safe everywhere: if notifications are unavailable (web, Expo Go limits) every function quietly does nothing.
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { gameSettings } from "./storage";
 
 const KEY = "quizin_reminder";
 const CHANNEL = "daily-reminder";
-export const REMINDER_HOURS = [7, 12, 18, 20, 21]; // choices shown on the Settings page
-const DEFAULT = { enabled: false, hour: 20, minute: 0 };
 
 let Notifications = null;
 try {
@@ -18,26 +18,19 @@ try {
   Notifications = null;
 }
 
-export const getReminder = async () => {
+// The player's own choice: optOut (switched off) and asked (permission already requested once).
+export const getReminderPrefs = async () => {
   try {
     const raw = await AsyncStorage.getItem(KEY);
-    return raw ? { ...DEFAULT, ...JSON.parse(raw) } : { ...DEFAULT };
+    return { optOut: false, asked: false, ...(raw ? JSON.parse(raw) : {}) };
   } catch {
-    return { ...DEFAULT };
+    return { optOut: false, asked: false };
   }
 };
+const savePrefs = (value) => AsyncStorage.setItem(KEY, JSON.stringify(value)).catch(() => {});
 
-const saveReminder = (value) => AsyncStorage.setItem(KEY, JSON.stringify(value)).catch(() => {});
-
-const ensurePermission = async () => {
-  const current = await Notifications.getPermissionsAsync();
-  if (current.granted) return true;
-  if (current.canAskAgain === false) return false;
-  const asked = await Notifications.requestPermissionsAsync();
-  return !!asked.granted;
-};
-
-const schedule = async (hour, minute, title, body) => {
+const schedule = async (lang) => {
+  const ta = lang !== "en";
   await Notifications.cancelAllScheduledNotificationsAsync();
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync(CHANNEL, {
@@ -47,41 +40,46 @@ const schedule = async (hour, minute, title, body) => {
     });
   }
   await Notifications.scheduleNotificationAsync({
-    content: { title, body },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute, channelId: CHANNEL },
+    content: {
+      title: ta ? gameSettings.reminderTitleTa : gameSettings.reminderTitleEn,
+      body: ta ? gameSettings.reminderBodyTa : gameSettings.reminderBodyEn,
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour: gameSettings.reminderHour,
+      minute: gameSettings.reminderMinute,
+      channelId: CHANNEL,
+    },
   });
 };
 
-// Turn the reminder on (asks permission first) or off. Returns { ok, reason } where reason is "denied" or "unavailable".
-export const setReminder = async ({ enabled, hour, text }) => {
-  const current = await getReminder();
-  const next = { enabled, hour: hour ?? current.hour, minute: 0 };
-  if (!Notifications) return { ok: false, reason: "unavailable", reminder: current };
+// Makes the phone match the admin setting + the player's choice. Returns "scheduled", "off", "denied" or "unavailable".
+// Asks for permission only once, so the player is never nagged.
+export const syncReminder = async (lang, { forceAsk = false } = {}) => {
+  if (!Notifications) return "unavailable";
   try {
-    if (!enabled) {
+    const prefs = await getReminderPrefs();
+    if (!gameSettings.reminderEnabled || prefs.optOut) {
       await Notifications.cancelAllScheduledNotificationsAsync();
-    } else {
-      if (!(await ensurePermission())) return { ok: false, reason: "denied", reminder: current };
-      await schedule(next.hour, next.minute, text.title, text.body);
+      return "off";
     }
-    await saveReminder(next);
-    return { ok: true, reminder: next };
+    let permission = await Notifications.getPermissionsAsync();
+    if (!permission.granted && (forceAsk || !prefs.asked) && permission.canAskAgain !== false) {
+      permission = await Notifications.requestPermissionsAsync();
+      await savePrefs({ ...prefs, asked: true });
+    }
+    if (!permission.granted) return "denied";
+    await schedule(lang);
+    return "scheduled";
   } catch (error) {
-    console.warn("Reminder failed:", error);
-    return { ok: false, reason: "unavailable", reminder: current };
+    console.warn("Reminder sync failed:", error);
+    return "unavailable";
   }
 };
 
-// Called when the app opens: re-schedules with the current language so the text always matches.
-export const syncReminder = async (text) => {
-  if (!Notifications) return;
-  try {
-    const current = await getReminder();
-    if (!current.enabled) return;
-    const permission = await Notifications.getPermissionsAsync();
-    if (!permission.granted) return;
-    await schedule(current.hour, current.minute, text.title, text.body);
-  } catch (error) {
-    console.warn("Reminder sync failed:", error);
-  }
+// The player's own on/off switch in Settings. Returns the same result words as syncReminder.
+export const setReminderOptOut = async (optOut, lang) => {
+  const prefs = await getReminderPrefs();
+  await savePrefs({ ...prefs, optOut });
+  return syncReminder(lang, { forceAsk: !optOut });
 };

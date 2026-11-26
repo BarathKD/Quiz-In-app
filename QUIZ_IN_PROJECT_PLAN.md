@@ -94,7 +94,7 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - [ ] Remove all `console.log` debug output, set versionCode via `autoIncrement`
 
 ### Phase 6: After launch
-- [x] Daily reminder notification (local, daily at a time chosen in Settings). Server-sent push (announcements, tournaments) still TODO
+- [x] Daily reminder notification: local, controlled from the admin Settings page (on/off, time, Tamil + English text); the player can only switch it off for themselves. Server-sent push (announcements, tournaments) still TODO
 - [ ] Weekly tournaments / reset rewards, friends leaderboard
 - [ ] More exam packs from user feedback, analytics-driven content
 
@@ -183,7 +183,7 @@ Pages, by priority:
 ## Progress log (Nov 21-26)
 - 2026-11-21..24: Bulk import v2, duplicate policy, game settings (practice + challenge modes, revives via ad placeholder), force-update gate, question reports, offline write queue, forgot password (backend + app screen), all verified by GitHub Actions CI (`.github/workflows/ci.yml`: backend build + `backend/smoke-test.sh` + app bundle).
 - 2026-11-24: New animated bilingual splash (3D-looking floating cards merge into the logo, Tamil first then English; tap to skip; waits for the full animation). Native splash colour = #062F3A.
-- 2026-11-26: Daily reminder notification (`utils/reminder.js`, Settings toggle + time chips, `expo-notifications`). Local mode and server mode both use it. Works in Expo Go for local notifications; fully reliable in a real build.
+- 2026-11-26: Daily reminder notification (`utils/reminder.js`, `expo-notifications`); same day moved control to the admin web: Admin > Settings > Daily reminder. Local mode and server mode both use it. Works in Expo Go for local notifications; fully reliable in a real build.
 - Gotcha: after a Codespace restart port 5080 goes back to Private -> app shows HTTP 401. Set it Public again.
 - Gotcha: new tables need `rm -f quizin.db*` before `dotnet run` in dev, then re-import questions.
 
