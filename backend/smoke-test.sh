@@ -59,6 +59,12 @@ echo "exam: 2 right, 1 wrong, 1 skipped, 25% negative (expect score 1.75, percen
 echo "exam with an empty answer list (expect 400): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/exams -H "$J" -H "$U" -d '{"answers":[],"seconds":5}')"
 echo "exam with a made-up question id (expect 400): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/exams -H "$J" -H "$U" -d '{"answers":[{"questionId":99999999,"optionId":"a"}],"seconds":5}')"
 echo "leaderboard (expect hard level = 150 points for this user): $(curl -s $B/api/leaderboard -H "$U" | jq -c '.[0]')"
+CW='{"category":"Smoke Test","subcategory":"Class 10","subject":"History","difficulty":"hard"}'
+echo "challenge win (expect 204): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/challenge-wins -H "$J" -H "$U" -d "$CW")"
+echo "leaderboard after the win (expect 450 points = 150 + bonus 50x3x2, challengeWins 1): $(curl -s $B/api/leaderboard -H "$U" | jq -c '.[0] | {points, challengeWins}')"
+echo "same win again (expect 204, points stay 450, challengeWins 2): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/challenge-wins -H "$J" -H "$U" -d "$CW") $(curl -s $B/api/leaderboard -H "$U" | jq -c '.[0] | {points, challengeWins}')"
+echo "win for a made-up subject (expect 404): $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/me/challenge-wins -H "$J" -H "$U" -d '{"category":"Smoke Test","subcategory":"Class 10","subject":"Nope","difficulty":"hard"}')"
+echo "me/data has challengeWins (expect 2): $(curl -s $B/api/me/data -H "$U" | jq -c .challengeWins)"
 
 say "forgot / reset password"
 RMAIL="reset$RANDOM@test.com"

@@ -9,15 +9,17 @@ namespace QuizIn.Api.Auth;
 // Request and response shapes (JSON) for the per-user endpoints below.
 // LevelPassedInput: a level the user finished. AnswerInput: one answered question (CountStats=false for practice replays).
 // ReportInput: "report this question". DailyInput: result of the daily quiz. ExamInput: all answers of a mock test.
-// PassedLevelDto: one finished level sent to the app. LeaderboardRow: one line of the leaderboard.
+// ChallengeWinInput: a Challenge mode win (scope + difficulty). PassedLevelDto: one finished level sent to the app.
+// LeaderboardRow: one line of the leaderboard (ChallengeWins = how many challenges the player has won in total).
 public record LevelPassedInput(string? Category, string? Subcategory, string? Subject, string? Difficulty, int LevelNumber);
 public record AnswerInput(int QuestionId, bool Correct, bool CountStats = true);
 public record ReportInput(int QuestionId, string? Reason, string? Note);
 public record DailyInput(string? Date, int Score, int Total);
+public record ChallengeWinInput(string? Category, string? Subcategory, string? Subject, string? Difficulty);
 public record ExamAnswer(int QuestionId, string? OptionId);
 public record ExamInput(List<ExamAnswer>? Answers, int Seconds);
 public record PassedLevelDto(string Category, string Subcategory, string? Subject, string Difficulty, int LevelNumber);
-public record LeaderboardRow(int Rank, Guid Id, string Name, int Levels, int Points);
+public record LeaderboardRow(int Rank, Guid Id, string Name, int Levels, int Points, int ChallengeWins);
 
 /// <summary>
 /// Per-user data for the app: level progress, mistakes, bookmarks, stats, mock exams, reports,
@@ -57,9 +59,12 @@ public static class UserDataEndpoints
             var bookmarks = await db.Bookmarks.AsNoTracking().Where(x => x.UserId == uid).Select(x => x.QuestionId).ToListAsync();
             var stats = await db.UserStats.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == uid);
             var daily = await db.DailyStreaks.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == uid);
+            // Total Challenge mode wins (all rows added together), used for the "challenger" badge
+            var challengeWins = await db.ChallengeWins.AsNoTracking().Where(x => x.UserId == uid).SumAsync(x => (int?)x.Wins) ?? 0;
 
             return Results.Ok(new
             {
+                challengeWins,
                 levels = passed,
                 mistakes,
                 bookmarks,
@@ -135,6 +140,42 @@ public static class UserDataEndpoints
         // Returns 200 { total, correct, wrong, unanswered, score, percent, passed, rank, participants }.
         // Errors: 400 exam_disabled (admin setting), 400 invalid_exam (empty, too many, unknown or mixed questions), 401.
         // Score = correct - wrong x negative marking percent (from GameSettings), never below 0.
+        // POST /api/me/challenge-wins. Logged-in user. Body: ChallengeWinInput. Saves a Challenge mode win. Returns 204.
+        // The first win for a scope + difficulty earns leaderboard bonus points; later wins only raise the win count.
+        // Errors: 400 invalid_level, 404 subcategory_not_found, 404 subject_not_found, 401.
+        g.MapPost("/challenge-wins", async (ChallengeWinInput input, ClaimsPrincipal p, AppDbContext db) =>
+        {
+            if (AuthEndpoints.UserId(p) is not Guid uid) return Results.Unauthorized();
+            var difficulty = (input.Difficulty ?? "").ToLowerInvariant();
+            if (!Difficulties.Contains(difficulty)) return Results.BadRequest(new { error = "invalid_level" });
+
+            // Find the subcategory (and subject) by name, same as /levels
+            var sub = await db.Subcategories.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Name == input.Subcategory && s.Category!.Name == input.Category);
+            if (sub == null) return Results.NotFound(new { error = "subcategory_not_found" });
+
+            int? subjectId = null;
+            if (!string.IsNullOrEmpty(input.Subject))
+            {
+                subjectId = await db.Subjects.Where(s => s.SubcategoryId == sub.Id && s.Name == input.Subject)
+                    .Select(s => (int?)s.Id).FirstOrDefaultAsync();
+                if (subjectId == null) return Results.NotFound(new { error = "subject_not_found" });
+            }
+
+            // Create the row on the first win, otherwise add one to Wins
+            var row = await db.ChallengeWins.FirstOrDefaultAsync(x => x.UserId == uid && x.SubcategoryId == sub.Id
+                && x.SubjectId == subjectId && x.Difficulty == difficulty);
+            if (row == null)
+                db.ChallengeWins.Add(new ChallengeWin { UserId = uid, SubcategoryId = sub.Id, SubjectId = subjectId, Difficulty = difficulty, Wins = 1 });
+            else
+            {
+                row.Wins++;
+                row.LastWonAt = DateTime.UtcNow;
+            }
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
         // Mock test result. The server grades it itself from the stored correct options (the phone cannot cheat),
         // saves it, and answers with the score and the player's rank among everyone who took the same test.
         g.MapPost("/exams", async (ExamInput input, ClaimsPrincipal p, AppDbContext db) =>
@@ -302,6 +343,8 @@ public static class UserDataEndpoints
         // GET /api/leaderboard. Logged-in user. Returns 200 top 100 rows { rank, id, name, levels, points }.
         // Name is the part of the e-mail before "@".
         // Points: passed level = 50 questions x difficulty weight (easy 1, medium 2, hard 3). Admins are excluded.
+        // Challenge bonus: each scope + difficulty won in Challenge mode is worth one extra level x the admin's
+        // "bonus multiplier" (Admin > Settings). Only the first win of each scope counts, so it cannot be farmed.
         app.MapGet("/api/leaderboard", async (AppDbContext db) =>
         {
             var counts = await db.LevelProgress.AsNoTracking()
@@ -312,18 +355,25 @@ public static class UserDataEndpoints
             var users = await db.Users.AsNoTracking().Where(u => !u.IsAdmin)
                 .Select(u => new { u.Id, u.Email }).ToListAsync();
 
+            // Challenge wins: how many different scopes each player won (bonus) and total wins (shown in the list)
+            var settings = await GameSettingsStore.LoadAsync(db);
+            var wins = await db.ChallengeWins.AsNoTracking().Where(x => !x.User!.IsAdmin)
+                .Select(x => new { x.UserId, x.Difficulty, x.Wins }).ToListAsync();
+
             var rows = users.Select(u =>
             {
                 var mine = counts.Where(c => c.UserId == u.Id).ToList();
                 var levels = mine.Sum(c => c.N);
                 var points = mine.Sum(c => c.N * QuestionsPerLevel * Weight(c.Difficulty));
+                var myWins = wins.Where(w => w.UserId == u.Id).ToList();
+                points += myWins.Sum(w => QuestionsPerLevel * Weight(w.Difficulty) * settings.ChallengeBonusMultiplier);
                 var name = u.Email.Split('@')[0];
-                return (u.Id, name, levels, points);
+                return (u.Id, name, levels, points, challengeWins: myWins.Sum(w => w.Wins));
             })
             .OrderByDescending(r => r.points).ThenBy(r => r.name, StringComparer.OrdinalIgnoreCase)
             .Take(100).ToList();
 
-            return Results.Ok(rows.Select((r, i) => new LeaderboardRow(i + 1, r.Id, r.name, r.levels, r.points)));
+            return Results.Ok(rows.Select((r, i) => new LeaderboardRow(i + 1, r.Id, r.name, r.levels, r.points, r.challengeWins)));
         }).RequireAuthorization();
     }
 

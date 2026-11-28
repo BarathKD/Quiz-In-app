@@ -12,7 +12,7 @@
 //   3. extra exports that exist only here (reportQuestion, submitExam, loadGameSettings, password reset, pending writes)
 //   4. at the bottom: pick(name) chooses server[name] or local[name] (storage.js) using USE_SERVER
 // Where is X done? Find the name in the server section (server mode) or in storage.js (local mode).
-// Functions not listed at the bottom (for example recordChallengeWin, completeDaily rules, game settings) come straight from storage.js through export * below.
+// Functions not listed at the bottom (for example completeDaily rules, game settings) come straight from storage.js through export * below.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as local from "./storage";
 import { API_BASE_URL, USE_SERVER } from "./config";
@@ -395,6 +395,22 @@ server.completeDaily = async (userId, score, total) => {
   return server.getDailyStatus(userId);
 };
 
+// --- Server mode: challenge wins ---
+// getChallengeWins(userId): total Challenge mode wins, from the data the server sent (me.challengeWins). Used for the "challenger" badge.
+server.getChallengeWins = async () => (await loadMe()).challengeWins || 0;
+
+// recordChallengeWin: saves a Challenge mode win on the server (POST /api/me/challenge-wins).
+// The first win for a subject + difficulty earns leaderboard bonus points (the server decides). Queued when offline.
+server.recordChallengeWin = async (userId, category, subcategory, subject, difficulty) => {
+  if (!userId) return 0;
+  const payload = { category, subcategory, subject: subject || null, difficulty };
+  await writeOrQueue(userId, { type: "challengeWin", method: "POST", path: "/api/me/challenge-wins", body: payload, payload });
+  const me = await loadMe();
+  me.challengeWins = (me.challengeWins || 0) + 1; // keep our own copy in step so the badge updates at once
+  setMe(me);
+  return me.challengeWins;
+};
+
 // --- Server mode: achievements ---
 // getAchievements: each badge has value, target and unlocked. Counts levels, hard levels, full subjects, streak, correct answers and challenge wins.
 // Badges (computed from the data above, same rules as local mode)
@@ -402,7 +418,7 @@ server.getAchievements = async (userId) => {
   const progress = await server.getUserProgress();
   const stats = await server.getUserStats();
   const daily = await server.getDailyStatus(userId);
-  const challengeWins = await local.getChallengeWins(userId);
+  const challengeWins = await server.getChallengeWins(userId);
 
   let levelsPassed = 0;
   let hardPassed = 0;
@@ -493,6 +509,8 @@ export const getQuestionsByIds = pick("getQuestionsByIds");
 export const getUserProgress = pick("getUserProgress");
 export const markLevelPassed = pick("markLevelPassed");
 export const getLeaderboard = pick("getLeaderboard");
+export const getChallengeWins = pick("getChallengeWins");
+export const recordChallengeWin = pick("recordChallengeWin");
 export const getMistakeIds = pick("getMistakeIds");
 export const getBookmarkIds = pick("getBookmarkIds");
 export const getUserStats = pick("getUserStats");

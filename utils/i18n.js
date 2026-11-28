@@ -213,6 +213,7 @@ const strings = {
     you: "நீங்கள்",
     pointsLabel: "{n} புள்ளிகள்",
     levelsPassed: "{n} நிலைகள்",
+    challengeWinsShort: "{n} சவால் வெற்றிகள்",
     leaderboardNote: "இந்தச் சாதனத்தில் உள்ள கணக்குகள் மட்டும்",
     // --- Settings and account texts ---
     settings: "அமைப்புகள்",
@@ -504,6 +505,7 @@ const strings = {
     you: "You",
     pointsLabel: "{n} pts",
     levelsPassed: "{n} levels",
+    challengeWinsShort: "{n} challenge wins",
     leaderboardNote: "Accounts on this device only",
     // --- Settings and account texts ---
     settings: "Settings",

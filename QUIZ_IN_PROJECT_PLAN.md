@@ -60,7 +60,7 @@ Run: `git pull`, `npm install`, `npx expo start -c`, open in Expo Go.
 - [~] Auth: register/login/me/delete-account done (BCrypt, JWT 7 days, Admin role, first admin from config). Forgot password DONE (6-digit e-mailed code, 15 min, 5 tries, rate limited; needs `Email__*` SMTP settings in production). Refresh token / token revoke after reset still TODO
 - [x] Endpoints DONE and CI-tested: categories, questions (filters), admin CRUD, CSV/JSON/Excel import, levels, answers, daily, bookmarks, mistakes, reports, leaderboard, settings. TODO: category/subject images (file storage decision)
 - [ ] Deploy to a free/cheap host (Azure App Service, Render or Railway) + managed DB; HTTPS only
-- [~] Global leaderboard on the server: all-time DONE (server computes points). TODO: weekly tab, challenge-win bonus (multiplier setting already stored)
+- [~] Global leaderboard on the server: all-time DONE (server computes points). TODO: weekly tab
 - [x] Move Daily Challenge streak, bookmarks and wrong-answers to the server (sync across devices); badges are computed from synced progress
 - [x] Settings: real "delete my account" endpoint (Play policy)
 - [~] Web admin panel (ASP.NET Core MVC, inside QuizIn.Api): DONE = Dashboard, Content, Questions CRUD + search + bulk delete, bulk import v2 (Excel/CSV/JSON, preview, duplicates, difficulty split, undo, history), Reports, Users, Game Settings. TODO: Leaderboard control, user ban/reset, dashboard charts, images
@@ -189,7 +189,7 @@ Pages, by priority:
 
 ## NEXT (in order)
 1. ~~Exam mode / mock test~~ DONE 2026-11-26 (Difficulty screen > Mock test; admin Settings > Exam mode; server grades + rank; table `ExamResults`)
-2. Leaderboard bonus for challenge wins (server entity + multiplier)
+2. ~~Leaderboard bonus for challenge wins~~ DONE 2026-11-28 (table `ChallengeWins`; first win per subject + difficulty = 50 x weight x admin multiplier extra points; win count shown in the leaderboard and used for the "challenger" badge on any device)
 3. Deploy backend: Azure App Service/other free host + Azure SQL, HTTPS, persistent `Uploads:Path`, SQL Server migrations, SMTP (Brevo) for forgot-password
 4. Real AdMob (Phase 4) + Play Billing (Phase 3) need an EAS dev build
 5. Play Store release checklist (Phase 5), update privacy policy + Data safety form for server accounts, ads, notifications

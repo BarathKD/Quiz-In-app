@@ -150,6 +150,23 @@ public class LevelProgress
 }
 
 /// <summary>One row per user: Daily Challenge streak (days in a row), best streak and the last date played.</summary>
+// Table ChallengeWins. One row per user + subcategory + subject + difficulty that the user has won in Challenge mode.
+// Wins counts every win (badge). Only the FIRST win of a row earns leaderboard bonus points (so repeating one level cannot farm points).
+// SubjectId has no foreign key on purpose (same reason as ExamResult: SQL Server cascade path rule).
+public class ChallengeWin
+{
+    public int Id { get; set; }
+    public Guid UserId { get; set; }
+    public User? User { get; set; }
+    public int SubcategoryId { get; set; }
+    public Subcategory? Subcategory { get; set; }
+    public int? SubjectId { get; set; }
+    public string Difficulty { get; set; } = "easy";
+    public int Wins { get; set; }
+    public DateTime FirstWonAt { get; set; } = DateTime.UtcNow;
+    public DateTime LastWonAt { get; set; } = DateTime.UtcNow;
+}
+
 public class DailyStreak
 {
     public Guid UserId { get; set; }

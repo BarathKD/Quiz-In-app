@@ -27,6 +27,7 @@ public class AppDbContext : DbContext
     public DbSet<QuestionReport> QuestionReports => Set<QuestionReport>();
     public DbSet<PasswordReset> PasswordResets => Set<PasswordReset>();
     public DbSet<ExamResult> ExamResults => Set<ExamResult>();
+    public DbSet<ChallengeWin> ChallengeWins => Set<ChallengeWin>();
 
     // Table rules: unique indexes, max lengths, keys and what happens to child rows when a parent is deleted.
     protected override void OnModelCreating(ModelBuilder b)
@@ -73,6 +74,10 @@ public class AppDbContext : DbContext
         b.Entity<ExamResult>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<ExamResult>().HasOne(x => x.Subcategory).WithMany().HasForeignKey(x => x.SubcategoryId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<ExamResult>().HasIndex(x => new { x.SubcategoryId, x.SubjectId });
+        // Challenge wins: removed with the user or the subcategory; one row per user + scope + difficulty (unique), so a win is an upsert.
+        b.Entity<ChallengeWin>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<ChallengeWin>().HasOne(x => x.Subcategory).WithMany().HasForeignKey(x => x.SubcategoryId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<ChallengeWin>().HasIndex(x => new { x.UserId, x.SubcategoryId, x.SubjectId, x.Difficulty }).IsUnique();
         // Password reset codes: removed with the user; index finds a user's unused codes.
         b.Entity<PasswordReset>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<PasswordReset>().HasIndex(x => new { x.UserId, x.Used });

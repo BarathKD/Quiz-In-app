@@ -351,7 +351,7 @@ export default function QuizScreen({ navigation, route }) {
         try { await completeDaily(user.id, finalScore, questions.length); } catch (e) { console.error(e); }
       }
       if (isChallenge && passed && user?.id) {
-        try { await recordChallengeWin(user.id); } catch (e) { console.error(e); }
+        try { await recordChallengeWin(user.id, category, subcategory, subject || null, difficulty); } catch (e) { console.error(e); }
       }
       navigation.replace("QuizSummary", {
         mode,

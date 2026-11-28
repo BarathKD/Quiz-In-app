@@ -58,7 +58,10 @@ export default function LeaderboardScreen({ navigation, route }) {
             <Text style={styles.name} numberOfLines={1}>
               {item.name}{isMe ? `  (${t("you")})` : ""}
             </Text>
-            <Text style={styles.sub}>{t("levelsPassed", { n: item.levels })}</Text>
+            <Text style={styles.sub}>
+              {t("levelsPassed", { n: item.levels })}
+              {item.challengeWins > 0 ? `  ·  ${t("challengeWinsShort", { n: item.challengeWins })}` : ""}
+            </Text>
           </View>
           <Text style={styles.points}>{t("pointsLabel", { n: item.points })}</Text>
         </View>
