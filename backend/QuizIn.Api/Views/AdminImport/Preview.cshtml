@@ -1,5 +1,8 @@
+@* Import preview page (step 2). Route: GET /admin/import/preview/{token} (AdminImportController.PreviewPage). Model: ImportDraft (rows read from the file, kept in server memory under Token). Nothing is saved to the database until Import is pressed. *@
 @model ImportDraft
 @{
+    @* Counters used on this page. A row Status is one of: new, update, duplicate, error. *@
+    @* Assignable = number of rows without difficulty. Hard is the remainder after easy and medium. *@
     ViewData["Title"] = "Import preview";
     var rows = Model.Rows;
     var total = rows.Count;
@@ -10,14 +13,18 @@
     var assignable = Model.Assignable;
     var hard = assignable - Model.EasyCount - Model.MediumCount;
 }
+@* Page title and a link to choose another file. *@
 <div class="page-head">
   <h1>Import preview</h1>
   <a class="btn btn-secondary" href="/admin/import">Choose another file</a>
 </div>
 
+@* One form for the whole page. By default it posts to POST /admin/import/commit/{token} (AdminImportController.Commit), which saves the selected rows. The Update preview button has its own formaction and posts to /admin/import/preview/{token}/split instead. *@
 <form method="post" action="/admin/import/commit/@Model.Token">
+  @* Anti-forgery token (CSRF protection). *@
   @Html.AntiForgeryToken()
 
+  @* Summary: file name and counts of rows by status. *@
   <div class="card">
     <h2 class="card-title">@Model.FileName</h2>
     <div class="chips">
@@ -29,12 +36,14 @@
     </div>
   </div>
 
+  @* Difficulty section. Only shown when some rows have no difficulty in the file. *@
   @if (assignable > 0)
   {
     <div class="card">
       <h2 class="card-title">Difficulty</h2>
       <p class="muted">@assignable question(s) have no difficulty in the file.</p>
       <div class="toolbar" style="margin-bottom:12px">
+        @* Radio buttons: same difficulty for all rows, or split by count in file order. *@
         <label class="check"><input type="radio" name="splitMode" value="single" checked="@(Model.SplitMode != "split")"> Same difficulty for all</label>
         <select class="fixed" name="defaultDifficulty" aria-label="Difficulty for all">
           @foreach (var d in new[] { "easy", "medium", "hard" })
@@ -45,6 +54,7 @@
         <label class="check push"><input type="radio" name="splitMode" value="split" checked="@(Model.SplitMode == "split")"> Split by count (in file order)</label>
       </div>
 
+      @* Split bar: coloured parts for easy, medium and hard, with two handles to drag. The JavaScript at the bottom draws it and keeps the number boxes in sync. The Hard box is read-only because it is calculated. *@
       <div id="split" data-total="@assignable">
         <div class="splitbar" id="splitbar">
           <div class="seg seg-easy" id="segEasy"></div>
@@ -67,6 +77,7 @@
     </div>
   }
 
+  @* Options: what to do with duplicates (field name: duplicates), and shuffle checkbox (field name: shuffle). Both are read by Commit. *@
   <div class="card">
     <h2 class="card-title">Options</h2>
     <div class="form-grid">
@@ -85,6 +96,7 @@
     </div>
   </div>
 
+  @* Rows table. Rows: every row read from the file. Error rows have a disabled checkbox so they cannot be imported. *@
   <div class="card">
     <div class="page-head" style="margin-bottom:12px;min-height:0">
       <h2 class="card-title" style="margin:0">Rows</h2>
@@ -99,6 +111,7 @@
           <tr><th class="col-check"></th><th class="col-id">Row</th><th class="col-status">Status</th><th class="col-where">Where</th><th class="col-level">Level</th><th>Question</th><th class="col-ans">Answer</th></tr>
         </thead>
         <tbody>
+          @* Loop: one table row for each file row. The CSS class row-{status} colours the row. New and update rows are ticked by default. Ticked row numbers are posted as sel (int array) to Commit. *@
           @foreach (var r in rows)
           {
             var isError = r.Status == "error";
@@ -137,6 +150,7 @@
   </div>
 </form>
 
+@* JavaScript: Select all / Select none buttons, count of selected rows, and the split bar (drag handles or arrow keys). *@
 <script>
 (function () {
   var checks = Array.prototype.slice.call(document.querySelectorAll(".rowcheck"));

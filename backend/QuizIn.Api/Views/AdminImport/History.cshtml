@@ -1,3 +1,4 @@
+@* Import history page. Route: GET /admin/import/history (AdminImportController.History). Model: List<ImportBatch>. *@
 @model List<ImportBatch>
 @{ ViewData["Title"] = "Import history"; }
 <div class="page-head">
@@ -5,6 +6,7 @@
   <a class="btn btn-secondary" href="/admin/import">Back to import</a>
 </div>
 
+@* Table of past imports. Rows: one for each import batch (id, time in UTC, file name, admin email, added and updated counts). *@
 <div class="card">
   @if (Model.Count == 0)
   {
@@ -29,12 +31,14 @@
               <td class="num">@b.Updated</td>
               <td class="col-actions">
                 <div class="actions">
+                  @* Undone imports show a badge. Imports that added questions get an Undo button. Imports that only updated questions have no button. *@
                   @if (b.Undone)
                   {
                     <span class="badge">Undone</span>
                   }
                   else if (b.Added > 0)
                   {
+                    @* Undo form. Posts to POST /admin/import/undo/{id} (AdminImportController.Undo). The controller removes the questions that this batch added. *@
                     <form method="post" action="/admin/import/undo/@b.Id" onsubmit="return confirm('Remove the @b.Added question(s) added by import #@b.Id?');">
                       @Html.AntiForgeryToken()
                       <button class="btn btn-danger btn-sm" type="submit">Undo</button>

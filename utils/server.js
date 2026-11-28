@@ -1,3 +1,11 @@
+/*
+  server.js - Low-level helper that talks to the ASP.NET backend. Used only when USE_SERVER is true (utils/config.js).
+  Main exports: request() (the HTTP call), cachedGet() (GET with offline copy), getToken/setToken (login token),
+  memo/setMemo/dropMemo (short memory cache), and the offline write queue (enqueueWrite, flushQueue...).
+  Used by: utils/api.js only. Screens do not import this file.
+  If "server not reachable" or "always logged out" happens, start with request() and getToken() here.
+*/
+
 // Talks to the Quiz-IN backend. Only used when API_BASE_URL is set (see utils/config.js).
 // - JWT is kept in expo-secure-store (falls back to AsyncStorage where secure store is unavailable).
 // - GET results are cached so the app still shows content when offline.
@@ -5,13 +13,20 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { API_BASE_URL } from "./config";
 
+// ===== Settings and keys =====
+// TOKEN_KEY: where the login token (JWT) is saved on the phone.
 const TOKEN_KEY = "quizin_token";
+// CACHE_PREFIX: every saved copy of a GET answer starts with this text (so clearCaches() can find them).
 const CACHE_PREFIX = "quizin_cache_";
+// TIMEOUT_MS: a request longer than 15 seconds is cancelled and counts as a network error.
 const TIMEOUT_MS = 15000;
 
+// memoryToken / tokenLoaded: the token is kept in memory after the first read, so we do not read storage on every request.
 let memoryToken = null;
 let tokenLoaded = false;
 
+// ApiError: thrown when the server ANSWERED with an error (status 400, 401, 404, 500...).
+// A failure to reach the server (no internet, timeout) is NOT an ApiError. See isNetworkError() below.
 export class ApiError extends Error {
   constructor(status, body) {
     super(`HTTP ${status}`);
@@ -20,6 +35,8 @@ export class ApiError extends Error {
   }
 }
 
+// ===== Login token =====
+// getToken(): returns the saved login token, or null if not logged in. Tries SecureStore, then AsyncStorage.
 export const getToken = async () => {
   if (tokenLoaded) return memoryToken;
   try {
@@ -31,6 +48,7 @@ export const getToken = async () => {
   return memoryToken;
 };
 
+// setToken(token): saves the token; pass null to log out (deletes it). Used by login, logout, delete account.
 export const setToken = async (token) => {
   memoryToken = token || null;
   tokenLoaded = true;
@@ -45,7 +63,9 @@ export const setToken = async (token) => {
 
 // In-memory copy of the logged-in user's data (/api/me/data); cleared on logout.
 let sessionCache = {};
+// ===== In-memory cache (lasts until the app closes) =====
 export const clearSessionCache = () => { sessionCache = {}; };
+// memo(key, loader, ttlMs): returns the cached value if it is younger than ttlMs (default 30 s), otherwise calls loader() and caches the result.
 export const memo = async (key, loader, ttlMs = 30000) => {
   const hit = sessionCache[key];
   if (hit && Date.now() - hit.at < ttlMs) return hit.value;
@@ -53,9 +73,13 @@ export const memo = async (key, loader, ttlMs = 30000) => {
   sessionCache[key] = { at: Date.now(), value };
   return value;
 };
+// setMemo(key, value): replaces a cached value (used after a local change). dropMemo(key) below removes it.
 export const setMemo = (key, value) => { sessionCache[key] = { at: Date.now(), value }; };
 export const dropMemo = (key) => { delete sessionCache[key]; };
 
+// ===== Main request function =====
+// request(method, path, body): calls the ASP.NET backend (API_BASE_URL + path) and returns the parsed JSON (or text, or null if empty).
+// Adds the login token automatically. Throws ApiError for server errors; other errors (offline, timeout) are thrown as they are.
 export const request = async (method, path, body) => {
   const token = await getToken();
   const headers = { Accept: "application/json" };
@@ -81,6 +105,7 @@ export const request = async (method, path, body) => {
   if (text) {
     try { data = JSON.parse(text); } catch (e) { data = text; }
   }
+  // Not a 2xx answer: turn it into an ApiError so callers can check error.status.
   if (!res.ok) {
     // A rejected token on a normal call means the login expired: drop it so the next launch asks to log in.
     if (res.status === 401 && token && !path.startsWith("/api/auth/login")) {
@@ -106,6 +131,7 @@ export const cachedGet = async (path) => {
   }
 };
 
+// clearCaches(): clears the memory cache and every saved GET copy. Called at login, logout and account delete so one user never sees another user's data.
 export const clearCaches = async () => {
   clearSessionCache();
   const keys = await AsyncStorage.getAllKeys();
@@ -115,6 +141,7 @@ export const clearCaches = async () => {
 // ---------- Offline write queue ----------
 // When the phone has no connection, writes (level passed, answers, bookmarks, daily, reports) are kept here
 // and replayed in order as soon as the server can be reached. Every replayed call is safe to repeat.
+// QUEUE_PREFIX: saved queue key per user is quizin_queue_<userId>. MAX_QUEUE: only the newest 500 waiting writes are kept.
 const QUEUE_PREFIX = "quizin_queue_";
 const MAX_QUEUE = 500;
 let flushing = false;
@@ -122,6 +149,7 @@ let flushing = false;
 // True for "could not reach the server" (no connection, timeout); false when the server answered with an error.
 export const isNetworkError = (error) => !(error instanceof ApiError);
 
+// readQueue(userId): returns the waiting writes as an array ([] if none or broken). writeQueue(userId, list) saves it back.
 const readQueue = async (userId) => {
   try {
     return JSON.parse((await AsyncStorage.getItem(QUEUE_PREFIX + userId)) || "[]");
@@ -131,6 +159,7 @@ const readQueue = async (userId) => {
 };
 const writeQueue = (userId, list) => AsyncStorage.setItem(QUEUE_PREFIX + userId, JSON.stringify(list));
 
+// enqueueWrite(userId, op): adds one write { type, payload } to the end of the user's queue. Does nothing without a userId.
 export const enqueueWrite = async (userId, op) => {
   if (!userId) return;
   let list = await readQueue(userId);
@@ -140,9 +169,11 @@ export const enqueueWrite = async (userId, op) => {
   await writeQueue(userId, list.slice(-MAX_QUEUE));
 };
 
+// pendingWrites(userId): how many writes are waiting. clearQueue(userId): throws them away (used when the account is deleted).
 export const pendingWrites = async (userId) => (userId ? (await readQueue(userId)).length : 0);
 export const clearQueue = (userId) => (userId ? AsyncStorage.removeItem(QUEUE_PREFIX + userId) : Promise.resolve());
 
+// sendOp(op): converts a queued write into the matching server call. Add a new case here when a new offline write type is added.
 const sendOp = (op) => {
   const p = op.payload;
   switch (op.type) {

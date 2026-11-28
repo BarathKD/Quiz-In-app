@@ -8,6 +8,7 @@ namespace QuizIn.Api.Data;
 // Runs only when Seed:SampleContent is true AND the database has no categories yet.
 public static class SampleSeeder
 {
+    // Shape of Data/seed.json. These small classes only exist to read that JSON file.
     private class SeedFile
     {
         public List<SeedCategory> Categories { get; set; } = new();
@@ -31,6 +32,7 @@ public static class SampleSeeder
         public string Text { get; set; } = "";
     }
 
+    // One sample question. Category / Subcategory / Subject are names, matched to rows created from SeedCategory.
     private class SeedQuestion
     {
         public string Category { get; set; } = "";
@@ -43,6 +45,8 @@ public static class SampleSeeder
         public string? Explanation { get; set; }
     }
 
+    // Called once at startup from Program.cs. Does nothing if the seed file is missing or categories already exist,
+    // so it never overwrites real content.
     public static async Task SeedAsync(AppDbContext db, string path)
     {
         if (!File.Exists(path) || await db.Categories.AnyAsync()) return;
@@ -51,6 +55,7 @@ public static class SampleSeeder
         var seed = JsonSerializer.Deserialize<SeedFile>(await File.ReadAllTextAsync(path), json);
         if (seed == null) return;
 
+        // Step 1: create categories, subcategories and subjects (with their timers). SortOrder keeps the order of the file.
         var order = 0;
         foreach (var c in seed.Categories)
         {
@@ -79,6 +84,8 @@ public static class SampleSeeder
         }
         await db.SaveChangesAsync();
 
+        // Step 2: create the questions. A question whose category/subcategory/subject name is not found is skipped.
+        // Options are stored as JSON text (OptionsJson).
         var subs = await db.Subcategories.Include(s => s.Category).Include(s => s.Subjects).ToListAsync();
         foreach (var q in seed.Questions)
         {

@@ -1,3 +1,26 @@
+/*
+  storage.js - LOCAL data layer: everything the app saves on the phone (AsyncStorage + image files).
+  Used directly in local mode (USE_SERVER = false). In server mode, utils/api.js uses only a few of these
+  (session, sample init, challenge wins, game settings) and replaces the rest with server calls.
+  Screens never import this file; they import utils/api.js, which re-exports everything here.
+
+  Where is X done? (search for the section name)
+    SECTION 1  Game settings      gameSettings, applyGameSettings, passMarkFor, challengeSecondsFor
+    SECTION 2  Storage keys       QUESTIONS_KEY, USERS_KEY, ... (names of the saved items)
+    SECTION 3  Category images    saveCategoryImage, getCategoryImage, deleteCategoryImage
+    SECTION 4  Sample data        sampleCategories, sampleQuestions (first start)
+    SECTION 5  Accounts and login hashPassword, sanitizeUser
+    SECTION 6  Categories         add / update / delete / list
+    SECTION 7  Questions          add / update / delete / filter
+    SECTION 8  Bulk import        CSV and JSON import, bulk delete
+    SECTION 9  Users              registerUser, authenticateUser
+    SECTION 10 Progress           markLevelPassed, getLeaderboard
+    then       Mistakes, bookmarks, stats, daily challenge, achievements, delete account
+    SECTION 11 App start, reset, session
+  Most functions never throw: on error they log and return a safe value ([], null, false). If a screen shows
+  empty data, check the console for the logged error.
+*/
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from "expo-crypto";
@@ -6,7 +29,12 @@ import * as Crypto from "expo-crypto";
 // Game rules. The admin changes these on the web (Settings page); the app loads them at start-up
 // (loadGameSettings in utils/api.js). These are the defaults used until then and in local mode.
 // EXPO_PUBLIC_QPL=5 forces tiny levels for quick testing and always wins.
+// ENV_QPL: test-only override for questions per level (from EXPO_PUBLIC_QPL). 0 means not set.
 const ENV_QPL = Number(process.env.EXPO_PUBLIC_QPL) > 0 ? Number(process.env.EXPO_PUBLIC_QPL) : 0;
+// ===== SECTION 1: Game settings (rules of the game) =====
+// gameSettings: one shared object with all game rules (pass marks, timers, daily/exam/challenge counts,
+// reminder text, minimum app version). Other files read it directly, e.g. gameSettings.questionsPerLevel.
+// It is changed in place by applyGameSettings(), so every screen sees the new values.
 export const gameSettings = {
   questionsPerLevel: ENV_QPL || 50,
   passMarkEasy: 70,
@@ -37,6 +65,9 @@ export const gameSettings = {
   minAppVersion: "0.0.0", // raised from the admin Settings page to force an update
 };
 
+// applyGameSettings(incoming): copies values from the server (/api/settings) into gameSettings.
+// Only known keys with a real value are copied; bad input is ignored. Returns nothing.
+// Called by loadGameSettings() in utils/api.js at app start.
 export const applyGameSettings = (incoming) => {
   if (!incoming || typeof incoming !== "object") return;
   for (const key of Object.keys(gameSettings)) {
@@ -45,17 +76,29 @@ export const applyGameSettings = (incoming) => {
   if (ENV_QPL) gameSettings.questionsPerLevel = ENV_QPL;
 };
 
+// cap(difficulty): turns "easy"/"medium"/"hard" into "Easy"/"Medium"/"Hard" to build the gameSettings key names. Unknown value gives "Easy".
 const cap = (difficulty) => (difficulty === "hard" ? "Hard" : difficulty === "medium" ? "Medium" : "Easy");
 // Practice mode: share of correct answers needed to pass a level (0 to 1)
+// passMarkFor(difficulty): returns the pass mark as a fraction (0.7 = 70%). Falls back to 80% if the setting is missing.
 export const passMarkFor = (difficulty) => (gameSettings[`passMark${cap(difficulty)}`] || 80) / 100;
 // Challenge mode: seconds allowed per question
+// challengeSecondsFor(difficulty): returns seconds allowed per question in challenge mode (default 15).
 export const challengeSecondsFor = (difficulty) => gameSettings[`challengeSeconds${cap(difficulty)}`] || 15;
 
+// ===== SECTION 2: AsyncStorage keys (where data lives on the phone) =====
+// QUESTIONS_KEY: the list of all questions (JSON array).
 const QUESTIONS_KEY = "quiz_questions";
+// USERS_KEY: the list of local accounts (email, salt, passwordHash, isAdmin). Never holds plain passwords (except old accounts that get upgraded).
 const USERS_KEY = "quiz_users";
+// CATEGORIES_KEY: the list of categories with their subcategories and subjects.
 const CATEGORIES_KEY = "quiz_categories";
+// PROGRESS_KEY: prefix for passed levels. Real key per user is `quiz_progress_<userId>`.
 const PROGRESS_KEY = "quiz_progress";
+// IMAGES_KEY: metadata (file path etc.) of the category images saved on the phone.
 const IMAGES_KEY = "quiz_images";
+// SESSION_KEY: the logged-in user (without secrets). Used in both local mode and server mode.
+// Other per-user keys are built by userKey() below: quiz_mistakes_<id>, quiz_bookmarks_<id>, quiz_stats_<id>,
+// quiz_daily_<id>, quiz_challenges_<id>.
 const SESSION_KEY = "quiz_session";
 
 // Image directory for storing category backgrounds
@@ -63,6 +106,8 @@ const SESSION_KEY = "quiz_session";
 const IMAGE_DIR = `${FileSystem.documentDirectory}quiz_images/`;
 
 // Initialize image directory
+// (Section 3: Category images. Files are stored in IMAGE_DIR, details about them in IMAGES_KEY.)
+// initImageDirectory(): creates the image folder if it does not exist. Returns true, or throws if it cannot be created.
 const initImageDirectory = async () => {
   try {
     console.log("Checking image directory:", IMAGE_DIR);
@@ -87,6 +132,8 @@ const initImageDirectory = async () => {
 };
 
 // Save category/subject background image
+// saveCategoryImage(categoryId, base64Data, subcategory, subject): writes a JPG file and saves its details in IMAGES_KEY.
+// The image key is the category id, plus subcategory and subject when given. Returns the file path; throws on failure.
 export const saveCategoryImage = async (categoryId, base64Data, subcategory = null, subject = null) => {
   try {
     console.log("=== SAVING CATEGORY IMAGE ===");
@@ -148,6 +195,7 @@ export const saveCategoryImage = async (categoryId, base64Data, subcategory = nu
   }
 };
    
+// getCategoryImage(categoryId, subcategory, subject): returns the saved image file path, or null if there is none or the file is gone.
 export const getCategoryImage = async (categoryId, subcategory = null, subject = null) => {
   try {
     // Create unique key
@@ -188,6 +236,7 @@ export const getCategoryImage = async (categoryId, subcategory = null, subject =
   }
 };
 
+// deleteCategoryImage(categoryId, subcategory, subject): deletes the image file and its metadata. Missing file is not an error.
 export const deleteCategoryImage = async (categoryId, subcategory = null, subject = null) => {
   try {
     // Create unique key
@@ -223,6 +272,7 @@ export const deleteCategoryImage = async (categoryId, subcategory = null, subjec
 };
 
 // Get image metadata
+// getImageMetadata(): returns the whole IMAGES_KEY object, or {} on error.
 const getImageMetadata = async () => {
   try {
     const data = await AsyncStorage.getItem(IMAGES_KEY);
@@ -234,6 +284,8 @@ const getImageMetadata = async () => {
 };
 
 // Updated sample categories with background opacity
+// ===== SECTION 4: Sample data (first start only) =====
+// sampleCategories and sampleQuestions are written by initStorageWithSample() when the app has no data yet.
 const sampleCategories = [
   {
     id: "1",
@@ -290,6 +342,7 @@ const sampleCategories = [
   }
 ];
 
+// sampleQuestions: demo questions (id, category, subcategory, difficulty, options, correctOptionId, explanation).
 const sampleQuestions = [
   {
     id: "1",
@@ -388,16 +441,20 @@ const sampleQuestions = [
   }
 ];
 
+// ===== SECTION 5: Accounts and login (local mode) =====
 // ───────────── Auth helpers (local-only until the backend in Phase 2) ─────────────
 // Passwords are never stored in plain text. A salted SHA-256 hash is a stop-gap;
 // the backend will replace this with proper server-side hashing + JWT.
+// normalizeEmail(email): trims spaces and makes lower case, so "A@x.com " and "a@x.com" are the same account.
 const normalizeEmail = (email) => (email || "").trim().toLowerCase();
 
+// makeSalt(): random 16-byte text added to the password before hashing, so equal passwords give different hashes.
 const makeSalt = () => {
   const bytes = Crypto.getRandomBytes(16);
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 
+// hashPassword(password, salt): returns the SHA-256 hash (text) of salt + password. Used when registering and logging in.
 export const hashPassword = async (password, salt) => {
   return Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
@@ -428,6 +485,8 @@ const createDevAdmin = async () => {
 };
 
 // Category Management Functions
+// ===== SECTION 6: Categories =====
+// getAllCategories(): returns all categories, each with backgroundImage (file path or null). Returns [] on error.
 export const getAllCategories = async () => {
   try {
     const data = await AsyncStorage.getItem(CATEGORIES_KEY);
@@ -451,6 +510,7 @@ export const getAllCategories = async () => {
   }
 };
 
+// addCategory(category): adds a category with a new id (time-based). Returns the new id; throws on error.
 export const addCategory = async (category) => {
   try {
     const data = await AsyncStorage.getItem(CATEGORIES_KEY);
@@ -471,6 +531,7 @@ export const addCategory = async (category) => {
   }
 };
 
+// updateCategory(id, updates): merges the changed fields into the category. Does nothing if the id is not found.
 export const updateCategory = async (id, updates) => {
   try {
     const data = await AsyncStorage.getItem(CATEGORIES_KEY);
@@ -487,6 +548,7 @@ export const updateCategory = async (id, updates) => {
   }
 };
 
+// deleteCategory(id): removes the category, its image, and ALL questions of that category (matched by name). Throws on error.
 export const deleteCategory = async (id) => {
   try {
     const data = await AsyncStorage.getItem(CATEGORIES_KEY);
@@ -509,6 +571,7 @@ export const deleteCategory = async (id) => {
   }
 };
 
+// getCategoryByName(categoryName): returns the category, undefined if not found, or null on error.
 export const getCategoryByName = async (categoryName) => {
   try {
     const categories = await getAllCategories();
@@ -519,6 +582,8 @@ export const getCategoryByName = async (categoryName) => {
   }
 };
 
+// ===== SECTION 7: Questions (read, add, edit, delete) =====
+// getAllQuestions(): returns every question from QUESTIONS_KEY. Returns [] on error.
 export const getAllQuestions = async () => {
   try {
     const data = await AsyncStorage.getItem(QUESTIONS_KEY);
@@ -529,6 +594,7 @@ export const getAllQuestions = async () => {
   }
 };
 
+// getQuestionsPaginated(page, limit): returns { questions, totalCount, hasMore } for one page (page starts at 0).
 export const getQuestionsPaginated = async (page = 0, limit = 50) => {
   try {
     const allQuestions = await getAllQuestions();
@@ -545,6 +611,8 @@ export const getQuestionsPaginated = async (page = 0, limit = 50) => {
   }
 };
 
+// getQuestionsByFilter(category, subcategory, subject, difficulty): returns matching questions; a null filter is skipped.
+// Special case: subject null or "" means ONLY questions that have no subject. Returns [] on error.
 export const getQuestionsByFilter = async (category = null, subcategory = null, subject = null, difficulty = null) => {
   try {
     const allQuestions = await getAllQuestions();
@@ -583,6 +651,7 @@ export const getQuestionsByFilter = async (category = null, subcategory = null, 
   }
 };
 
+// addQuestion(question): saves a new question with a time-based id. Returns the id; throws on error.
 export const addQuestion = async (question) => {
   try {
     const questions = await getAllQuestions();
@@ -599,6 +668,7 @@ export const addQuestion = async (question) => {
   }
 };
 
+// updateQuestion(id, updates): merges the changed fields. Does nothing if the id is not found.
 export const updateQuestion = async (id, updates) => {
   try {
     const questions = await getAllQuestions();
@@ -613,6 +683,7 @@ export const updateQuestion = async (id, updates) => {
   }
 };
 
+// deleteQuestion(id): removes one question.
 export const deleteQuestion = async (id) => {
   try {
     const questions = await getAllQuestions();
@@ -624,6 +695,9 @@ export const deleteQuestion = async (id) => {
   }
 };
 
+// ===== SECTION 8: Bulk delete and import (admin) =====
+// bulkDeleteQuestions(category, subcategory, subject, difficulty): deletes all questions matching the given filters.
+// Returns how many were deleted. Warning: with no filter at all it deletes EVERYTHING.
 export const bulkDeleteQuestions = async (category = null, subcategory = null, subject = null, difficulty = null) => {
   try {
     const allQuestions = await getAllQuestions();
@@ -649,6 +723,8 @@ export const bulkDeleteQuestions = async (category = null, subcategory = null, s
   }
 };
 
+// bulkImportFromCsv(csvString, category, subcategory, subject, difficulty): adds questions from CSV text (uses parseCSV below).
+// Returns how many were added; throws if the CSV is empty or has no valid rows.
 export const bulkImportFromCsv = async (csvString, targetCategory, targetSubcategory, targetSubject = null, targetDifficulty = "easy") => {
   try {
     // Full CSV parser: handles quoted commas, "" escaped quotes, multi-line cells, \r\n
@@ -762,6 +838,8 @@ export const bulkImportFromCsv = async (csvString, targetCategory, targetSubcate
   }
 };
 
+// bulkImportFromJson(jsonString, category, subcategory, subject, difficulty): adds questions from a JSON array.
+// Rows without questionText, options or correctOptionId are skipped. Returns how many were added; throws on bad JSON.
 export const bulkImportFromJson = async (jsonString, targetCategory, targetSubcategory, targetSubject = null, targetDifficulty = "easy") => {
   try {
     const newQuestions = JSON.parse(jsonString);
@@ -804,6 +882,7 @@ export const bulkImportFromJson = async (jsonString, targetCategory, targetSubca
 };
 
 // Parse a whole CSV text into rows of trimmed cells
+// (internal) parseCSV is a small state machine: inQuotes tracks if we are inside "..." so commas and new lines inside quotes stay in the cell.
 const parseCSV = (text) => {
   const rows = [];
   let row = [];
@@ -847,6 +926,8 @@ const parseCSV = (text) => {
   return rows;
 };
 
+// ===== SECTION 9: Users (local accounts) =====
+// getAllUsers(): returns all local accounts (with hashes, so never send this to a screen). Returns [] on error.
 export const getAllUsers = async () => {
   try {
     const data = await AsyncStorage.getItem(USERS_KEY);
@@ -857,6 +938,7 @@ export const getAllUsers = async () => {
   }
 };
 
+// getUserByEmail(email): finds an account ignoring case and spaces. Returns the user, undefined if none, null on error.
 export const getUserByEmail = async (email) => {
   try {
     const users = await getAllUsers();
@@ -908,6 +990,7 @@ export const authenticateUser = async (email, password) => {
   return null;
 };
 
+// addUser(user): saves a raw user object with a new id. Returns the id; throws on error. Prefer registerUser().
 export const addUser = async (user) => {
   try {
     const users = await getAllUsers();
@@ -924,6 +1007,8 @@ export const addUser = async (user) => {
   }
 };
 
+// ===== SECTION 10: Progress and leaderboard =====
+// getUserProgress(userId): returns the progress object { "cat_sub_subject": { easy, medium, hard, levels } } or {} if none.
 export const getUserProgress = async (userId) => {
   try {
     const data = await AsyncStorage.getItem(`${PROGRESS_KEY}_${userId}`);
@@ -934,6 +1019,7 @@ export const getUserProgress = async (userId) => {
   }
 };
 
+// updateUserProgress(userId, category, subcategory, difficulty, completed, subject): sets one difficulty complete or not. Returns the progress object.
 export const updateUserProgress = async (userId, category, subcategory, difficulty, completed, subject = null) => {
   try {
     const progress = await getUserProgress(userId);
@@ -1002,8 +1088,10 @@ export const markLevelPassed = async (userId, category, subcategory, subject, di
 
 // Points: each passed level = 50 questions, weighted by difficulty (easy 1x, medium 2x, hard 3x).
 // Local-only for now: ranks the accounts on this device. Phase 2 moves this to the backend.
+// DIFFICULTY_WEIGHT: points multiplier per difficulty used by getLeaderboard().
 const DIFFICULTY_WEIGHT = { easy: 1, medium: 2, hard: 3 };
 
+// getLeaderboard(): returns [{ id, name, levels, points, rank }] sorted by points. Admins are skipped; name is the part of the email before @. Returns [] on error.
 export const getLeaderboard = async () => {
   try {
     const users = await getAllUsers();
@@ -1032,8 +1120,10 @@ export const getLeaderboard = async () => {
 
 // ---------- Phase 1B: per-user extras (mistakes, bookmarks, daily streak, stats, badges) ----------
 // All stored per user id so each account on the device has its own data.
+// userKey(name, userId): builds the storage key for per-user data, e.g. userKey("stats", 5) gives "quiz_stats_5".
 const userKey = (name, userId) => `quiz_${name}_${userId}`;
 
+// readJson(key, fallback): reads and parses a JSON value; returns fallback when empty or broken.
 const readJson = async (key, fallback) => {
   try {
     const data = await AsyncStorage.getItem(key);
@@ -1044,8 +1134,10 @@ const readJson = async (key, fallback) => {
   }
 };
 
+// writeJson(key, value): saves value as JSON (returns the AsyncStorage promise).
 const writeJson = (key, value) => AsyncStorage.setItem(key, JSON.stringify(value));
 
+// getQuestionsByIds(ids): returns the questions whose id is in the list (used by Mistakes and Bookmarks screens).
 export const getQuestionsByIds = async (ids) => {
   const all = await getAllQuestions();
   const wanted = new Set(ids);
@@ -1058,6 +1150,7 @@ export const getMistakeIds = (userId) => readJson(userKey("mistakes", userId), [
 // Bookmarks: question ids the user starred.
 export const getBookmarkIds = (userId) => readJson(userKey("bookmarks", userId), []);
 
+// toggleBookmark(userId, questionId): adds the bookmark if missing, removes it if present. Returns true if it is now bookmarked.
 export const toggleBookmark = async (userId, questionId) => {
   const ids = await getBookmarkIds(userId);
   const has = ids.includes(questionId);
@@ -1066,11 +1159,13 @@ export const toggleBookmark = async (userId, questionId) => {
   return !has;
 };
 
+// removeBookmark(userId, questionId): removes the bookmark if present.
 export const removeBookmark = async (userId, questionId) => {
   const ids = await getBookmarkIds(userId);
   await writeJson(userKey("bookmarks", userId), ids.filter((id) => id !== questionId));
 };
 
+// removeMistake(userId, questionId): removes the question from the mistakes list.
 export const removeMistake = async (userId, questionId) => {
   const ids = await getMistakeIds(userId);
   await writeJson(userKey("mistakes", userId), ids.filter((id) => id !== questionId));
@@ -1099,11 +1194,13 @@ export const recordAnswer = async (userId, questionId, correct, countStats = tru
 };
 
 // Challenge wins (per user, kept on the device)
+// getChallengeWins(userId): returns the number of challenge-mode wins (0 if none). Used for the "challenger" badge.
 export const getChallengeWins = async (userId) => {
   const v = await readJson(userKey("challenges", userId), { wins: 0 });
   return v.wins || 0;
 };
 
+// recordChallengeWin(userId): adds one win. Returns the new total (0 if no userId).
 export const recordChallengeWin = async (userId) => {
   if (!userId) return 0;
   const wins = (await getChallengeWins(userId)) + 1;
@@ -1111,16 +1208,19 @@ export const recordChallengeWin = async (userId) => {
   return wins;
 };
 
+// getUserStats(userId): returns { answered, correct } (zeros if nothing saved).
 export const getUserStats = (userId) => readJson(userKey("stats", userId), { answered: 0, correct: 0 });
 
 // ----- Daily challenge -----
 
+// dateKey(d): returns the local date as "YYYY-MM-DD" (today by default). Used to know if the daily challenge was done today.
 const dateKey = (d = new Date()) => {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${m}-${day}`;
 };
 
+// yesterdayKey(): same format as dateKey but for yesterday. Used to keep the streak alive.
 const yesterdayKey = () => {
   const d = new Date();
   d.setDate(d.getDate() - 1);
@@ -1128,6 +1228,7 @@ const yesterdayKey = () => {
 };
 
 // Same 10 questions for everyone on a given day (seeded shuffle by date).
+// seededRandom(seedStr): returns a random-number function that gives the same numbers for the same seed text. Used by getDailyQuestions().
 const seededRandom = (seedStr) => {
   let h = 1779033703 ^ seedStr.length;
   for (let i = 0; i < seedStr.length; i++) {
@@ -1144,6 +1245,7 @@ const seededRandom = (seedStr) => {
   };
 };
 
+// getDailyQuestions(): returns today's questions (count from gameSettings.dailyQuestionCount). Same list for everyone on the same date. Questions need 2+ options.
 export const getDailyQuestions = async () => {
   const all = (await getAllQuestions()).filter((q) => q.options && q.options.length > 1);
   const rand = seededRandom(dateKey());
@@ -1155,6 +1257,7 @@ export const getDailyQuestions = async () => {
   return arr.slice(0, gameSettings.dailyQuestionCount);
 };
 
+// getDailyStatus(userId): returns { streak, best, doneToday, lastScore, history }. Streak shows 0 when the last play was before yesterday.
 export const getDailyStatus = async (userId) => {
   const d = await readJson(userKey("daily", userId), { lastDate: null, streak: 0, best: 0, history: [] });
   const today = dateKey();
@@ -1168,6 +1271,8 @@ export const getDailyStatus = async (userId) => {
   };
 };
 
+// completeDaily(userId, score, total): records today's result and updates the streak (yesterday +1, otherwise restart at 1).
+// Playing twice on the same day changes nothing. Returns the new getDailyStatus().
 export const completeDaily = async (userId, score, total) => {
   const d = await readJson(userKey("daily", userId), { lastDate: null, streak: 0, best: 0, history: [] });
   const today = dateKey();
@@ -1182,6 +1287,7 @@ export const completeDaily = async (userId, score, total) => {
 };
 
 // ----- Achievements (computed, nothing extra stored) -----
+// getAchievements(userId): returns the badge list [{ id, icon, value, target, unlocked }]. Computed from other data; nothing extra is saved.
 export const getAchievements = async (userId) => {
   const progress = await getUserProgress(userId);
   const stats = await getUserStats(userId);
@@ -1215,6 +1321,7 @@ export const getAchievements = async (userId) => {
 };
 
 // ----- Delete account (Play Store requirement): wipes this user's local data -----
+// deleteUserAccount(userId): removes the local account and all its data. Returns true, or false for unknown user, admin, or error.
 export const deleteUserAccount = async (userId) => {
   try {
     const users = await getAllUsers();
@@ -1237,6 +1344,9 @@ export const deleteUserAccount = async (userId) => {
   }
 };
 
+// ===== SECTION 11: App start, reset and session =====
+// initStorageWithSample(forceReset): called at app start. Fills categories and questions only when empty (or when forceReset is true).
+// Dev build: makes sure a test admin exists. Release build: removes the old hardcoded admin. Returns true/false.
 export const initStorageWithSample = async (forceReset = false) => {
   try {
     if (forceReset) {
@@ -1303,6 +1413,7 @@ export const initStorageWithSample = async (forceReset = false) => {
   }
 };
 
+// clearAllData(): deletes questions, users, categories, image data, all progress and the image folder. Throws on error.
 export const clearAllData = async () => {
   try {
     await AsyncStorage.multiRemove([QUESTIONS_KEY, USERS_KEY, CATEGORIES_KEY, IMAGES_KEY]);
@@ -1330,6 +1441,7 @@ export const clearAllData = async () => {
   }
 };
 
+// forceResetData(): wipes everything and loads the sample data again. Returns true; throws on error.
 export const forceResetData = async () => {
   try {
     await initStorageWithSample(true);
@@ -1340,6 +1452,7 @@ export const forceResetData = async () => {
   }
 };
 
+// loginUserSession(user): saves the user (secrets removed) as the logged-in session. Returns true/false.
 export const loginUserSession = async (user) => {
   try {
     await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(sanitizeUser(user)));
@@ -1350,6 +1463,7 @@ export const loginUserSession = async (user) => {
   }
 };
 
+// logoutUserSession(): removes the saved session. Returns true/false.
 export const logoutUserSession = async () => {
   try {
     await AsyncStorage.removeItem(SESSION_KEY);
@@ -1360,6 +1474,7 @@ export const logoutUserSession = async () => {
   }
 };
 
+// getLoggedInUserSession(): returns the saved user, or null if nobody is logged in (or on error).
 export const getLoggedInUserSession = async () => {
   try {
     const data = await AsyncStorage.getItem(SESSION_KEY);
@@ -1370,6 +1485,7 @@ export const getLoggedInUserSession = async () => {
   }
 };
 
+// cleanupUnusedImages(): deletes saved images whose category no longer exists. Returns how many were removed (0 on error).
 export const cleanupUnusedImages = async () => {
   try {
     const categories = await getAllCategories();

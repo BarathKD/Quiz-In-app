@@ -1,3 +1,16 @@
+/*
+ * CategoriesScreen
+ * What: the home screen after login. Two tabs (switched by the bottom bar):
+ *   1) "categories" tab: banner, Daily Challenge card, list of categories.
+ *   2) "profile" tab: user info + menu (Daily, Achievements, Mistakes, Bookmarks, Settings, Logout).
+ * Route params: { user, initialTab (optional: which tab to open first) }
+ * Data: utils/api.js -> getAllCategories, getDailyStatus (streak), getMistakeIds / getBookmarkIds (badge counts),
+ *       logoutUserSession.
+ * Texts: t() from utils/i18n.js. Colors/fonts: utils/theme.js.
+ * Next screens: "Subcategories" (tap a category), "DailyChallenge", "Achievements",
+ *   "Review" (mode: "mistakes" or "bookmarks"), "Settings", and "Login" after logout.
+ * Note: the profile tab is not a separate screen; it is the else-branch of the render below.
+ */
 import React, { useEffect, useState } from "react";
 import { View, Text, FlatList, Alert, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
@@ -14,14 +27,20 @@ import { colors, fonts, shadow } from "../utils/theme";
 
 export default function CategoriesScreen({ navigation, route }) {
   const { t } = useLang();
+  // insets = safe area (notch/status bar) sizes, used for the banner top padding.
   const insets = useSafeAreaInsets();
+  // State: activeTab = "categories" or "profile". categories = list from utils/api.js.
   const [activeTab, setActiveTab] = useState(route.params?.initialTab || "categories");
   const [categories, setCategories] = useState([]);
+  // Logged-in user object passed from Login (can be undefined for a guest).
   const user = route?.params?.user;
 
+  // State: daily = daily challenge status ({ doneToday, streak }); counts = badge numbers for the profile menu.
   const [daily, setDaily] = useState(null);
   const [counts, setCounts] = useState({ mistakes: 0, bookmarks: 0 });
 
+  // Helper: loads daily status and mistake/bookmark counts. Only for logged-in users.
+  // Called again on every "focus" so numbers update after coming back from a quiz.
   const loadExtras = async () => {
     if (!user?.id) return;
     setDaily(await getDailyStatus(user.id));
@@ -31,6 +50,8 @@ export default function CategoriesScreen({ navigation, route }) {
     });
   };
 
+  // Effect: on first open load categories + extras, and reload extras each time the screen gets focus.
+  // The returned function removes the focus listener when the screen closes.
   useEffect(() => {
     loadCategories();
     loadExtras();
@@ -38,12 +59,15 @@ export default function CategoriesScreen({ navigation, route }) {
     return unsubscribe;
   }, []);
 
+  // Effect: if another screen navigates here with initialTab (for example BottomNav profile button),
+  // switch to that tab.
   useEffect(() => {
     if (route.params?.initialTab) {
       setActiveTab(route.params.initialTab);
     }
   }, [route.params?.initialTab]);
 
+  // Helper: gets all categories from utils/api.js (server or local data). Errors are only logged.
   const loadCategories = async () => {
     try {
       const cats = await getAllCategories();
@@ -53,10 +77,13 @@ export default function CategoriesScreen({ navigation, route }) {
     }
   };
 
+  // Handler: tap a category -> Subcategories screen. The full category object is passed.
   const handleCategoryPress = (category) => {
     navigation.navigate("Subcategories", { category, user });
   };
 
+  // Handler: logout. Asks for confirmation, clears the session (utils/api.js),
+  // then resets navigation so the Back button cannot return to this screen.
   const handleLogout = () => {
     Alert.alert(t("logout"), t("logoutConfirm"), [
       { text: t("cancel") },
@@ -71,6 +98,7 @@ export default function CategoriesScreen({ navigation, route }) {
     ]);
   };
 
+  // Render helper: top banner with app name, language toggle and greeting (used as list header).
   const renderBanner = () => (
     <View style={[styles.banner, { paddingTop: Math.max(insets.top, 16) + 8 }]}>
       <View style={styles.bannerTop}>
@@ -82,6 +110,8 @@ export default function CategoriesScreen({ navigation, route }) {
     </View>
   );
 
+  // Render: either the categories tab or the profile tab (see the ternary below), then the bottom nav.
+  // Categories tab: FlatList whose header holds the banner + Daily Challenge card (only for logged-in users).
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       {activeTab === "categories" ? (
@@ -114,6 +144,7 @@ export default function CategoriesScreen({ navigation, route }) {
           contentContainerStyle={{ paddingBottom: 24 }}
           data={categories}
           keyExtractor={(item) => item.id}
+          // Each row = one category card (name, description, number of subcategories).
           renderItem={({ item, index }) => (
             <FadeInUp index={index} style={styles.rowWrap}>
               <PressableScale style={styles.categoryCard} onPress={() => handleCategoryPress(item)}>
@@ -143,6 +174,7 @@ export default function CategoriesScreen({ navigation, route }) {
           }
         />
       ) : (
+        // Profile tab: user card + menu rows. Badge numbers come from "counts" state.
         <View style={{ flex: 1 }}>
           <Header title={t("profile")} />
           <ScrollView contentContainerStyle={styles.userProfileContainer}>
@@ -169,11 +201,13 @@ export default function CategoriesScreen({ navigation, route }) {
         </View>
       )}
 
+      {/* Bottom tab bar; activeTab decides which tab is highlighted */}
       <BottomNav navigation={navigation} user={user} activeTab={activeTab} />
     </View>
   );
 }
 
+// Styles: colors and fonts come from utils/theme.js.
 const styles = StyleSheet.create({
   banner: {
     backgroundColor: colors.primary,

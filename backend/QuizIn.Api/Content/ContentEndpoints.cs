@@ -8,6 +8,9 @@ namespace QuizIn.Api.Content;
 // The JSON shapes below mirror what the mobile app already uses locally
 // (category.subcategories = names, category.subjects = { subcategory: [names] }, question.options = [{id,text}]),
 // so utils/api.js can switch from AsyncStorage to these endpoints with a thin mapping.
+/// <summary>
+/// Category as sent by GET /api/categories (same shape the mobile app uses).
+/// </summary>
 public record CategoryDto(
     int Id, string Name, string? Description, double BackgroundOpacity, int Timer,
     List<string> Subcategories,
@@ -16,28 +19,43 @@ public record CategoryDto(
     string? ImageUrl,
     Dictionary<string, string> SubjectImages);
 
+/// <summary>
+/// One answer option: Id is a letter (a-d), Text is what the user sees.
+/// </summary>
 public record OptionDto(string Id, string Text);
 
+/// <summary>
+/// Question as sent by GET /api/questions. Category / Subcategory / Subject are names, not ids.
+/// </summary>
 public record QuestionDto(
     int Id, string Category, string Subcategory, string? Subject, string Difficulty,
     string QuestionText, List<OptionDto> Options, string CorrectOptionId, string? Explanation);
 
+// Request bodies for the admin API. Fields are nullable so missing values can be checked.
 public record CategoryInput(string? Name, string? Description, int? TimerMinutes, double? BackgroundOpacity, int? SortOrder);
 public record NameInput(string? Name, int? TimerMinutes);
 public record QuestionInput(
     string? Category, string? Subcategory, string? Subject, string? Difficulty,
     string? QuestionText, List<OptionDto>? Options, string? CorrectOptionId, string? Explanation);
 
+/// <summary>
+/// REST API for categories and questions, plus admin CRUD and CSV / JSON / Excel import.
+/// </summary>
 public static class ContentEndpoints
 {
+    // The only difficulty values accepted.
     private static readonly string[] Difficulties = { "easy", "medium", "hard" };
+    // JSON settings (camelCase) for the options stored in Question.OptionsJson.
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+    // Registers all /api endpoints below. Called once when the app starts.
     public static void MapContent(this IEndpointRouteBuilder app)
     {
         // ---------- Read (any logged-in user) ----------
         var read = app.MapGroup("/api").RequireAuthorization();
 
+        // GET /api/categories. Any logged-in user (401 if not logged in).
+        // Returns all categories with subcategory names, subject names, timers and image urls.
         read.MapGet("/categories", async (AppDbContext db) =>
         {
             var cats = await db.Categories.AsNoTracking()
@@ -57,6 +75,7 @@ public static class ContentEndpoints
                     .GroupBy(x => x.Name).ToDictionary(g => g.Key, g => g.First().ImageUrl!))));
         });
 
+        // GET /api/questions?category=&subcategory=&subject=&difficulty=. Any logged-in user. All filters are optional.
         // ?subject= (present but empty) -> only questions without a subject; parameter absent -> any subject.
         read.MapGet("/questions", async (HttpRequest req, AppDbContext db,
             string? category, string? subcategory, string? subject, string? difficulty) =>
@@ -78,6 +97,7 @@ public static class ContentEndpoints
         // ---------- Admin ----------
         var admin = app.MapGroup("/api/admin").RequireAuthorization("Admin");
 
+        // POST /api/admin/categories. Admin only (401 / 403 otherwise). 400 name_required, 409 category_exists. Returns { id }.
         admin.MapPost("/categories", async (CategoryInput input, AppDbContext db) =>
         {
             var name = input.Name?.Trim();
@@ -96,6 +116,7 @@ public static class ContentEndpoints
             return Results.Ok(new { id = cat.Id });
         });
 
+        // PUT /api/admin/categories/{id}. Admin only. Only the fields that are sent are changed. 404 not found, 409 category_exists. Returns 204.
         admin.MapPut("/categories/{id:int}", async (int id, CategoryInput input, AppDbContext db) =>
         {
             var cat = await db.Categories.FindAsync(id);
@@ -114,6 +135,7 @@ public static class ContentEndpoints
             return Results.NoContent();
         });
 
+        // DELETE /api/admin/categories/{id}. Admin only. 404 if not found, 204 on success.
         admin.MapDelete("/categories/{id:int}", async (int id, AppDbContext db) =>
         {
             var cat = await db.Categories.FindAsync(id);
@@ -123,6 +145,7 @@ public static class ContentEndpoints
             return Results.NoContent();
         });
 
+        // POST /api/admin/categories/{categoryId}/subcategories. Admin only. 400 name_required, 404 category not found, 409 subcategory_exists.
         admin.MapPost("/categories/{categoryId:int}/subcategories", async (int categoryId, NameInput input, AppDbContext db) =>
         {
             var name = input.Name?.Trim();
@@ -136,6 +159,7 @@ public static class ContentEndpoints
             return Results.Ok(new { id = sub.Id });
         });
 
+        // DELETE /api/admin/subcategories/{id}. Admin only. 404 if not found, 204 on success.
         admin.MapDelete("/subcategories/{id:int}", async (int id, AppDbContext db) =>
         {
             var sub = await db.Subcategories.FindAsync(id);
@@ -145,6 +169,7 @@ public static class ContentEndpoints
             return Results.NoContent();
         });
 
+        // POST /api/admin/subcategories/{subcategoryId}/subjects. Admin only. 400 name_required, 404 subcategory not found, 409 subject_exists.
         admin.MapPost("/subcategories/{subcategoryId:int}/subjects", async (int subcategoryId, NameInput input, AppDbContext db) =>
         {
             var name = input.Name?.Trim();
@@ -158,6 +183,7 @@ public static class ContentEndpoints
             return Results.Ok(new { id = subject.Id });
         });
 
+        // DELETE /api/admin/subjects/{id}. Admin only. 404 if not found, 204 on success.
         admin.MapDelete("/subjects/{id:int}", async (int id, AppDbContext db) =>
         {
             if (!await db.Subjects.AnyAsync(s => s.Id == id)) return Results.NotFound();
@@ -168,11 +194,13 @@ public static class ContentEndpoints
             return Results.NoContent();
         });
 
+        // POST /api/admin/questions. Admin only. 400 with an error code when the input is not valid or the location does not exist. Returns { id }.
         admin.MapPost("/questions", async (QuestionInput input, AppDbContext db) =>
         {
             var error = Validate(input);
             if (error != null) return Results.BadRequest(new { error });
 
+            // create: false -> the category / subcategory / subject must already exist (else 400 *_not_found).
             var target = await Resolve(db, input.Category!, input.Subcategory!, input.Subject, create: false);
             if (target.Error != null) return Results.BadRequest(new { error = target.Error });
 
@@ -191,10 +219,12 @@ public static class ContentEndpoints
             return Results.Ok(new { id = question.Id });
         });
 
+        // PUT /api/admin/questions/{id}. Admin only. 404 if not found, 400 with an error code if not valid, 204 on success. The location is not changed.
         admin.MapPut("/questions/{id:int}", async (int id, QuestionInput input, AppDbContext db) =>
         {
             var question = await db.Questions.FindAsync(id);
             if (question == null) return Results.NotFound();
+            // requireTarget: false because category / subcategory are not needed to edit an existing question.
             var error = Validate(input, requireTarget: false);
             if (error != null) return Results.BadRequest(new { error });
 
@@ -207,12 +237,14 @@ public static class ContentEndpoints
             return Results.NoContent();
         });
 
+        // DELETE /api/admin/questions/{id}. Admin only. 404 if not found, 204 on success.
         admin.MapDelete("/questions/{id:int}", async (int id, AppDbContext db) =>
         {
             var deleted = await db.Questions.Where(q => q.Id == id).ExecuteDeleteAsync();
             return deleted == 0 ? Results.NotFound() : Results.NoContent();
         });
 
+        // POST /api/admin/import/csv?category=&subcategory=&subject=&difficulty=. Admin only. 400 with an error code, or 200 { added, skipped }.
         // Body = raw CSV text. Columns: id, question, A, B, C, D, correct answer (A-D, 1-4 or the answer text), explanation
         admin.MapPost("/import/csv", async (HttpRequest req, AppDbContext db,
             string category, string subcategory, string? subject, string? difficulty) =>
@@ -225,6 +257,7 @@ public static class ContentEndpoints
                 : Results.Ok(new { added = result.Added, skipped = result.Skipped });
         });
 
+        // POST /api/admin/import/json?category=&subcategory=&subject=&difficulty=. Admin only. Body = JSON text. Same answers as the CSV import.
         admin.MapPost("/import/json", async (HttpRequest req, AppDbContext db,
             string category, string subcategory, string? subject, string? difficulty) =>
         {
@@ -237,6 +270,7 @@ public static class ContentEndpoints
         });
     }
 
+    // Result of an import: Added = saved count, Skipped = one message per bad row, Error = code when nothing was done.
     public record ImportResult(int Added, List<string> Skipped, string? Error);
 
     // JSON body: an array of { questionText, options: [{id,text}], correctOptionId, explanation } (same as the app's old JSON import)
@@ -253,8 +287,10 @@ public static class ContentEndpoints
 
         var valid = new List<QuestionInput>();
         var skipped = new List<string>();
+        // Validate every item. Bad items are skipped with a message; good items are saved together.
         for (var i = 0; i < items.Count; i++)
         {
+            // The difficulty chosen for the whole import replaces the item's own value.
             var item = items[i] with { Difficulty = diff };
             var error = Validate(item, requireTarget: false);
             if (error != null) { skipped.Add($"Item {i + 1}: {error}"); continue; }
@@ -262,6 +298,7 @@ public static class ContentEndpoints
         }
         if (valid.Count == 0) return new ImportResult(0, skipped, null);
 
+        // create: true -> missing category / subcategory / subject are created.
         var target = await Resolve(db, category, subcategory, subject, create: true);
         if (target.Error != null) return new ImportResult(0, skipped, target.Error);
 
@@ -297,18 +334,21 @@ public static class ContentEndpoints
         return ImportRowsAsync(db, rows, category, subcategory, subject, difficulty);
     }
 
+    // Common import for CSV and Excel rows. Rows with a problem are skipped, the others are saved.
     private static async Task<ImportResult> ImportRowsAsync(
         AppDbContext db, List<List<string>> allRows, string category, string subcategory, string? subject, string difficulty)
     {
         var diff = difficulty.ToLowerInvariant();
         if (!Difficulties.Contains(diff)) return new ImportResult(0, new List<string>(), "invalid_difficulty");
 
+        // Ignore rows where every cell is empty.
         var rows = allRows.Where(r => r.Any(c => c != "")).ToList();
         if (rows.Count == 0) return new ImportResult(0, new List<string>(), "file_empty");
 
         var target = await Resolve(db, category, subcategory, subject, create: true);
         if (target.Error != null) return new ImportResult(0, new List<string>(), target.Error);
 
+        // Header detection: the first row is a header if it has names like id, question, answer or explanation. A header row is skipped.
         var first = rows[0];
         var c0 = first[0].Trim().ToLowerInvariant();
         var c1 = first.Count > 1 ? first[1].Trim().ToLowerInvariant() : "";
@@ -318,18 +358,22 @@ public static class ContentEndpoints
         var added = new List<Question>();
         var skipped = new List<string>();
         var letters = new[] { "a", "b", "c", "d" };
+        // Columns: 0 id, 1 question, 2-5 options A-D, 6 correct answer, 7 explanation.
         for (var i = isHeader ? 1 : 0; i < rows.Count; i++)
         {
             var row = rows[i];
             string Col(int n) => n < row.Count ? row[n].Trim() : "";
+            // A row needs at least 6 columns and non-empty id, question, A, B and answer.
             if (row.Count < 6) { skipped.Add($"Row {i + 1}: missing columns"); continue; }
             if (Col(0) == "" || Col(1) == "" || Col(2) == "" || Col(3) == "" || Col(6) == "")
             { skipped.Add($"Row {i + 1}: missing required fields"); continue; }
 
+            // Empty option cells are dropped. Option ids stay a-d by column.
             var options = new List<OptionDto>();
             for (var k = 0; k < 4; k++)
                 if (Col(2 + k) != "") options.Add(new OptionDto(letters[k], Col(2 + k)));
 
+            // The answer can be a letter, a number or the option text.
             var correct = MatchCorrect(Col(6), Col(2), Col(3), Col(4), Col(5));
             if (correct == null || !options.Any(o => o.Id == correct))
             { skipped.Add($"Row {i + 1}: correct answer not recognised"); continue; }
@@ -346,23 +390,27 @@ public static class ContentEndpoints
             });
         }
 
+        // Save all good rows in one go.
         db.Questions.AddRange(added);
         await db.SaveChangesAsync();
         return new ImportResult(added.Count, skipped, null);
     }
 
     // ---------- helpers ----------
+    // Questions with Subcategory, Category and Subject loaded (read only). Also used by the admin reports page.
     internal static IQueryable<Question> QuestionQuery(AppDbContext db) =>
         db.Questions.AsNoTracking()
             .Include(x => x.Subcategory).ThenInclude(s => s!.Category)
             .Include(x => x.Subject);
 
+    // Converts a database question to the API shape (options JSON text -> list).
     internal static QuestionDto ToDto(Question q) => new(
         q.Id, q.Subcategory!.Category!.Name, q.Subcategory.Name, q.Subject?.Name, q.Difficulty,
         q.QuestionText,
         JsonSerializer.Deserialize<List<OptionDto>>(q.OptionsJson, Json) ?? new List<OptionDto>(),
         q.CorrectOptionId, q.Explanation);
 
+    // Returns an error code (for the API answer) or null when the question is valid.
     private static string? Validate(QuestionInput i, bool requireTarget = true)
     {
         if (requireTarget && (string.IsNullOrWhiteSpace(i.Category) || string.IsNullOrWhiteSpace(i.Subcategory))) return "category_required";
@@ -375,6 +423,7 @@ public static class ContentEndpoints
         return null;
     }
 
+    // Turns an answer (A-D, 1-4 or the text of an option) into an option id a-d. Returns null when nothing matches.
     internal static string? MatchCorrect(string answer, string a, string b, string c, string d)
     {
         var key = answer.Trim().ToUpperInvariant();
@@ -392,6 +441,7 @@ public static class ContentEndpoints
         return null; // unlike the old local importer, never guess "a"
     }
 
+    // Result of Resolve: the found / created subcategory and subject, or an error code.
     internal record Target(Subcategory? Subcategory, Subject? Subject, string? Error);
 
     // Finds category > subcategory > subject by name. With create=true, missing ones are created.

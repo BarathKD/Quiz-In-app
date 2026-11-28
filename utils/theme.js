@@ -2,6 +2,7 @@
 // Peacock blue-teal, lotus violet and jasmine white. No red or yellow brand colors.
 // Every screen imports its colors from here.
 
+// colors: all app colors. Change a color here and every screen updates.
 export const colors = {
   bg: "#F4F9F8",          // jasmine white page background
   surface: "#FFFFFF",     // cards
@@ -24,6 +25,7 @@ export const colors = {
 };
 
 // Baloo Thambi 2 supports Tamil and Latin. Used for headings and the brand name.
+// fonts: font names loaded at app start (Expo font loader in the root layout).
 export const fonts = {
   heading: "BalooThambi2_800ExtraBold",
   headingSemi: "BalooThambi2_600SemiBold",
@@ -36,8 +38,10 @@ export const difficultyColors = {
   hard: "#7B4BC0",
 };
 
+// radius: corner roundness values for cards, tiles, pills and the hero banner.
 export const radius = { card: 18, tile: 14, pill: 999, hero: 28 };
 
+// shadow: common card shadow. Spread it into a style: {...shadow}. elevation is for Android.
 export const shadow = {
   shadowColor: "#0B2A33",
   shadowOffset: { width: 0, height: 1 },

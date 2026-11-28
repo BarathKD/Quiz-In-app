@@ -1,3 +1,12 @@
+/*
+ * SubcategoriesScreen
+ * What: shows the subcategories of one category (for example Tamil Nadu -> Class X, Class XI).
+ * Route params: { category (full object: name + subcategories array), user }
+ *   Note: here "category" is an object, but in SubjectsScreen it is only a name string.
+ * Data: utils/api.js -> getUserProgress (progress marks), getAllCategories (to check if nested subjects exist).
+ * Texts: t() from utils/i18n.js. Colors: utils/theme.js.
+ * Next screen: "Subjects" if the category has nested subjects, otherwise directly "Difficulty".
+ */
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, FlatList } from "react-native";
 import Header from "../components/header";
@@ -8,14 +17,18 @@ import { useLang } from "../utils/i18n";
 import { colors } from "../utils/theme";
 
 export default function SubcategoriesScreen({ navigation, route }) {
+  // Values sent by the previous screen (CategoriesScreen).
   const { category, user } = route.params;
   const { t } = useLang();
+  // State: progress = map of "category_subcategory" -> { easy, medium, hard } done flags.
   const [progress, setProgress] = useState({});
 
+  // Effect: load the user's progress once when the screen opens.
   useEffect(() => {
     loadUserProgress();
   }, []);
 
+  // Helper: gets progress from utils/api.js. Only works for logged-in users (user.id).
   const loadUserProgress = async () => {
     if (user?.id) {
       try {
@@ -27,6 +40,10 @@ export default function SubcategoriesScreen({ navigation, route }) {
     }
   };
 
+  // Handler: user taps a subcategory. Decides the next screen:
+  //  - category has nested subjects object -> "Subjects" screen
+  //  - otherwise -> straight to "Difficulty" screen
+  // If loading categories fails, the catch block uses the "Difficulty" screen as a safe fallback.
   const handleSubcategoryPress = async (subcategoryName) => {
     try {
       const categories = await getAllCategories();
@@ -62,15 +79,18 @@ export default function SubcategoriesScreen({ navigation, route }) {
     }
   };
 
+  // Helper: progress flags for one subcategory (default: nothing done).
   const getSubcategoryProgress = (subcategoryName) => {
     const key = `${category.name}_${subcategoryName}`;
     return progress[key] || { easy: false, medium: false, hard: false };
   };
 
+  // Render: header (back button), subcategory list, bottom navigation.
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Header title={category.name} onBack={() => navigation.goBack()} />
 
+      {/* Subcategory list: one ProgressRow per subcategory, data comes from category.subcategories */}
       <FlatList
         contentContainerStyle={{ paddingTop: 16, paddingBottom: 24 }}
         data={category.subcategories || []}
@@ -90,11 +110,13 @@ export default function SubcategoriesScreen({ navigation, route }) {
           </View>
         }
       />
+      {/* Bottom tab bar; "categories" tab stays highlighted */}
       <BottomNav navigation={navigation} user={user} activeTab="categories" />
     </View>
   );
 }
 
+// Styles: only the "empty list" message needs styles here; colors come from utils/theme.js.
 const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: "center",

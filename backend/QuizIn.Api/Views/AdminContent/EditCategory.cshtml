@@ -1,3 +1,4 @@
+@* Edit category page. Route: GET /admin/content/category/{id}/edit (AdminContentController.EditCategory). Model: Category (with its Subcategories and Subjects loaded). *@
 @model Category
 @{ ViewData["Title"] = "Edit category"; }
 <div class="page-head">
@@ -5,9 +6,12 @@
   <a class="btn btn-secondary" href="/admin/content">Back to content</a>
 </div>
 
+@* One form for the whole page. Posts to POST /admin/content/category/{id}/edit (AdminContentController.EditCategorySave). The controller reads the field names below (name, description, timerMinutes, backgroundOpacity, categoryImage, subName_{id}, subjName_{id}, subjTimer_{id}, subjImg_{id}, ...) and saves everything. enctype=multipart/form-data is needed to upload image files. *@
 <form method="post" action="/admin/content/category/@Model.Id/edit" enctype="multipart/form-data">
+  @* Anti-forgery token (CSRF protection). *@
   @Html.AntiForgeryToken()
 
+  @* Section 1: category name, description, timer, background opacity and background image. *@
   <div class="card">
     <h2 class="card-title">Category details</h2>
     <div class="field">
@@ -25,11 +29,13 @@
       </div>
       <div class="field">
         <label for="backgroundOpacity">Background opacity (0 to 1)</label>
+        @* Opacity is written with InvariantCulture so the decimal separator is always a dot (not a comma), as the number input requires. *@
         <input id="backgroundOpacity" name="backgroundOpacity" type="number" min="0" max="1" step="0.05" value="@Model.BackgroundOpacity.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)">
       </div>
     </div>
     <div class="field" style="margin-bottom:0">
       <label for="categoryImage">Background image (PNG, JPG or WEBP, max 2 MB)</label>
+      @* Show the current image and a Remove checkbox only when the category already has an image. If checked, the controller removes the image. *@
       @if (!string.IsNullOrEmpty(Model.ImageUrl))
       {
         <div class="img-row">
@@ -41,9 +47,11 @@
     </div>
   </div>
 
+  @* Section 2: rename every subcategory and subject, set subject timers, and change subject images. *@
   <div class="card">
     <h2 class="card-title">Subcategories and subjects</h2>
     <p class="muted">Rename them here. A subject timer overrides the category timer; leave it empty to use the category timer.</p>
+    @* Loop: each subcategory of this category, ordered by Id. The Id is part of the input name (subName_5) so the controller knows which row to update. *@
     @foreach (var sub in Model.Subcategories.OrderBy(s => s.Id))
     {
       <div class="edit-group">
@@ -51,12 +59,14 @@
           <label for="subName_@sub.Id">Subcategory</label>
           <input id="subName_@sub.Id" name="subName_@sub.Id" value="@sub.Name">
         </div>
+        @* Inner loop: each subject of this subcategory, ordered by Id. Input names end with the subject Id (subjName_, subjTimer_, subjImg_, subjImgRemove_). *@
         @foreach (var subject in sub.Subjects.OrderBy(x => x.Id))
         {
           <div class="edit-subjects">
             <input name="subjName_@subject.Id" value="@subject.Name" aria-label="Subject name">
             <input name="subjTimer_@subject.Id" type="number" min="1" max="180" value="@subject.TimerMinutes" placeholder="Timer (min)" aria-label="Subject timer in minutes">
             <div class="img-row subject-img">
+              @* Show the subject image and a Remove checkbox only when the subject has an image. *@
               @if (!string.IsNullOrEmpty(subject.ImageUrl))
               {
                 <img class="thumb" src="@subject.ImageUrl" alt="">
@@ -70,6 +80,7 @@
     }
   </div>
 
+  @* Save posts the whole form above. Cancel just goes back to the content list. *@
   <div class="form-actions">
     <button class="btn" type="submit">Save changes</button>
     <a class="btn btn-secondary" href="/admin/content">Cancel</a>

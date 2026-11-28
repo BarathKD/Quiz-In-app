@@ -4,9 +4,12 @@ namespace QuizIn.Api.Content;
 // Folder: Uploads:Path from config, else <content root>/uploads. On a host with ephemeral disk, point it at persistent storage.
 public class UploadStore
 {
+    // Largest image the admin may upload: 2 MB.
     public const long MaxBytes = 2 * 1024 * 1024;
+    // Folder on disk where images are saved (the web server also serves it under /uploads, see Program.cs).
     public string Root { get; }
 
+    // Picks the folder (config Uploads:Path or <app>/uploads) and creates it if it does not exist.
     public UploadStore(IConfiguration config, IWebHostEnvironment env)
     {
         var configured = config["Uploads:Path"];
@@ -15,6 +18,7 @@ public class UploadStore
     }
 
     // Returns (url, null) on success or (null, message) on a rejected file. File type is decided from the bytes, not the file name.
+    // Checks size and type, saves the file with a random name (so names never clash) and returns the URL like "/uploads/abc.jpg".
     public async Task<(string? Url, string? Error)> SaveImageAsync(IFormFile file)
     {
         if (file.Length == 0) return (null, "The image file is empty.");
@@ -32,6 +36,7 @@ public class UploadStore
             }
         }
 
+        // Decide the real file type from the first bytes. Never trust the file name the user sent.
         var ext = Sniff(bytes);
         if (ext == null) return (null, "Only PNG, JPG or WEBP images are allowed.");
 
@@ -40,6 +45,7 @@ public class UploadStore
         return ("/uploads/" + name, null);
     }
 
+    // Deletes an old image file when it is replaced or its category/subject is removed. Only touches files inside the uploads folder.
     public void Delete(string? url)
     {
         if (string.IsNullOrEmpty(url) || !url.StartsWith("/uploads/")) return;
@@ -47,6 +53,7 @@ public class UploadStore
         try { if (File.Exists(path)) File.Delete(path); } catch (IOException) { }
     }
 
+    // Looks at the file signature (magic bytes): PNG, JPG (JPEG) or WEBP. Returns the extension, or null if it is something else.
     private static string? Sniff(byte[] b)
     {
         if (b.Length > 8 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47) return ".png";

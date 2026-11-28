@@ -1,3 +1,33 @@
+// =====================================================================
+// AdminScreen.js - Admin panel of the Quiz-IN app
+// ---------------------------------------------------------------------
+// PURPOSE: Admin manages quiz content here: categories, questions,
+// bulk import (Excel / CSV / JSON), bulk delete, and logout.
+// All database work is done in ../utils/api.js (this file only calls it).
+//
+// FILE MAP (search for these names):
+//   1. SubcategoryManager  - small component for subcategory/subject chips
+//                            (used inside the Category modal)
+//   2. AdminScreen         - main screen, with 3 bottom tabs:
+//        'categories' tab  - list + add/edit/delete/reset categories
+//        'questions' tab   - filters, question list, add/edit/delete,
+//                            Bulk Import button, Bulk Delete button
+//        'admin' tab       - admin email + Logout
+//   3. Modals (at the end of the render): Bulk Delete, Import,
+//      Category, Question
+//   4. P (colors) and styles - all styles are at the bottom of the file
+//
+// MAIN STATE (inside AdminScreen):
+//   activeTab, categories, questions (+ pagination and filter states),
+//   questionForm / categoryForm (text typed in the modals),
+//   import* and bulkDelete* states (choices in the Import / Delete modals).
+//
+// DATA FLOW: loadData() -> utils/api.js -> setCategories / setQuestions.
+// After every save, delete or import we call loadData() to refresh.
+//
+// IF SOMETHING BREAKS: check the console.error messages. Each handler
+// below prints its own error text (for example 'Error saving category').
+// =====================================================================
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, TextInput, Alert, Modal, ScrollView } from "react-native";
 import * as DocumentPicker from 'expo-document-picker';
@@ -8,6 +38,7 @@ import Header from "../components/header";
 import QuestionFilters from "../components/admin/QuestionFilters";
 import QuestionList from "../components/admin/QuestionList";
 import CategoryList from "../components/admin/CategoryList";
+// Database functions from utils/api.js. Every read/write of categories and questions goes through these.
 import { 
   addQuestion, 
   updateQuestion, 
@@ -26,11 +57,18 @@ import {
 } from "../utils/api";
 
 // ============ NEW SUBCATEGORY MANAGER COMPONENT - ADD THIS ENTIRE SECTION ============
+// Small component used inside the Category modal. It edits categoryForm.subcategories and categoryForm.subjects.
+// Text format kept inside categoryForm (saveCategory later converts it to real arrays/objects):
+//   subcategories = one name per line
+//   subjects (nested mode) = one line per subcategory, like  Sub1:Subject1,Subject2
+//   subjects (simple mode) = one subject per line
 const SubcategoryManager = ({ categoryForm, setCategoryForm }) => {
+  // Local state: text in the add boxes, and which subcategory is selected for adding subjects.
   const [newSubcategory, setNewSubcategory] = useState("");
   const [selectedSubForSubjects, setSelectedSubForSubjects] = useState(null);
   const [newSubject, setNewSubject] = useState("");
 
+  // Add one subcategory to categoryForm.subcategories. Ignores empty text and shows an alert for duplicates.
   const addSubcategory = () => {
     if (!newSubcategory.trim()) return;
     
@@ -51,6 +89,7 @@ const SubcategoryManager = ({ categoryForm, setCategoryForm }) => {
     setNewSubcategory("");
   };
 
+  // Remove one subcategory, and also remove its subjects line (the line that starts with 'Name:').
   const removeSubcategory = (subToRemove) => {
     const subcategories = categoryForm.subcategories
       .split("\n")
@@ -73,6 +112,7 @@ const SubcategoryManager = ({ categoryForm, setCategoryForm }) => {
     }
   };
 
+  // Add one subject. Nested mode: added to the selected subcategory line. Simple mode: added as a new line.
   const addSubject = () => {
     if (!newSubject.trim()) return;
     
@@ -85,6 +125,7 @@ const SubcategoryManager = ({ categoryForm, setCategoryForm }) => {
         line.startsWith(selectedSubForSubjects + ":")
       );
       
+      // Line for this subcategory already exists: add the subject to its comma list. Otherwise create a new line.
       if (lineIndex >= 0) {
         const parts = subjectLines[lineIndex].split(":");
         const subjects = parts[1] ? parts[1].split(",").map(s => s.trim()) : [];
@@ -124,6 +165,7 @@ const SubcategoryManager = ({ categoryForm, setCategoryForm }) => {
     setNewSubject("");
   };
 
+  // Remove one subject. Nested mode needs the subcategory name to find the right line.
   const removeSubject = (subToRemove, subcategory = null) => {
     if (categoryForm.hasSubcategories && subcategory) {
       const subjectLines = categoryForm.subjects.split("\n");
@@ -138,6 +180,7 @@ const SubcategoryManager = ({ categoryForm, setCategoryForm }) => {
           .map(s => s.trim())
           .filter(s => s !== subToRemove);
         
+        // If no subjects are left, remove the whole line for this subcategory.
         if (subjects.length > 0) {
           subjectLines[lineIndex] = `${subcategory}:${subjects.join(",")}`;
         } else {
@@ -161,12 +204,14 @@ const SubcategoryManager = ({ categoryForm, setCategoryForm }) => {
     }
   };
 
+  // Helper: subcategory names as an array (for showing chips).
   const getSubcategoryList = () => {
     return categoryForm.subcategories 
       ? categoryForm.subcategories.split("\n").filter(Boolean).map(s => s.trim())
       : [];
   };
 
+  // Helper: subject names as an array. In nested mode only for the given subcategory.
   const getSubjectsList = (subcategory = null) => {
     if (!categoryForm.subjects) return [];
     
@@ -185,8 +230,10 @@ const SubcategoryManager = ({ categoryForm, setCategoryForm }) => {
     }
   };
 
+  // UI of SubcategoryManager: subcategory box (nested mode only) and subjects box.
   return (
     <View style={styles.subcategoryManager}>
+      {/* Subcategories box - only shown in Nested mode */}
       {categoryForm.hasSubcategories && (
         <View style={styles.managerSection}>
           <Text style={styles.managerTitle}>📚 Subcategories</Text>
@@ -217,11 +264,13 @@ const SubcategoryManager = ({ categoryForm, setCategoryForm }) => {
         </View>
       )}
 
+      {/* Subjects box. In nested mode, first pick a subcategory, then add subjects to it. */}
       <View style={styles.managerSection}>
         <Text style={styles.managerTitle}>
           {categoryForm.hasSubcategories ? "📖 Subjects" : "📖 Subjects/Topics"}
         </Text>
         
+        {/* Subcategory selector (which subcategory the new subject belongs to) */}
         {categoryForm.hasSubcategories && getSubcategoryList().length > 0 && (
           <View style={styles.subcategorySelector}>
             <Text style={styles.selectorLabel}>Select subcategory to add subjects:</Text>
@@ -247,6 +296,7 @@ const SubcategoryManager = ({ categoryForm, setCategoryForm }) => {
           </View>
         )}
 
+        {/* Subject input box and subject chips. Hidden in nested mode until a subcategory is selected. */}
         {(!categoryForm.hasSubcategories || selectedSubForSubjects) && (
           <>
             <View style={styles.inputRow}>
@@ -280,25 +330,33 @@ const SubcategoryManager = ({ categoryForm, setCategoryForm }) => {
 };
 // ============ END OF NEW COMPONENT ============
 
+// MAIN SCREEN. 'route.params.user' is sent by the previous screen (login).
 export default function AdminScreen({ navigation, route }) {
+  // ---------- STATE ----------
+  // activeTab is 'categories', 'questions' or 'admin' (bottom navigation).
   const [activeTab, setActiveTab] = useState("categories");
+  // Lists shown on screen. They are filled by loadData().
   const [questions, setQuestions] = useState([]);
   const [categories, setCategories] = useState([]);
   
   
   // Pagination for questions
+  // Pagination for the questions list. Page size is 50 (see loadQuestionsWithPagination).
   const [currentPage, setCurrentPage] = useState(0);
   const [hasMoreQuestions, setHasMoreQuestions] = useState(false);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   
   // Filter states for questions
+  // Filter values for the Questions tab. Empty string = no filter on that field.
   const [filterCategory, setFilterCategory] = useState("");
   const [filterSubcategory, setFilterSubcategory] = useState("");
   const [filterSubject, setFilterSubject] = useState("");
   const [filterDifficulty, setFilterDifficulty] = useState("");
   
   // Question modal states
+  // Question modal: open/close, which question is being edited (null = adding new), and the form values.
+  // optionsText = one option per line like  a:Option1 ; correct = id of the right option, for example a.
   const [questionModalVisible, setQuestionModalVisible] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [questionForm, setQuestionForm] = useState({
@@ -314,6 +372,9 @@ export default function AdminScreen({ navigation, route }) {
 
 
   // Category modal states
+  // Category modal: open/close, which category is being edited (null = adding new), and the form values.
+  // timer = default minutes (kept as text); subjectTimers = lines like  Subject:minutes.
+  // backgroundOpacity is saved with the category but has no input in this screen now.
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [categoryForm, setCategoryForm] = useState({
@@ -328,6 +389,7 @@ export default function AdminScreen({ navigation, route }) {
   });
   
   // Import states
+  // Import modal states: pasted text (CSV/JSON) and the chosen destination (category > subcategory > subject) and difficulty.
   const [bulkText, setBulkText] = useState("");
   const [csvText, setCsvText] = useState("");
   const [importModalVisible, setImportModalVisible] = useState(false);
@@ -337,23 +399,29 @@ export default function AdminScreen({ navigation, route }) {
   const [importDifficulty, setImportDifficulty] = useState("easy");
   
   // CSV File states
+  // Excel file import: file info, the CSV text made from the file, and the first 3 rows for preview.
   const [csvFileData, setCsvFileData] = useState("");
   const [selectedCsvFile, setSelectedCsvFile] = useState(null);
   const [csvPreview, setCsvPreview] = useState([]);
   
   // Bulk delete modal states
+  // Bulk Delete modal: filters chosen for deleting many questions. Empty string = 'all'.
   const [bulkDeleteModalVisible, setBulkDeleteModalVisible] = useState(false);
   const [bulkDeleteCategory, setBulkDeleteCategory] = useState("");
   const [bulkDeleteSubcategory, setBulkDeleteSubcategory] = useState("");
   const [bulkDeleteSubject, setBulkDeleteSubject] = useState("");
   const [bulkDeleteDifficulty, setBulkDeleteDifficulty] = useState("");
   
+  // Logged-in user (comes from navigation). Used to show the email on the Admin tab.
   const user = route?.params?.user;
 
+  // Load all data one time when the screen opens.
   useEffect(() => {
     loadData();
   }, []);
 
+  // ---------- DATA LOADING ----------
+  // Loads categories, then questions (page 1). Called at start and after every change.
   const loadData = async () => {
     try {
       const [categoriesData] = await Promise.all([
@@ -361,6 +429,7 @@ export default function AdminScreen({ navigation, route }) {
       ]);
       setCategories(categoriesData);
       
+      // WHY: the Import modal needs a starting category/subcategory, so we pick the first one.
       // Set default import category if categories exist
       if (categoriesData.length > 0 && !importCategory) {
         setImportCategory(categoriesData[0].name);
@@ -379,12 +448,15 @@ export default function AdminScreen({ navigation, route }) {
 
   // Load questions with pagination for better performance
   const loadQuestionsWithPagination = async (page = 0, reset = true) => {
+    // Skip if a load is already running (avoids double calls).
     if (isLoadingQuestions) return;
     
     setIsLoadingQuestions(true);
     try {
       let questionData;
       
+      // Two ways to load: (1) any filter set -> getQuestionsByFilter (loads ALL matches, then we page here),
+      // (2) no filter -> getQuestionsPaginated (the database gives one page). Both in utils/api.js.
       // If filters are applied, use filtered query
       if (filterCategory || filterSubcategory || filterSubject || filterDifficulty) {
         const filteredQuestions = await getQuestionsByFilter(
@@ -395,6 +467,7 @@ export default function AdminScreen({ navigation, route }) {
         );
         
         // Manual pagination for filtered results
+        // Filtered results are cut into pages here in the app (50 per page), not in the database.
         const start = page * 50;
         const end = start + 50;
         questionData = {
@@ -407,6 +480,7 @@ export default function AdminScreen({ navigation, route }) {
         questionData = await getQuestionsPaginated(page, 50);
       }
       
+      // reset = true: replace the list (new search). reset = false: add next page at the end (Load more).
       if (reset) {
         setQuestions(questionData.questions);
       } else {
@@ -423,12 +497,15 @@ export default function AdminScreen({ navigation, route }) {
     }
   };
 
+  // Called by the Apply button of QuestionFilters. Filter values are already in state, so just reload from page 0.
   // Apply filters to questions
   const applyFilters = async () => {
     await loadQuestionsWithPagination(0, true);
   };
 
   // Clear all filters
+  // NOTE: state updates are not instant, so the reload below may still use the OLD filter values.
+  // If the list does not clear after pressing Clear, look here.
   const clearFilters = () => {
     setFilterCategory("");
     setFilterSubcategory("");
@@ -437,6 +514,7 @@ export default function AdminScreen({ navigation, route }) {
     loadQuestionsWithPagination(0, true);
   };
 
+  // Called by the Load More button of QuestionList. Guards stop double taps and the last page.
   // Load more questions (pagination)
   const loadMoreQuestions = async () => {
     if (hasMoreQuestions && !isLoadingQuestions) {
@@ -445,12 +523,17 @@ export default function AdminScreen({ navigation, route }) {
   };
 
   // Bulk Delete Questions
+  // ---------- BULK DELETE ----------
+  // Deletes all questions that match the chosen filters. Calls utils/api.js bulkDeleteQuestions.
   const handleBulkDelete = async () => {
+    // (Validation first, then confirm box, then delete: this is the order of the whole function.)
+    // Safety: at least one filter is required, so the admin cannot delete everything by mistake.
     if (!bulkDeleteCategory && !bulkDeleteSubcategory && !bulkDeleteSubject && !bulkDeleteDifficulty) {
       Alert.alert("Error", "Please select at least one filter criteria");
       return;
     }
 
+    // Text like 'Category: X, Difficulty: easy' to show in the confirm box.
     const filterDesc = [
       bulkDeleteCategory && `Category: ${bulkDeleteCategory}`,
       bulkDeleteSubcategory && `Subcategory: ${bulkDeleteSubcategory}`,
@@ -468,6 +551,7 @@ export default function AdminScreen({ navigation, route }) {
           style: "destructive",
           onPress: async () => {
             try {
+              // Empty filter is sent as null, which means 'any' in utils/api.js.
               const deletedCount = await bulkDeleteQuestions(
                 bulkDeleteCategory || null,
                 bulkDeleteSubcategory || null,
@@ -497,6 +581,7 @@ export default function AdminScreen({ navigation, route }) {
   };
 
   // Get filtered subcategories for bulk delete
+  // Subcategories of the category chosen in the Bulk Delete modal.
   const getBulkDeleteSubcategories = () => {
     const category = categories.find(c => c.name === bulkDeleteCategory);
     return category?.subcategories || [];
@@ -505,12 +590,15 @@ export default function AdminScreen({ navigation, route }) {
   // Get filtered subjects for bulk delete
   const getBulkDeleteSubjects = () => {
     const category = categories.find(c => c.name === bulkDeleteCategory);
+    // Subjects exist only when the category is nested (subjects is an object keyed by subcategory).
     if (category?.subjects && typeof category.subjects === 'object') {
       return category.subjects[bulkDeleteSubcategory] || [];
     }
     return [];
   };
 
+  // ---------- EXCEL IMPORT ----------
+  // Step 1: admin picks an .xlsx file from the phone (expo-document-picker).
   // Excel File Picker Function
   const pickExcelFile = async () => {
     try {
@@ -531,6 +619,7 @@ export default function AdminScreen({ navigation, route }) {
   };
 
   // Read Excel File Function
+  // Step 2: read the file as base64, take the first sheet, and convert it to CSV text (xlsx library).
   const readExcelFile = async (fileUri) => {
     try {
       const fileContent = await FileSystem.readAsStringAsync(fileUri, {
@@ -546,6 +635,8 @@ export default function AdminScreen({ navigation, route }) {
       const lines = csvContent.trim().split('\n');
       const excelData = [];
       
+      // Start from row 1 to skip the header row. A valid row needs at least 8 columns:
+      // ID, Question, Option A, B, C, D, Correct Answer, Explanation.
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
@@ -556,6 +647,7 @@ export default function AdminScreen({ navigation, route }) {
         }
       }
       
+      // Keep the full CSV text. handleExcelFileImport sends it to bulkImportFromCsv.
       setCsvFileData(csvContent);
       setCsvPreview(excelData.slice(0, 3)); // Preview first 3 questions
       Alert.alert("Success", `Loaded ${excelData.length} questions from Excel file`);
@@ -575,6 +667,7 @@ export default function AdminScreen({ navigation, route }) {
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
       
+      // A quote switches 'inside quotes' on/off, so commas inside quotes do not split the column.
       if (char === '"') {
         inQuotes = !inQuotes;
       } else if (char === ',' && !inQuotes) {
@@ -590,6 +683,7 @@ export default function AdminScreen({ navigation, route }) {
   };
 
   // Import Excel File Function
+  // Step 3: import the loaded Excel data into the chosen category/subcategory/subject. Calls utils/api.js bulkImportFromCsv.
   const handleExcelFileImport = async () => {
     if (!importCategory || !importSubcategory) {
       Alert.alert("Error", "Please select category and subcategory");
@@ -610,6 +704,7 @@ export default function AdminScreen({ navigation, route }) {
         importDifficulty
       );
       
+      // The api may return a number or an object {addedCount, skippedLines}. Handle both.
       const addedCount = typeof result === 'object' ? result.addedCount : result;
       const skippedLines = typeof result === 'object' ? result.skippedLines : [];
       
@@ -634,6 +729,7 @@ export default function AdminScreen({ navigation, route }) {
   };
 
   // Reset all data function
+  // DANGER: deletes ALL categories, questions and user progress, then loads sample data (utils/api.js forceResetData).
   const resetAllData = async () => {
     Alert.alert(
       "Reset All Data", 
@@ -657,6 +753,8 @@ export default function AdminScreen({ navigation, route }) {
     );
   };
 
+  // ---------- CATEGORY MANAGEMENT ----------
+  // Open the Category modal empty (for a new category).
   // Category Management Functions
   const openNewCategory = () => {
     setEditingCategory(null);
@@ -673,6 +771,8 @@ export default function AdminScreen({ navigation, route }) {
     setCategoryModalVisible(true);
   };
 
+  // Save button of the Category modal. Converts the text fields of categoryForm to real arrays/objects
+  // and calls utils/api.js addCategory (new) or updateCategory (edit).
   const saveCategory = async () => {
     try {
       console.log("=== SAVING CATEGORY ===");
@@ -681,10 +781,12 @@ export default function AdminScreen({ navigation, route }) {
         name: categoryForm.name.trim(),
         description: categoryForm.description.trim(),
         backgroundOpacity: categoryForm.backgroundOpacity,
+        // Timer must be a number. If it is wrong or empty, 30 minutes is used.
         timer: parseInt(categoryForm.timer) || 30,
         subjectTimers: {}
       };
 
+      // subjectTimers text lines 'Subject:minutes' -> object { Subject: minutes } (wrong number becomes 30).
       if (categoryForm.subjectTimers.trim()) {
         const timers = {};
         categoryForm.subjectTimers.split('\n').forEach(line => {
@@ -696,6 +798,7 @@ export default function AdminScreen({ navigation, route }) {
         categoryObj.subjectTimers = timers;
       }
 
+      // Nested mode: subcategories array, and subjects object like { Sub1: [Subject1, Subject2] }.
       if (categoryForm.hasSubcategories && categoryForm.subcategories.trim()) {
         const subcategoriesArray = categoryForm.subcategories
           .split("\n")
@@ -720,6 +823,7 @@ export default function AdminScreen({ navigation, route }) {
             categoryObj.subjects = subjectsObj;
           }
         }
+      // Simple mode: the subject list is saved in the field 'subcategories' (there are no nested subjects).
       } else {
         if (categoryForm.subjects.trim()) {
           const subjectsArray = categoryForm.subjects
@@ -730,6 +834,7 @@ export default function AdminScreen({ navigation, route }) {
         }
       }
 
+      // Edit existing category or create a new one.
       let categoryId;
       if (editingCategory) {
         await updateCategory(editingCategory.id, categoryObj);
@@ -750,6 +855,8 @@ export default function AdminScreen({ navigation, route }) {
     }
   };
 
+  // Open the Category modal filled with an existing category. This is the reverse of saveCategory
+  // (arrays/objects back to text lines). Nested mode is detected when 'subjects' is an object.
   const startEditCategory = async (category) => {
     setEditingCategory(category);
     
@@ -774,6 +881,8 @@ export default function AdminScreen({ navigation, route }) {
     setCategoryModalVisible(true);
   };
 
+  // Ask confirmation, then call utils/api.js deleteCategory. The alert says its questions are deleted too;
+  // check deleteCategory in utils/api.js for how that is done.
   const onDeleteCategory = (category) => {
     Alert.alert(
       "Confirm Delete", 
@@ -800,6 +909,8 @@ export default function AdminScreen({ navigation, route }) {
     );
   };
 
+  // ---------- QUESTION MANAGEMENT ----------
+  // Open the Question modal empty (for a new question).
   // Question Management Functions
   const openNewQuestion = () => {
     setEditingQuestion(null);
@@ -809,6 +920,7 @@ export default function AdminScreen({ navigation, route }) {
       subject: "",
       difficulty: "easy", 
       questionText: "", 
+      // Default option lines. Format is  id:Text  (one per line).
       optionsText: "a:Option1\nb:Option2\nc:Option3\nd:Option4", 
       correct: "a", 
       explanation: ""
@@ -816,14 +928,17 @@ export default function AdminScreen({ navigation, route }) {
     setQuestionModalVisible(true);
   };
 
+  // Save button of the Question modal. Calls utils/api.js addQuestion (new) or updateQuestion (edit).
   const saveQuestion = async () => {
     try {
+      // Option lines 'a:Text' -> [{id:'a', text:'Text'}]. Text may contain ':' so only the first ':' splits.
       const optLines = questionForm.optionsText.split("\n").map(l => l.trim()).filter(Boolean);
       const options = optLines.map(l => {
         const [id, ...rest] = l.split(":");
         return { id: id.trim(), text: rest.join(":").trim() };
       });
       
+      // Question object in the format stored by utils/api.js.
       const qObj = {
         category: questionForm.category,
         subcategory: questionForm.subcategory,
@@ -834,6 +949,7 @@ export default function AdminScreen({ navigation, route }) {
         explanation: questionForm.explanation
       };
 
+      // Subject is optional. Add it only when selected.
       if (questionForm.subject) {
         qObj.subject = questionForm.subject;
       }
@@ -851,6 +967,7 @@ export default function AdminScreen({ navigation, route }) {
     }
   };
 
+  // Open the Question modal filled with an existing question.
   const startEditQuestion = (q) => {
     setEditingQuestion(q);
     setQuestionForm({
@@ -866,6 +983,7 @@ export default function AdminScreen({ navigation, route }) {
     setQuestionModalVisible(true);
   };
 
+  // Ask confirmation, then call utils/api.js deleteQuestion.
   const onDeleteQuestion = (id) => {
     Alert.alert("Confirm", "Delete question?", [
       { text: "Cancel" },
@@ -884,6 +1002,7 @@ export default function AdminScreen({ navigation, route }) {
   };
 
   // Import helper functions
+  // Import modal helpers: data of the chosen import category, and its subcategories/subjects.
   const getImportCategoryData = () => {
     return categories.find(c => c.name === importCategory) || {};
   };
@@ -901,7 +1020,10 @@ export default function AdminScreen({ navigation, route }) {
     return [];
   };
 
+  // NOTE: handleJsonImport, handleCsvImport and handleExcelFileImport are very similar.
+  // They differ only in the source text and the utils/api.js function. A bug in one may be in all three.
   // Import Functions
+  // Import from pasted JSON text. Calls utils/api.js bulkImportFromJson.
   const handleJsonImport = async () => {
     if (!importCategory || !importSubcategory) {
       Alert.alert("Error", "Please select category and subcategory");
@@ -940,6 +1062,7 @@ export default function AdminScreen({ navigation, route }) {
     }
   };
 
+  // Import from pasted CSV text. Calls utils/api.js bulkImportFromCsv.
   const handleCsvImport = async () => {
     if (!importCategory || !importSubcategory) {
       Alert.alert("Error", "Please select category and subcategory");
@@ -969,6 +1092,8 @@ export default function AdminScreen({ navigation, route }) {
     }
   };
 
+  // These three helpers feed the Category/Subcategory/Subject pickers of the Question modal (MODAL 4).
+  // Question modal helpers: subcategories and subjects of the category chosen in the form.
   const getSelectedCategoryData = () => {
     const selectedCategory = categories.find(c => c.name === questionForm.category);
     return selectedCategory || {};
@@ -1009,10 +1134,14 @@ export default function AdminScreen({ navigation, route }) {
         if (name) subjects.push(name);
       });
     }
+    // Same subject name can appear under many subcategories; show each timer input only once.
     // Deduplicate
     return [...new Set(subjects)];
   };
 
+  // The timers are kept as ONE text (lines 'Subject:minutes') in categoryForm.subjectTimers.
+  // The per-subject inputs in MODAL 3 read and write that text with the two functions below.
+  // saveCategory later turns the text into an object. If a timer is not saved, check this format.
   // Get a single subject's timer from the subjectTimers string
   const getSubjectTimerValue = (subject) => {
     if (!categoryForm.subjectTimers) return '';
@@ -1029,6 +1158,7 @@ export default function AdminScreen({ navigation, route }) {
       ? categoryForm.subjectTimers.split('\n').filter(Boolean)
       : [];
     const idx = lines.findIndex(l => l.startsWith(subject + ':'));
+    // Empty or 0 means 'use default timer', so the line is removed from the text.
     if (value === '' || value === '0') {
       if (idx >= 0) lines.splice(idx, 1);
     } else {
@@ -1040,6 +1170,8 @@ export default function AdminScreen({ navigation, route }) {
   };
   // ──────────────────────────────────────────────────────────────────────
 
+  // Logout: ask confirmation, clear session (utils/api.js logoutUserSession), then go to Login screen.
+  // navigation.reset removes old screens so the Back button cannot return to Admin.
   const handleLogout = async () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
       { text: "Cancel" },
@@ -1057,13 +1189,18 @@ export default function AdminScreen({ navigation, route }) {
     ]);
   };
 
+  // ---------- RENDER ----------
+  // Layout: header, content (one tab at a time), bottom navigation, then the modals.
   return (
     <View style={{ flex: 1 }}>
+      {/* Top header */}
       <View style={styles.headerContainer}>
         <Header title="Admin Dashboard" />
       </View>
       
+      {/* Main content area. activeTab decides which one of the 3 tabs below is shown. */}
       <ScrollView style={{ flex: 1, backgroundColor: "#f5f5f5", padding: 12 }}>
+        {/* TAB 1: Categories (add, reset all, list with edit/delete). List UI: components/admin/CategoryList.js */}
         {activeTab === "categories" && (
           <View>
             <TouchableOpacity style={styles.btn} onPress={openNewCategory}>
@@ -1087,6 +1224,7 @@ export default function AdminScreen({ navigation, route }) {
             />
           </View>
         )}
+        {/* TAB 2: Questions (add, bulk import, bulk delete, filters, list). UI: components/admin/QuestionFilters.js and QuestionList.js */}
         {activeTab === "questions" && (
           <View>
             <TouchableOpacity style={styles.btn} onPress={openNewQuestion}>
@@ -1134,6 +1272,7 @@ export default function AdminScreen({ navigation, route }) {
             />
           </View>
         )}
+        {/* TAB 3: Admin profile (email and Logout button) */}
         {activeTab === "admin" && (
           <View style={styles.adminProfileContainer}>
             <View style={styles.profileCard}>
@@ -1189,8 +1328,10 @@ export default function AdminScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
+      {/* MODAL 1: Bulk Delete. Opened by 'Bulk Delete Questions' button. The Delete button runs handleBulkDelete. */}
       {/* Bulk Delete Modal */}
       <Modal visible={bulkDeleteModalVisible} animationType="slide">
+        {/* Modal body scrolls. Order: header (X button), filters (category > subcategory > subject), difficulty, summary, buttons. */}
         <ScrollView style={{ padding: 16 }}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Bulk Delete Questions</Text>
@@ -1205,6 +1346,7 @@ export default function AdminScreen({ navigation, route }) {
           <View style={styles.configSection}>
             <Text style={styles.configTitle}>Select Questions to Delete</Text>
             
+            {/* Picking a category resets the lower levels, so old subcategory/subject cannot stay selected by mistake. */}
             {/* Category Selection */}
             <Text style={styles.label}>Category (Optional)</Text>
             <View style={styles.pickerContainer}>
@@ -1348,6 +1490,7 @@ export default function AdminScreen({ navigation, route }) {
               ))}
             </View>
 
+            {/* Red box: shows the exact filters that handleBulkDelete will use. Check here before pressing Delete. */}
             {/* Delete Summary */}
             <View style={styles.deleteSummary}>
               <Text style={styles.summaryText}>
@@ -1379,6 +1522,7 @@ export default function AdminScreen({ navigation, route }) {
         </ScrollView>
       </Modal>
 
+      {/* MODAL 2: Bulk Import. Opened by 'Bulk Import Questions' button. Pick destination first, then use Method 1, 2 or 3. */}
       {/* Import Modal */}
       <Modal visible={importModalVisible} animationType="slide">
         <ScrollView style={{ padding: 16 }}>
@@ -1396,6 +1540,7 @@ export default function AdminScreen({ navigation, route }) {
           <View style={styles.configSection}>
             <Text style={styles.configTitle}>Import Destination</Text>
             
+            {/* Same reset rule as above: changing category picks its first subcategory and clears the subject. */}
             {/* Category Selection */}
             <Text style={styles.label}>Category</Text>
             <View style={styles.pickerContainer}>
@@ -1499,6 +1644,7 @@ export default function AdminScreen({ navigation, route }) {
               ))}
             </View>
 
+            {/* Green box: shows where the imported questions will go. */}
             {/* Import Summary */}
             <View style={styles.importSummary}>
               <Text style={styles.summaryText}>
@@ -1535,6 +1681,7 @@ export default function AdminScreen({ navigation, route }) {
                 </View>
               )}
               
+              {/* Preview of the first 3 rows. Columns: row[1] question, row[2..5] options A-D, row[6] correct answer. */}
               {csvPreview.length > 0 && (
                 <View style={styles.csvPreview}>
                   <Text style={styles.previewTitle}>Preview (first 3 questions):</Text>
@@ -1551,6 +1698,7 @@ export default function AdminScreen({ navigation, route }) {
                 </View>
               )}
               
+              {/* Import button is grey and disabled until an Excel file is loaded (csvFileData is empty before that). */}
               <TouchableOpacity 
                 style={[
                   styles.btn, 
@@ -1573,6 +1721,7 @@ export default function AdminScreen({ navigation, route }) {
             Alternative Methods: Manual CSV or JSON Input
           </Text>
 
+          {/* Method 2: paste CSV text. Button runs handleCsvImport. */}
           <View style={styles.importSection}>
             <Text style={styles.label}>Method 2: Paste CSV Data</Text>
             <Text style={styles.helpText}>
@@ -1593,6 +1742,7 @@ export default function AdminScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
 
+          {/* Method 3: paste JSON text. Button runs handleJsonImport. */}
           <View style={styles.importSection}>
             <Text style={styles.label}>Method 3: JSON Format (Advanced)</Text>
             <Text style={styles.helpText}>
@@ -1624,6 +1774,7 @@ export default function AdminScreen({ navigation, route }) {
         </ScrollView>
       </Modal>
 
+      {/* MODAL 3: Category form. Opened by Add/Edit category. Save button runs saveCategory. */}
       {/* Enhanced Category Modal with Image Support */}
       <Modal visible={categoryModalVisible} animationType="slide">
         <ScrollView style={{ padding: 12 }}>
@@ -1656,6 +1807,7 @@ export default function AdminScreen({ navigation, route }) {
             placeholder="Brief description of this category"
           />
 
+          {/* hasSubcategories false = Simple (category > subjects). true = Nested (category > subcategory > subjects). saveCategory stores them differently. */}
           {/* Structure Type Toggle */}
           <View style={styles.toggleContainer}>
             <Text style={styles.label}>Structure Type</Text>
@@ -1689,10 +1841,12 @@ export default function AdminScreen({ navigation, route }) {
             <Text style={styles.timerUnit}>min</Text>
           </View>
 
+          {/* SubcategoryManager (top of this file) edits categoryForm.subcategories and categoryForm.subjects as text lines. */}
           {/* Subcategories and Subjects sections */}
           <SubcategoryManager categoryForm={categoryForm}
            setCategoryForm={setCategoryForm} />
 
+          {/* Shown only when the form has at least one subject. Values go into categoryForm.subjectTimers. */}
           {/* Per-subject timer UI */}
           {getAllSubjectsFromForm().length > 0 && (
             <View style={styles.subjectTimerSection}>
@@ -1734,6 +1888,7 @@ export default function AdminScreen({ navigation, route }) {
         </ScrollView>
       </Modal>
 
+      {/* MODAL 4: Question form. Opened by Add/Edit question. Save button runs saveQuestion. */}
       {/* Question Modal */}
       <Modal visible={questionModalVisible} animationType="slide">
         <ScrollView style={{ padding: 12 }}>
@@ -1837,6 +1992,7 @@ export default function AdminScreen({ navigation, route }) {
             multiline 
           />
           
+          {/* Options text is parsed in saveQuestion. 'Correct Option ID' below must match one of the ids here. */}
           <Text style={styles.label}>Options (one per line, format: id:Text)</Text>
           <TextInput 
             value={questionForm.optionsText} 
@@ -1877,6 +2033,8 @@ export default function AdminScreen({ navigation, route }) {
   );
 }
 
+// Color palette used by styles below. Change colors here.
+// The names in old comments (Indigo, amber) do not match the real colors now (teal and purple).
 const P = {
   primary:   "#0C6478",   // Indigo-500
   primaryDk: "#084A5A",   // Indigo-600
@@ -1897,6 +2055,7 @@ const P = {
   subtext:   "#6B7280",
 };
 
+// All styles of this file. Some styles are not used any more (see the stub section near the end).
 const styles = StyleSheet.create({
   // ── Layout ──────────────────────────────────────
   headerContainer:     { backgroundColor: P.white },
@@ -1980,6 +2139,7 @@ const styles = StyleSheet.create({
   toggleText:      { fontSize:14, color:P.subtext },
   activeToggleText:{ color:P.primary, fontWeight:"700" },
 
+  // Styles used by the SubcategoryManager component at the top of this file.
   // ── Subcategory Manager ──────────────────────────
   subcategoryManager: { marginTop:16, marginBottom:16 },
   managerSection:  { backgroundColor:P.surface, padding:16, borderRadius:12, marginBottom:16, borderLeftWidth:4, borderLeftColor:P.primary },
@@ -2001,6 +2161,7 @@ const styles = StyleSheet.create({
   selectorChipText: { fontSize:13, color:P.subtext, fontWeight:"500" },
   selectorChipTextActive: { color:P.white, fontWeight:"700" },
 
+  // Styles for the Import and Bulk Delete modals (config box, summary boxes, CSV/Excel area).
   // ── Config / Import ──────────────────────────────
   configSection:   { backgroundColor:P.surface, padding:16, borderRadius:12, marginBottom:20, borderLeftWidth:4, borderLeftColor:P.primary },
   configTitle:     { fontSize:16, fontWeight:"700", color:P.text, marginBottom:16, textAlign:"center" },
@@ -2021,6 +2182,7 @@ const styles = StyleSheet.create({
   previewQuestionText: { fontSize:13, color:P.text, fontWeight:"500", marginBottom:4 },
   previewOptions:  { fontSize:11, color:P.subtext },
 
+  // The styles below are old image/slider styles. They are not used now, so do not spend time debugging them.
   // ── Image / Slider stubs (unused but kept to avoid ref errors) ──
   imageSection:    { backgroundColor:P.surface, padding:16, borderRadius:12, marginTop:16, borderLeftWidth:4, borderLeftColor:P.primary },
   imageControls:   { flexDirection:"row", marginTop:8 },
@@ -2047,6 +2209,7 @@ const styles = StyleSheet.create({
   previewOptionLabel: { width:24, height:24, borderRadius:12, backgroundColor:P.primary, color:P.white, textAlign:"center", lineHeight:24, marginRight:8, fontSize:12, fontWeight:"bold" },
   previewOptionTextNew: { fontSize:12, color:P.subtext, flex:1 },
 
+  // Styles for the default timer and per-subject timers in the Category modal.
   // ── Timer UI ─────────────────────────────────────────────────────────
   timerDefaultRow:            { flexDirection:"row", alignItems:"center", marginTop:6 },
   timerDefaultInput:          { flex:1, marginTop:0, marginRight:10 },
@@ -2060,4 +2223,4 @@ const styles = StyleSheet.create({
   subjectTimerInputGroup:     { flexDirection:"row", alignItems:"center" },
   subjectTimerInput:          { borderWidth:1.5, borderColor:P.primaryMd, borderRadius:8, paddingHorizontal:10, paddingVertical:6, width:60, fontSize:15, fontWeight:"700", color:P.primaryDk, textAlign:"center", backgroundColor:P.primaryLt, marginRight:6 },
 });
-
+

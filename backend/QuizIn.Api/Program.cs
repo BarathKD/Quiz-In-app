@@ -12,9 +12,13 @@ using QuizIn.Api.Data;
 using QuizIn.Api.Models;
 using Microsoft.Extensions.FileProviders;
 
+// Program.cs = app start-up. Order matters: 1) register services (builder), 2) build the app,
+// 3) prepare the database, 4) add middleware (order = order of request handling), 5) map endpoints.
 var builder = WebApplication.CreateBuilder(args);
 
 // ---- Database: SQLite for development, SQL Server for production (Database:Provider) ----
+// Settings come from appsettings.json or environment variables.
+// If database errors happen at start, check "Database:Provider" and the "Default" connection string first.
 var provider = builder.Configuration["Database:Provider"] ?? "Sqlite";
 var connection = builder.Configuration.GetConnectionString("Default") ?? "Data Source=quizin.db";
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -24,15 +28,19 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 });
 
 // ---- JWT auth ----
+// Read the Jwt settings (Key, Issuer, Audience, ExpiryDays). The app refuses to start without a strong key.
 var jwt = builder.Configuration.GetSection("Jwt");
 var jwtKey = jwt["Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
     throw new InvalidOperationException("Jwt:Key must be set and at least 32 characters (use an environment variable in production).");
 
+// TokenService creates login tokens. UploadStore saves uploaded images on disk.
 builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton<UploadStore>();
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    // Scheme 1 (default): JWT bearer token, used by the mobile app API (/api/...).
+    // The token is checked for issuer, audience, signature and expiry.
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
@@ -70,11 +78,13 @@ builder.Services
             return Task.CompletedTask;
         };
     });
+// Authorization policy "Admin": only users with the Admin role (used by /api/admin endpoints and admin pages).
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("Admin", p => p.RequireRole("Admin"));
 });
 
+// MVC controllers + Razor views (the admin panel in /Views). MemoryCache is used for short-lived data.
 builder.Services.AddControllersWithViews();
 builder.Services.AddMemoryCache();
 // Password-reset e-mails: real SMTP when Email:Host is set, otherwise just logged (development)
@@ -93,6 +103,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
+// Rate limiter: policies are applied on endpoints with .RequireRateLimiting("name"). Too many requests -> 429.
 // Slow down password guessing: 10 login attempts per minute per IP
 builder.Services.AddRateLimiter(options =>
 {
@@ -107,6 +118,7 @@ builder.Services.AddRateLimiter(options =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 6, Window = TimeSpan.FromMinutes(1) }));
 });
 
+// From here the services are fixed. Everything below runs once at start-up.
 var app = builder.Build();
 
 // ---- Create / update the database, then make sure the first admin exists ----
@@ -116,6 +128,8 @@ using (var scope = app.Services.CreateScope())
     if (db.Database.GetMigrations().Any()) db.Database.Migrate();
     else db.Database.EnsureCreated(); // first run before any migration has been created
 
+    // First admin: created only if Admin:Email and Admin:Password are set and that user does not exist yet.
+    // If you cannot log in to /admin, check these two settings.
     var adminEmail = builder.Configuration["Admin:Email"]?.Trim().ToLowerInvariant();
     var adminPassword = builder.Configuration["Admin:Password"];
     if (!string.IsNullOrEmpty(adminEmail) && !string.IsNullOrEmpty(adminPassword)
@@ -135,23 +149,33 @@ using (var scope = app.Services.CreateScope())
         SampleSeeder.SeedAsync(db, Path.Combine(app.Environment.ContentRootPath, "Data", "seed.json")).GetAwaiter().GetResult();
 }
 
+// ---- Middleware pipeline: each request passes these in this order ----
+// 1) Forwarded headers (real client IP and https scheme from the proxy) must come first.
 app.UseForwardedHeaders();
+// 2) Static files: wwwroot (css, js) and then uploaded images served under /uploads.
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(app.Services.GetRequiredService<UploadStore>().Root),
     RequestPath = "/uploads"
 });
+// 3) Rate limiter, then 4) who is the user (authentication), then 5) is the user allowed (authorization).
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// ---- Endpoints ----
+// GET /health: anonymous, simple "is the server alive" check. Returns { status, time }.
 app.MapGet("/health", () => Results.Ok(new { status = "ok", time = DateTime.UtcNow }));
+// Minimal API endpoint groups: Auth/AuthEndpoints.cs, Content/ContentEndpoints.cs,
+// Auth/UserDataEndpoints.cs, and MapSettings (game settings, see Content/GameSettings.cs).
 app.MapAuth();
 app.MapContent();
 app.MapUserData();
 app.MapSettings();
+// MVC controllers = the admin web pages (/admin/...).
 app.MapControllers();
+// Home page "/" goes to the admin panel.
 app.MapGet("/", () => Results.Redirect("/admin"));
 
 app.Run();

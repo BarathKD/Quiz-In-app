@@ -1,3 +1,9 @@
+// SplashScreen.js - first screen (initialRouteName in App.js). Plays an intro animation and, at the same time, checks if a user is already logged in.
+// ROUTE PARAMS: none.
+// NAVIGATES TO (navigation.replace): "Login" (no session), "Admin" (local-mode admin) or "Categories" (logged in user).
+// TALKS TO: utils/api.js (getLoggedInUserSession, USE_SERVER).
+// It moves on only when BOTH are done: the session check finished AND the animation finished (or user tapped to skip). See go().
+// If the app is stuck on this screen, check go() and the session check inside useEffect.
 import React, { useEffect, useRef, useMemo } from "react";
 import { View, Text, StyleSheet, Animated, Easing, Pressable, Dimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,10 +13,13 @@ import { fonts } from "../utils/theme";
 
 // Animated opening: 3D-looking cards float in, merge into the logo, then Tamil + English taglines appear.
 // Always shows both languages. Uses only core Animated (works in Expo Go). No red or yellow.
+// Screen width, used to place the floating cards.
 const { width: W } = Dimensions.get("window");
 const HOLD_MS = 700; // pause on the finished logo before moving on
+// Splash has its own fixed colors (not from utils/theme.js) because it is a special dark intro screen.
 const BG = "#062F3A";
 
+// Floating cards: icon, color, and start position (x = fraction of screen width, y = pixels from center).
 const CARDS = [
   { icon: "help", color: "#0C6478", x: -0.30, y: -150 },
   { icon: "bulb", color: "#7B4BC0", x: 0.30, y: -120 },
@@ -22,11 +31,13 @@ const CARDS = [
 
 export default function SplashScreen() {
   const navigation = useNavigation();
+  // Refs (do not cause re-render): done = already navigated, skip = user tapped, target = where to go next, animDone = animation finished.
   const done = useRef(false);
   const skip = useRef(false);
   const target = useRef(null);
   const animDone = useRef(false);
 
+  // Animated values: enter = each card appears; spin/bob/glow = looping effects; merge = cards fly into center; logo/shine = logo show; tagTa/tagEn = Tamil and English taglines.
   const enter = useRef(CARDS.map(() => new Animated.Value(0))).current;
   const spin = useRef(new Animated.Value(0)).current;
   const bob = useRef(new Animated.Value(0)).current;
@@ -37,6 +48,7 @@ export default function SplashScreen() {
   const tagEn = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0)).current;
 
+  // Navigation gate. Called from 3 places (animation end, session check end, tap). It navigates only once, and only when the target is known and the animation is done or skipped.
   const go = () => {
     if (done.current || !target.current) return;
     if (!animDone.current && !skip.current) return; // wait for the full animation unless the user taps to skip
@@ -44,7 +56,9 @@ export default function SplashScreen() {
     navigation.replace(target.current.name, target.current.params);
   };
 
+  // Effect (runs once): start the animations and, in parallel, check the saved login session.
   useEffect(() => {
+    // Endless loops: card spin, up-down bobbing, background glow.
     const loops = [
       Animated.loop(Animated.timing(spin, { toValue: 1, duration: 2200, easing: Easing.linear, useNativeDriver: true })),
       Animated.loop(Animated.sequence([
@@ -58,6 +72,7 @@ export default function SplashScreen() {
     ];
     loops.forEach((l) => l.start());
 
+    // One-time timeline: cards appear -> merge to center -> logo pops -> shine and taglines show.
     const timeline = Animated.sequence([
       Animated.stagger(110, enter.map((v) => Animated.spring(v, { toValue: 1, friction: 6, tension: 70, useNativeDriver: true }))),
       Animated.delay(250),
@@ -72,11 +87,13 @@ export default function SplashScreen() {
       ]),
     ]);
     let timer;
+    // When the timeline ends, wait HOLD_MS, then mark animation done and try to navigate.
     timeline.start(({ finished }) => {
       if (!finished) return;
       timer = setTimeout(() => { animDone.current = true; go(); }, HOLD_MS);
     });
 
+    // Session check: decides the next screen. Any error means go to Login.
     (async () => {
       let next;
       try {
@@ -92,6 +109,7 @@ export default function SplashScreen() {
       go(); // moves on only when the animation has finished (or the user tapped to skip)
     })();
 
+    // Cleanup when screen closes: stop timer and animations.
     return () => {
       clearTimeout(timer);
       loops.forEach((l) => l.stop());
@@ -100,11 +118,13 @@ export default function SplashScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Handler: tap anywhere to skip the animation.
   const onSkip = () => {
     skip.current = true;
     go(); // if the login check is still running, it navigates as soon as it finishes
   };
 
+  // Interpolations: convert 0..1 animated values into degrees, pixels, scale and opacity used in the render below.
   const rotateY = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
   const rotateYSlow = spin.interpolate({ inputRange: [0, 1], outputRange: ["20deg", "-340deg"] });
   const bobY = bob.interpolate({ inputRange: [0, 1], outputRange: [-8, 8] });
@@ -113,15 +133,20 @@ export default function SplashScreen() {
   const logoScale = logo.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] });
   const shineX = shine.interpolate({ inputRange: [0, 1], outputRange: [-160, 160] });
 
+  // Constant list for rendering the cards.
   const cards = useMemo(() => CARDS, []);
 
+  // Render: background blobs, card stage (cards + logo), then the taglines. Whole screen is Pressable for skip.
   return (
     <Pressable style={styles.container} onPress={onSkip}>
+      {/* Soft glowing background blobs */}
       <Animated.View style={[styles.blob, { backgroundColor: "#0C6478", top: -90, left: -90, opacity: glowOpacity, transform: [{ scale: glowScale }] }]} />
       <Animated.View style={[styles.blob, { backgroundColor: "#7B4BC0", bottom: -110, right: -100, opacity: glowOpacity, transform: [{ scale: glowScale }] }]} />
       <Animated.View style={[styles.blobSmall, { backgroundColor: "#2E7D4F", bottom: 120, left: -60, opacity: glowOpacity }]} />
 
+      {/* Stage: floating cards that merge into the logo */}
       <View style={styles.stage}>
+        {/* One floating card per CARDS item */}
         {cards.map((c, i) => {
           const x0 = c.x * W;
           const appear = enter[i];
@@ -155,6 +180,7 @@ export default function SplashScreen() {
           );
         })}
 
+        {/* Logo box (Tamil name + Quiz-IN + shine line) */}
         <Animated.View style={[styles.logoWrap, { opacity: logo, transform: [{ scale: logoScale }] }]}>
           <View style={styles.logoBox}>
             <Text style={styles.logoTamil}>வினாடி வினா</Text>
@@ -164,6 +190,7 @@ export default function SplashScreen() {
         </Animated.View>
       </View>
 
+      {/* Taglines in Tamil and English (always both languages) */}
       <View style={styles.taglines}>
         <Animated.Text style={[styles.tagTa, { opacity: tagTa }]}>கேள். கற்றுக்கொள். வெல்!</Animated.Text>
         <Animated.Text style={[styles.tagEn, { opacity: tagEn }]}>Ask. Learn. Win!</Animated.Text>
@@ -172,6 +199,7 @@ export default function SplashScreen() {
   );
 }
 
+// Styles.
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   blob: { position: "absolute", width: 300, height: 300, borderRadius: 150 },

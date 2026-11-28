@@ -1,3 +1,12 @@
+// App.js - app entry point (Expo root component).
+// WHAT: sets up fonts, language provider, safe area, gesture root and the navigation stack.
+// STARTUP ORDER (look at initializeApp below if the app hangs on the spinner):
+//   1. initStorageWithSample()  - prepare local storage (utils/api.js)
+//   2. loadGameSettings()       - read game settings from server/local (utils/api.js)
+//   3. compareVersions()        - force-update gate: if app version < gameSettings.minAppVersion, show UpdateRequiredScreen only
+//   4. flushPendingWrites()     - send offline saved writes (see the second useEffect)
+// SCREENS: every screen is registered in Stack.Navigator at the bottom of this file. First screen is Splash.
+// To add a new screen: import it above and add a Stack.Screen line.
 import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator, StyleSheet, AppState } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
@@ -9,6 +18,7 @@ import { syncReminder } from "./utils/reminder";
 
 import { colors } from "./utils/theme";
 
+// All screens are imported here and registered later in Stack.Navigator.
 // Import screens
 import AdminScreen from "./screens/AdminScreen";
 import CategoriesScreen from "./screens/CategoriesScreen";
@@ -35,21 +45,28 @@ import UpdateRequiredScreen from "./screens/UpdateRequiredScreen";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+// The stack navigator object. Stack.Screen names are used in navigation.navigate("Name") in all screens.
 const Stack = createNativeStackNavigator();
 
 // Keeps the daily reminder in line with the admin settings (time, text) and the app language, each time the app opens.
+// Helper component: renders nothing. It must be inside LanguageProvider because it needs useLang().
 function ReminderSync() {
   const { lang } = useLang();
   useEffect(() => { syncReminder(lang); }, [lang]);
   return null;
 }
 
+// Main App component.
 export default function App() {
+  // State group: isReady = storage and settings finished loading; updateRequired = installed app is too old (force update).
   const [isReady, setIsReady] = useState(false);
   const [updateRequired, setUpdateRequired] = useState(false);
+  // Load custom fonts. Names here must match fonts in utils/theme.js.
   const [fontsLoaded, fontError] = useFonts({ BalooThambi2_600SemiBold, BalooThambi2_800ExtraBold });
 
   useEffect(() => {
+    // Effect 1 (runs once): load storage and game settings, then check the minimum app version.
+    // If something breaks at startup, check the console message "Storage initialization error".
     const initializeApp = async () => {
       try {
         await initStorageWithSample();
@@ -79,6 +96,7 @@ export default function App() {
   // Show a simple spinner while storage initialises.
   // We do NOT render <SplashScreen /> here because it would be outside the
   // Stack.Navigator, so navigation.replace("Admin") etc. would fail.
+  // Gate 1: show spinner until storage and fonts are ready (a font error does not block the app).
   if (!isReady || (!fontsLoaded && !fontError)) {
     return (
       <View style={styles.loading}>
@@ -87,6 +105,7 @@ export default function App() {
     );
   }
 
+  // Gate 2: force-update. Only the update screen is shown, no navigation, so the user cannot use the old app.
   if (updateRequired) {
     return (
       <LanguageProvider>
@@ -96,12 +115,14 @@ export default function App() {
   }
 
   return (
+    // Normal app. Provider order: gesture root > safe area > language > navigation. Reminder sync and status bar sit inside the language provider.
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <LanguageProvider>
         <ReminderSync />
         <StatusBar style="light" backgroundColor={colors.primary} translucent={false} />
         <NavigationContainer>
+          // Navigation stack. Header is hidden because screens draw their own header (components/header.js).
           <Stack.Navigator 
             initialRouteName="Splash" 
             screenOptions={{ 

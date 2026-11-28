@@ -1,3 +1,13 @@
+/*
+ * DifficultyScreen
+ * What: user picks Easy / Medium / Hard (or the mock Exam) for the chosen subject.
+ *       Medium unlocks after Easy is completed, Hard after Medium (admin sees all unlocked).
+ * Route params: { category, subcategory, subject (can be empty), user, progress (initial done flags) }
+ * Data: utils/api.js -> getUserProgress (fresh progress), gameSettings (examEnabled flag).
+ * Texts: t() from utils/i18n.js. Colors: utils/theme.js.
+ * Next screen: "Levels" (params + difficulty) or "Exam" (mock test, only when gameSettings.examEnabled).
+ * If a difficulty is wrongly locked/unlocked, check getDifficultyStatus() and loadProgress().
+ */
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,18 +19,25 @@ import { getUserProgress, gameSettings } from "../utils/api";
 import { useLang } from "../utils/i18n";
 import { colors, difficultyColors, shadow } from "../utils/theme";
 
+// Order of difficulties (also the unlock order).
 const DIFFICULTIES = ["easy", "medium", "hard"];
+// Maps a difficulty to its text key in utils/i18n.js.
 const LABEL_KEYS = { easy: "difficultyEasy", medium: "difficultyMedium", hard: "difficultyHard" };
 
 export default function DifficultyScreen({ navigation, route }) {
+  // Values sent by the previous screen. "progress" is renamed initialProgress to avoid a name clash with state.
   const { category, subcategory, subject, user, progress: initialProgress } = route.params;
   const { t } = useLang();
+  // State: progress = which difficulties are completed. Starts from the value passed in route params.
   const [progress, setProgress] = useState(initialProgress || { easy: false, medium: false, hard: false });
 
+  // Effect: refresh progress from storage when the screen opens or the selection changes.
   useEffect(() => {
     loadProgress();
   }, [user?.id, category, subcategory, subject]);
 
+  // Helper: reads progress from utils/api.js. The key format (with or without subject) must match
+  // the key that is saved after a quiz is passed.
   const loadProgress = async () => {
     if (user?.id) {
       try {
@@ -36,6 +53,7 @@ export default function DifficultyScreen({ navigation, route }) {
     }
   };
 
+  // Helper: returns "locked" or "unlocked" for one difficulty. This is the unlock rule (easy -> medium -> hard).
   const getDifficultyStatus = (difficulty) => {
     if (user?.isAdmin) return "unlocked"; // Admin can access all
 
@@ -51,6 +69,7 @@ export default function DifficultyScreen({ navigation, route }) {
     }
   };
 
+  // Handler: tap on a difficulty card. Locked -> show alert only. Unlocked -> open Levels screen.
   const handleDifficultyPress = (difficulty) => {
     if (getDifficultyStatus(difficulty) === "locked") {
       Alert.alert(t("lockedTitle"), t("lockedMsg"), [{ text: t("lockedOk") }]);
@@ -61,6 +80,7 @@ export default function DifficultyScreen({ navigation, route }) {
     navigation.navigate("Levels", { category, subcategory, subject, difficulty, user });
   };
 
+  // Helper: small text under the card title (completed / how to unlock / tap to start).
   const getDescription = (difficulty) => {
     const status = getDifficultyStatus(difficulty);
 
@@ -71,12 +91,14 @@ export default function DifficultyScreen({ navigation, route }) {
     return t("tapToStart");
   };
 
+  // Helper: Ionicons name for the card (done = check, locked = lock, open = play).
   const getIcon = (difficulty) => {
     if (progress[difficulty]) return "checkmark-circle";
     if (getDifficultyStatus(difficulty) === "locked") return "lock-closed";
     return "play-circle";
   };
 
+  // Render: header, optional Exam card, 3 difficulty cards, progress steps, admin notice, bottom nav.
   return (
     <View style={styles.container}>
       <Header
@@ -89,6 +111,7 @@ export default function DifficultyScreen({ navigation, route }) {
           {category} › {subcategory}{subject ? ` › ${subject}` : ""}
         </Text>
 
+        {/* Mock Exam card: shown only when the exam feature is switched on in gameSettings (utils/api.js) */}
         {gameSettings.examEnabled ? (
           <FadeInUp index={0} style={{ marginBottom: 12 }}>
             <PressableScale
@@ -106,6 +129,7 @@ export default function DifficultyScreen({ navigation, route }) {
           </FadeInUp>
         ) : null}
 
+        {/* Difficulty cards: one per difficulty; locked ones are grey and show a lock hint */}
         {DIFFICULTIES.map((difficulty, index) => {
           const locked = getDifficultyStatus(difficulty) === "locked";
           const color = locked ? colors.locked : difficultyColors[difficulty];
@@ -139,6 +163,7 @@ export default function DifficultyScreen({ navigation, route }) {
           );
         })}
 
+        {/* Progress steps: 3 dots joined by lines; a dot gets its color when that difficulty is completed */}
         <View style={styles.progressContainer}>
           <Text style={styles.progressTitle}>{t("yourProgress")}</Text>
           <View style={styles.progressBar}>
@@ -170,6 +195,7 @@ export default function DifficultyScreen({ navigation, route }) {
           </View>
         </View>
 
+        {/* Admin notice: admin users have every difficulty unlocked */}
         {user?.isAdmin ? (
           <View style={styles.adminNotice}>
             <Text style={styles.adminText}>{t("adminMode")}</Text>
@@ -177,11 +203,13 @@ export default function DifficultyScreen({ navigation, route }) {
         ) : null}
         <View style={{ height: 24 }} />
       </ScrollView>
+      {/* Bottom tab bar; "categories" tab stays highlighted */}
       <BottomNav navigation={navigation} user={user} activeTab="categories" />
     </View>
   );
 }
 
+// Styles: colors come from utils/theme.js. The card border color is set inline per difficulty.
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { flex: 1, padding: 16 },

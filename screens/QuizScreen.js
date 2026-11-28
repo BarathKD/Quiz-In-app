@@ -1,3 +1,16 @@
+/*
+  QuizScreen.js - the question screen. Used for all quiz types: level practice, daily, mistakes, bookmarks, challenge.
+  Route params: category, subcategory, subject, difficulty, user, levelStart, levelEnd, levelNumber,
+    mode (undefined = normal level practice, or "daily" | "mistakes" | "bookmarks" | "challenge").
+  Comes from: LevelsScreen (levels) or the home screen (daily, mistakes, bookmarks).
+  Goes to: QuizSummaryScreen (navigation.replace), so Back from the summary does not return to the quiz.
+  Data: only from utils/api.js (server or local, chosen there by USE_SERVER). Texts: t() from utils/i18n.js.
+  Where is X done?
+    loading questions      loadQuestions()        timer countdown   the effect with setInterval
+    answer click           onSelect()             next / revive     handleExplanationClose()
+    pass or fail, saving   handleQuizComplete()   report question   submitReport()
+    bookmark star          handleBookmark()       screen layout     mainContent and the final return
+*/
 import React, { useEffect, useState, useRef } from "react";
 import { View, Text, StyleSheet, Alert, Modal, ImageBackground, Animated, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +26,7 @@ import {
 } from "../utils/api";
 import { showRewardedAd } from "../utils/ads";
 
+// shuffleArray(arr): returns a new array in random order. The original array is not changed.
 /** Utility shuffle (Fisher-Yates) */
 function shuffleArray(arr) {
   const a = arr.slice();
@@ -23,36 +37,53 @@ function shuffleArray(arr) {
   return a;
 }
 
+// QuizScreen: receives navigation and route from React Navigation.
 export default function QuizScreen({ navigation, route }) {
+  // --- Route params and mode flags ---
   // mode: undefined = normal level quiz; "daily" | "mistakes" | "bookmarks" = custom practice
   const { category, subcategory, difficulty, user, subject, levelStart, levelEnd, levelNumber, mode } = route.params;
+  // isCustom: any mode except normal level practice. isChallenge: the timed challenge (rounds, revives).
   const isCustom = !!mode;
   const isChallenge = mode === "challenge";
+  // --- Refs (values that do not cause re-render and are never stale inside timers and alerts) ---
   const revivesRef = useRef(0); // wrong answers forgiven by watching an ad (challenge only)
+  // --- State: bookmark star and report modal ---
   const [bookmarked, setBookmarked] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  // t(): translate a text key to the current language (utils/i18n.js).
   const { t } = useLang();
+  // shake: animated value for the shake effect on a wrong answer (see playShake).
   const shake = useRef(new Animated.Value(0)).current;
+  // --- State: questions and progress ---
+  // pool = all questions of this quiz (used to restart). questions = the shuffled list shown now. index = current question.
   const [pool, setPool] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [index, setIndex] = useState(0);
+  // answers = {questionId: chosen option id}. score = number of correct answers so far.
   const [answers, setAnswers] = useState({});
   const [score, setScore] = useState(0);
+  // --- State: timer (seconds). timeLeft stays null until the time is known, so the countdown does not start too early ---
   const [timeLeft, setTimeLeft] = useState(null); // Wait for category data to set time
   const [totalTime, setTotalTime] = useState(300); // Default to 5 minutes
+  // --- State: answer popup (explanation modal) ---
   const [showExplanation, setShowExplanation] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [isCorrect, setIsCorrect] = useState(false);
+  // totalAvailableQuestions: count of questions for this category and difficulty. Used to find how many levels exist.
   const [totalAvailableQuestions, setTotalAvailableQuestions] = useState(0);
+  // isLoading: true while loadQuestions() is running.
   const [isLoading, setIsLoading] = useState(true);
   
+  // --- State: category background image (not used in custom modes) ---
   // New state for background image
   const [backgroundImage, setBackgroundImage] = useState(null);
   const [backgroundOpacity, setBackgroundOpacity] = useState(0.3);
   const [categoryData, setCategoryData] = useState(null);
   
+  // timerRef holds the setInterval id so we can stop the countdown from any function.
   const timerRef = useRef(null);
 
+  // On first open: load the questions and the background. On close: stop the timer so it does not keep running.
   useEffect(() => {
     loadQuestions();
     if (!isCustom) loadCategoryBackground();
@@ -63,6 +94,7 @@ export default function QuizScreen({ navigation, route }) {
     };
   }, []);
 
+ // loadCategoryBackground(): gets the category (utils/api.js), then its image, opacity and quiz time. Sets the timer for normal level quizzes.
  // Load category background image and opacity
   const loadCategoryBackground = async () => {
     try {
@@ -112,19 +144,25 @@ export default function QuizScreen({ navigation, route }) {
     }
   };
 
+  // loadQuestions(): builds the list of questions for this quiz.
+  // Custom modes: daily, challenge, mistakes, bookmarks. Normal mode: filter by category/subcategory/subject/difficulty, then cut the level range.
   // Load questions with proper subject filtering
   const loadQuestions = async () => {
     try {
       setIsLoading(true);
 
+      // Custom modes (daily, challenge, mistakes, bookmarks)
       if (isCustom) {
         let list = [];
+        // Daily: questions and time come from api.js getDailyQuestions and gameSettings.dailyTimerMinutes.
         if (mode === "daily") {
           list = await getDailyQuestions();
           const dailySeconds = gameSettings.dailyTimerMinutes * 60;
           setTotalTime(dailySeconds);
           setTimeLeft(dailySeconds);
         } else if (isChallenge) {
+          // Challenge rules: total time = number of questions x seconds per question (by difficulty).
+
           // Random questions out of this level's questions: rounds x questions per round (fewer if the level is small)
           const levelQs = (await getQuestionsByFilter(category, subcategory, subject || null, difficulty))
             .slice(levelStart, levelEnd);
@@ -134,9 +172,12 @@ export default function QuizScreen({ navigation, route }) {
           setTotalTime(seconds);
           setTimeLeft(seconds);
         } else {
+          // Mistakes or bookmarks: load saved question ids, then the questions. No timer (practice).
+
           const ids = mode === "mistakes" ? await getMistakeIds(user?.id) : await getBookmarkIds(user?.id);
           list = shuffleArray(await getQuestionsByIds(ids)); // practice is untimed
         }
+        // No questions: tell the user and go back.
         if (list.length === 0) {
           Alert.alert(t("comingSoon"), t("dailyNoQuestions"), [
             { text: t("lockedOk"), onPress: () => navigation.goBack() },
@@ -152,6 +193,7 @@ export default function QuizScreen({ navigation, route }) {
         return;
       }
 
+      // Normal level quiz: load all questions, then filter.
       const all = await getAllQuestions();
       
       console.log("=== QUIZ LOADING DEBUG ===");
@@ -159,6 +201,7 @@ export default function QuizScreen({ navigation, route }) {
       console.log("Looking for:", { category, subcategory, subject, difficulty });
       console.log("Level range:", { levelStart, levelEnd, levelNumber });
       
+      // Question must match category, subcategory, difficulty and subject. No subject given = only questions without subject.
       // Filtering logic
       let filtered = all.filter(q => {
         const categoryMatch = q.category === category;
@@ -181,6 +224,7 @@ export default function QuizScreen({ navigation, route }) {
       console.log("Filtered questions count:", filtered.length);
       setTotalAvailableQuestions(filtered.length);
 
+      // A level is a slice of the filtered list (levelStart to levelEnd). Same slice is used in LevelsScreen.
       // Apply level slicing if levelStart & levelEnd are provided
       if (typeof levelStart === "number" && typeof levelEnd === "number") {
         filtered = filtered.slice(levelStart, levelEnd);
@@ -196,6 +240,7 @@ export default function QuizScreen({ navigation, route }) {
         return;
       }
 
+      // Shuffle so the order is different each time. pool keeps the original level list for resetSession().
       // Shuffle the level's questions
       setPool(filtered);
       const sessionQs = shuffleArray(filtered);
@@ -206,6 +251,7 @@ export default function QuizScreen({ navigation, route }) {
       // Removed setTimeLeft(300) so it uses the fetched category timer
       
       console.log(`Quiz session created with ${sessionQs.length} questions`);
+    // Any error: show a message and go back.
     } catch (error) {
       console.error("Error loading questions:", error);
       Alert.alert(t("error"), t("failedLoadQuestions"), [
@@ -216,8 +262,10 @@ export default function QuizScreen({ navigation, route }) {
     }
   };
 
+  // isTimerInitialized: true after the time was set (category timer or custom mode time).
   const isTimerInitialized = timeLeft !== null;
   
+  // Timer effect: starts a 1 second countdown. It pauses while the answer popup is open or while loading, and restarts for each question.
   useEffect(() => {
     // Timer management
     if (!questions || questions.length === 0 || showExplanation || isLoading || !isTimerInitialized) {
@@ -244,8 +292,10 @@ export default function QuizScreen({ navigation, route }) {
     };
   }, [index, questions, showExplanation, isLoading, isTimerInitialized]);
 
+  // q = the current question object.
   const q = questions[index];
 
+  // Bookmark effect: for each new question, check if it is already bookmarked. 'active' stops a late result from an old question.
   useEffect(() => {
     let active = true;
     setBookmarked(false);
@@ -255,6 +305,7 @@ export default function QuizScreen({ navigation, route }) {
     return () => { active = false; };
   }, [q?.id, user?.id]);
 
+  // Reasons shown in the report modal. key = text key in i18n.js, id = value sent to the server.
   const REPORT_REASONS = [
     { id: "wrong_answer", key: "reportWrongAnswer" },
     { id: "typo", key: "reportTypo" },
@@ -262,6 +313,7 @@ export default function QuizScreen({ navigation, route }) {
     { id: "other", key: "reportOther" },
   ];
 
+  // submitReport(reason): sends a report about the current question to the server (api.js reportQuestion). Shows a thank-you or error.
   const submitReport = async (reason) => {
     setReportOpen(false);
     try {
@@ -273,14 +325,18 @@ export default function QuizScreen({ navigation, route }) {
     }
   };
 
+  // handleBookmark(): toggles the star for this question (needs a logged-in user). Saved by api.js toggleBookmark.
   const handleBookmark = async () => {
     if (!user?.id || !q) return;
     setBookmarked(await toggleBookmark(user.id, q.id));
   };
 
+  // handleQuizComplete(finalScore): the end of the quiz. Decides pass or fail, saves progress, then opens QuizSummary.
+  // finalScore is passed in (not read from state) so we never use an old score.
   const handleQuizComplete = async (finalScore) => {
     if (timerRef.current) clearInterval(timerRef.current);
 
+    // Pass rules are below. They are different for each mode.
     // Practice: pass with enough correct answers (pass mark by difficulty). Challenge: no mistakes
     // (wrong answers forgiven by a revive count as correct). Daily / mistakes / bookmarks: all correct.
     let passed;
@@ -288,6 +344,7 @@ export default function QuizScreen({ navigation, route }) {
     else if (isCustom) passed = questions.length > 0 && finalScore === questions.length;
     else passed = questions.length > 0 && finalScore / questions.length >= passMarkFor(difficulty);
 
+    // Custom modes: save the daily result or challenge win, then go to the summary.
     if (isCustom) {
       // Daily streak only counts when every question was answered (no skipping to farm streaks)
       if (mode === "daily" && user?.id && Object.keys(answers).length >= questions.length) {
@@ -309,6 +366,7 @@ export default function QuizScreen({ navigation, route }) {
       return;
     }
 
+    // Normal level quiz: calculate the number of levels and save progress (markLevelPassed) if passed.
     const totalLevels = Math.max(1, Math.ceil(totalAvailableQuestions / gameSettings.questionsPerLevel));
     let difficultyCompleted = false;
 
@@ -329,6 +387,7 @@ export default function QuizScreen({ navigation, route }) {
       }
     }
 
+    // Go to the summary. The last answer is added here because setAnswers may not be finished yet.
     navigation.replace("QuizSummary", {
       questions,
       answers: { ...answers, [q?.id]: selectedAnswer },
@@ -349,6 +408,7 @@ export default function QuizScreen({ navigation, route }) {
     });
   };
 
+  // handleTimeout(): time is over. Show an alert, then finish the quiz with the current score.
   const handleTimeout = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     Alert.alert(t("timeUpTitle"), t("timeUpMsg"), [
@@ -356,6 +416,7 @@ export default function QuizScreen({ navigation, route }) {
     ]);
   };
 
+  // timeoutHandledRef: makes sure the time-up alert is shown only once.
   // Fire the timeout exactly once when the countdown reaches zero
   const timeoutHandledRef = useRef(false);
   useEffect(() => {
@@ -366,6 +427,7 @@ export default function QuizScreen({ navigation, route }) {
   }, [timeLeft]);
 
 
+  // --- Early returns: loading, no questions, no current question ---
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -393,6 +455,7 @@ export default function QuizScreen({ navigation, route }) {
     );
   }
 
+  // resetSession(): reshuffle the pool and start again from the first question. Time is set back to the full time.
   const resetSession = () => {
     // Reshuffle pool and restart
     const newSession = shuffleArray(pool);
@@ -406,6 +469,7 @@ export default function QuizScreen({ navigation, route }) {
     setIsCorrect(false);
   };
 
+  // playShake(): short left-right animation when the answer is wrong.
   const playShake = () => {
     shake.setValue(0);
     Animated.sequence([
@@ -416,6 +480,8 @@ export default function QuizScreen({ navigation, route }) {
     ]).start();
   };
 
+  // onSelect(optId): user taps an option. Stops the timer, checks the answer, saves it (api.js recordAnswer), updates score, opens the answer popup.
+  // Tap is ignored if the popup is already open (double tap).
   const onSelect = (optId) => {
     if (showExplanation) return;
 
@@ -424,6 +490,7 @@ export default function QuizScreen({ navigation, route }) {
     const correct = q.correctOptionId;
     const isAnswerCorrect = optId === correct;
 
+    // 4th value = true only for normal, daily and challenge modes. Mistakes and bookmarks practice do not change the mistake list.
     recordAnswer(user?.id, q.id, isAnswerCorrect, mode !== "mistakes" && mode !== "bookmarks");
 
     setSelectedAnswer(optId);
@@ -439,19 +506,23 @@ export default function QuizScreen({ navigation, route }) {
     setShowExplanation(true);
   };
 
+  // handleExplanationClose(): user taps the button in the answer popup. Goes to the next question, or finishes, or (challenge) asks for a revive.
   const handleExplanationClose = () => {
     setShowExplanation(false);
 
+    // advance(): show the next question.
     const advance = () => {
       setIndex(i => i + 1);
       setSelectedAnswer(null);
       setIsCorrect(false);
     };
+    // goNext(): finish if this was the last question, show a round break in challenge mode, or advance.
     const goNext = () => {
       if (index >= questions.length - 1) {
         handleQuizComplete(score);
         return;
       }
+      // Challenge has rounds. After each round (every challengeQuestionsPerRound questions) show a short alert.
       // Challenge: a short pause between rounds
       const perRound = gameSettings.challengeQuestionsPerRound;
       if (isChallenge && (index + 1) % perRound === 0) {
@@ -464,12 +535,15 @@ export default function QuizScreen({ navigation, route }) {
       advance();
     };
 
+    // Correct answer, or practice mode: just continue.
     if (isCorrect || !isChallenge) {
       // Correct answer, or any answer outside challenge mode (practice just keeps going and is graded at the end)
       goNext();
       return;
     }
 
+    // Challenge revive logic: a wrong answer ends the challenge unless a revive is left. A revive needs a rewarded ad (utils/ads.js).
+    // revivesRef counts revives used. If the ad is not completed, the challenge fails.
     // Challenge: a wrong answer ends it, unless the player revives (max gameSettings.challengeRevives per challenge)
     const left = gameSettings.challengeRevives - revivesRef.current;
     const fail = () => handleQuizComplete(score);
@@ -496,6 +570,7 @@ export default function QuizScreen({ navigation, route }) {
     );
   };
 
+  // handleFinish(): user taps Finish. Asks to confirm, then calls handleQuizComplete.
   const handleFinish = async () => {
     if (timerRef.current) clearInterval(timerRef.current);
 
@@ -509,16 +584,20 @@ export default function QuizScreen({ navigation, route }) {
     );
   };
 
+  // --- Helpers for rendering ---
+  // Timer colour: changes when 60 seconds or less are left.
   // Timer shifts blue -> violet as time runs low (no red/yellow brand colors)
   const timeColor = timeLeft <= 60 ? colors.accent : colors.primary;
   const timeBg = timeLeft <= 60 ? colors.accentTint : colors.tint;
 
+  // formatTime(seconds): 125 becomes "2:05".
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // optionState(optionId): colour state of an option: idle (before answer), correct, wrong (the one the user chose), neutral (others).
   const optionState = (optionId) => {
     if (!showExplanation) return "idle";
     if (optionId === q.correctOptionId) return "correct";
@@ -526,20 +605,25 @@ export default function QuizScreen({ navigation, route }) {
     return "neutral";
   };
 
+  // percent: progress bar value. Counts the current question as done.
   const percent = Math.round(((index + 1) / questions.length) * 100);
 
+  // mainContent: the quiz area (counter, timer, progress, question, options, score, finish button). Shown inside the background.
   const mainContent = (
     <View style={styles.container}>
+      {/* Top row: question number, report button (server mode only), bookmark star, timer */}
       <View style={styles.headerInfo}>
         <View style={styles.counterRow}>
           <Text style={styles.questionCounter}>
             {t("questionOf", { a: index + 1, b: questions.length })}
           </Text>
+          {/* Report flag: only in server mode and for logged-in users */}
           {USE_SERVER && !!user?.id && (
             <PressableScale onPress={() => setReportOpen(true)} style={styles.starBtn} accessibilityLabel={t("reportQuestion")}>
               <Ionicons name="flag-outline" size={22} color={colors.muted} />
             </PressableScale>
           )}
+          {/* Bookmark star */}
           <PressableScale onPress={handleBookmark} style={styles.starBtn} accessibilityLabel={t("bookmarks")}>
             <Ionicons
               name={bookmarked ? "star" : "star-outline"}
@@ -548,6 +632,7 @@ export default function QuizScreen({ navigation, route }) {
             />
           </PressableScale>
         </View>
+        {/* Timer pill: hidden while the answer popup is open */}
         {!showExplanation && timeLeft !== null && (
           <View style={[styles.timerPill, { backgroundColor: timeBg }]}>
             <Ionicons name="time-outline" size={16} color={timeColor} />
@@ -556,6 +641,7 @@ export default function QuizScreen({ navigation, route }) {
         )}
       </View>
 
+      {/* Report question modal: user picks a reason, then submitReport() runs */}
       <Modal visible={reportOpen} transparent animationType="fade" onRequestClose={() => setReportOpen(false)}>
         <View style={styles.reportBackdrop}>
           <View style={styles.reportSheet}>
@@ -572,6 +658,7 @@ export default function QuizScreen({ navigation, route }) {
         </View>
       </Modal>
 
+      {/* Progress bar */}
       <View style={styles.progressBarContainer}>
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: `${percent}%` }]} />
@@ -579,6 +666,7 @@ export default function QuizScreen({ navigation, route }) {
         <Text style={styles.progressText}>{t("percentComplete", { n: percent })}</Text>
       </View>
 
+      {/* Question text and options. The question box shakes on a wrong answer */}
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
         <Animated.View
           style={[
@@ -589,6 +677,7 @@ export default function QuizScreen({ navigation, route }) {
           <Text style={styles.questionText}>{q.questionText}</Text>
         </Animated.View>
 
+        {/* Option buttons. Tap calls onSelect(); style comes from optionState() */}
         <View style={styles.optionsContainer}>
           {q.options && q.options.map && q.options.map(option => {
             const state = optionState(option.id);
@@ -624,6 +713,7 @@ export default function QuizScreen({ navigation, route }) {
         </View>
       </ScrollView>
 
+      {/* Bottom: score, accuracy, hint text, finish button */}
       <View style={styles.bottomSection}>
         <View style={styles.scoreContainer}>
           <Text style={styles.scoreText}>{t("scoreLabel", { a: score, b: questions.length })}</Text>
@@ -631,6 +721,7 @@ export default function QuizScreen({ navigation, route }) {
             {t("accuracyLabel", { n: index > 0 ? Math.round((score / (index + 1)) * 100) : 0 })}
           </Text>
         </View>
+        {/* Hint: normal level quiz shows the pass rule; daily shows a note that all questions must be answered */}
         {!isCustom ? <Text style={styles.hintText}>{t("oneWrongHint")}</Text> : mode === "daily" ? <Text style={styles.hintText}>{t("dailyAllNote")}</Text> : null}
 
         {!showExplanation && (
@@ -642,11 +733,14 @@ export default function QuizScreen({ navigation, route }) {
     </View>
   );
 
+  // --- Values for the answer popup ---
   const correctText = q.options?.find(opt => opt.id === q.correctOptionId)?.text || "N/A";
   const resultColor = isCorrect ? colors.success : colors.danger;
 
+  // --- Final screen layout: header, background with mainContent, answer popup ---
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      {/* Header with title and back button. Back also stops the timer */}
       <Header
         title={isCustom ? t(mode === "daily" ? "dailyChallenge" : mode) : `${subcategory}${subject ? ` - ${subject}` : ''} | ${difficulty}${levelNumber ? ` | L${levelNumber}` : ''}`}
         onBack={() => {
@@ -655,6 +749,7 @@ export default function QuizScreen({ navigation, route }) {
         }}
       />
 
+      {/* Background: category image with a light overlay, or a plain colour if there is no image */}
       {backgroundImage ? (
         <ImageBackground
           source={{ uri: backgroundImage }}
@@ -673,6 +768,7 @@ export default function QuizScreen({ navigation, route }) {
         <View style={styles.defaultBackground}>{mainContent}</View>
       )}
 
+      {/* Answer popup: shows right or wrong, the correct answer and the explanation. Cannot be closed with the phone back button */}
       <Modal
         visible={showExplanation}
         animationType="slide"
@@ -719,6 +815,7 @@ export default function QuizScreen({ navigation, route }) {
   );
 }
 
+// Styles. Order: layout, report modal, header, progress, question and options, bottom, answer popup.
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, zIndex: 2 },
   defaultBackground: { flex: 1, backgroundColor: colors.bg },

@@ -1,3 +1,7 @@
+// components/BottomNav.js - bottom tab bar with 3 tabs: Home, Leaderboard, Profile.
+// PROPS: navigation (from the screen), user (passed on to the next screen), activeTab ("categories" | "leaderboard" | "profile" - which tab looks selected).
+// NAVIGATES TO: "Categories" (Home and Profile tabs - the Profile tab is the same screen opened with initialTab: "profile"), "Leaderboard".
+// To add a tab: add one more TouchableOpacity below and a new activeTab flag.
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,13 +11,17 @@ import { colors } from '../utils/theme';
 
 export default function BottomNav({ navigation, user, activeTab }) {
   const { t } = useLang();
+  // Bottom padding = phone gesture bar height (at least 12).
   const insets = useSafeAreaInsets();
+  // Which tab is active (highlighted).
   const homeActive = activeTab === "categories";
   const profileActive = activeTab === "profile";
   const boardActive = activeTab === "leaderboard";
 
+  // Render: three equal tabs.
   return (
     <View style={[styles.bottomNavContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      {/* Tab 1: Home */}
       <TouchableOpacity
         style={styles.bottomNavTab}
         onPress={() => navigation.navigate("Categories", { user, initialTab: "categories" })}
@@ -29,6 +37,7 @@ export default function BottomNav({ navigation, user, activeTab }) {
         </Text>
       </TouchableOpacity>
 
+      {/* Tab 2: Leaderboard */}
       <TouchableOpacity
         style={styles.bottomNavTab}
         onPress={() => navigation.navigate("Leaderboard", { user })}
@@ -44,6 +53,7 @@ export default function BottomNav({ navigation, user, activeTab }) {
         </Text>
       </TouchableOpacity>
 
+      {/* Tab 3: Profile */}
       <TouchableOpacity
         style={styles.bottomNavTab}
         onPress={() => navigation.navigate("Categories", { user, initialTab: "profile" })}
@@ -62,6 +72,7 @@ export default function BottomNav({ navigation, user, activeTab }) {
   );
 }
 
+// Styles.
 const styles = StyleSheet.create({
   bottomNavContainer: {
     flexDirection: "row",

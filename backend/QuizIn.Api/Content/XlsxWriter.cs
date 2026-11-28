@@ -7,11 +7,14 @@ namespace QuizIn.Api.Content;
 // the error report and the import template. Excel, LibreOffice and Google Sheets open the result.
 public static class XlsxWriter
 {
+    // Builds the whole .xlsx file in memory and returns its bytes. rows[r][c] = text of row r, column c. Used by the question export,
+    // the import error report and the import template (Admin/AdminControllers.cs).
     public static byte[] Write(List<List<string>> rows, string sheetName = "Questions")
     {
         using var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
         {
+            // The next four files are the fixed "skeleton" every .xlsx needs: content types, package relationships, the workbook (sheet list) and its relationships.
             Add(zip, "[Content_Types].xml",
                 "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
                 "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
@@ -38,6 +41,7 @@ public static class XlsxWriter
                 "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>" +
                 "</Relationships>");
 
+            // The worksheet itself: one <row> per row and one inline-string <c> cell per non-empty value (empty cells are skipped).
             var sheet = new StringBuilder();
             sheet.Append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>");
             sheet.Append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData>");
@@ -59,6 +63,7 @@ public static class XlsxWriter
         return ms.ToArray();
     }
 
+    // Adds one text file (UTF-8, no BOM) to the zip.
     private static void Add(ZipArchive zip, string name, string content)
     {
         var entry = zip.CreateEntry(name, CompressionLevel.Optimal);
@@ -67,6 +72,7 @@ public static class XlsxWriter
         stream.Write(bytes, 0, bytes.Length);
     }
 
+    // 0 -> "A", 25 -> "Z", 26 -> "AA" (Excel column letters).
     private static string ColumnName(int index)
     {
         var name = "";

@@ -1,3 +1,6 @@
+// components/LanguageToggle.js - small Tamil | EN switch.
+// PROPS: variant = "light" (on a light background, default) or "onPrimary" (on the colored banner).
+// Uses useLang() from utils/i18n.js: lang is "ta" or "en", setLang changes it for the whole app. Used in LoginScreen and SettingsScreen.
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useLang } from "../utils/i18n";
@@ -6,8 +9,10 @@ import { colors } from "../utils/theme";
 // தமிழ் | EN switch. Use variant="onPrimary" on the maroon banner, "light" on ivory.
 export default function LanguageToggle({ variant = "light" }) {
   const { lang, setLang } = useLang();
+  // Choose colors by variant.
   const onPrimary = variant === "onPrimary";
 
+  // Style helpers: the active language gets a filled background, the other one is plain.
   const pillStyle = (active) => [
     styles.pill,
     active && { backgroundColor: onPrimary ? colors.accent : colors.primary },
@@ -21,6 +26,7 @@ export default function LanguageToggle({ variant = "light" }) {
     },
   ];
 
+  // Render: a rounded box with two buttons (Tamil, English).
   return (
     <View
       style={[

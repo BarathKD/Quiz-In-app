@@ -1,3 +1,15 @@
+/*
+ * QuestionFilters
+ * What: filter panel for the question list in the admin panel (Questions tab).
+ *       Chips for Category > Subcategory > Subject, and Difficulty. Tap a selected chip again to clear it.
+ * Props (from screens/AdminScreen.js):
+ *   categories = all categories (used to build the chip lists)
+ *   filterCategory, filterSubcategory, filterSubject, filterDifficulty = current selected values ('' = none)
+ *   onCategoryChange, onSubcategoryChange, onSubjectChange, onDifficultyChange = setters for those values
+ *   onApply = AdminScreen applyFilters() (loads the filtered questions from utils/api.js)
+ *   onClear = AdminScreen clearFilters()
+ * Note: choosing a chip only changes the values; the list changes after the Apply button is pressed.
+ */
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 
@@ -14,12 +26,14 @@ export default function QuestionFilters({
   onApply,
   onClear
 }) {
+  // Helper: subcategories of the selected category (found by category name). Empty if no category is selected.
   const getFilteredSubcategories = () => {
     if (!filterCategory) return [];
     const cat = categories.find(c => c.name === filterCategory);
     return cat?.subcategories || [];
   };
 
+  // Helper: subjects of the selected subcategory. Only categories with nested subjects ({ subcategory: [subjects] }) have them.
   const getFilteredSubjects = () => {
     if (!filterCategory || !filterSubcategory) return [];
     const cat = categories.find(c => c.name === filterCategory);
@@ -29,6 +43,7 @@ export default function QuestionFilters({
     return [];
   };
 
+  // Render: title, chip rows, Apply/Clear buttons and a summary of active filters.
   return (
     <View style={styles.container}>
       <Text style={styles.title}>🔍 Filter Questions</Text>
@@ -113,6 +128,7 @@ export default function QuestionFilters({
       <View style={styles.filterRow}>
         <Text style={styles.label}>Difficulty:</Text>
         <View style={styles.optionsRow}>
+          {/* Difficulty chips are fixed values: easy, medium, hard (same values as question.difficulty) */}
           {["easy", "medium", "hard"].map(diff => (
             <TouchableOpacity
               key={diff}
@@ -159,6 +175,7 @@ export default function QuestionFilters({
   );
 }
 
+// Styles for this component.
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "#f8f9fa",

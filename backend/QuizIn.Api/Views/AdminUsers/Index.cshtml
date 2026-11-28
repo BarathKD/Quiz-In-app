@@ -1,9 +1,11 @@
+@* Users page. Route: GET /admin/users (AdminUsersController.Index, query search and page). Model: UsersVm (Items for this page, Total, Search, Page, TotalPages). *@
 @model UsersVm
 @{ ViewData["Title"] = "Users"; }
 <div class="page-head">
   <h1>Users <span class="count">(@Model.Total)</span></h1>
 </div>
 
+@* Search form. GET request to /admin/users, sends search in the URL. *@
 <div class="card">
   <form method="get" action="/admin/users" class="toolbar">
     <input class="grow-2" name="search" value="@Model.Search" placeholder="Search email" aria-label="Search email">
@@ -18,12 +20,14 @@
   }
   else
   {
+    @* Users table. Rows: the users of the current page (email, join date, levels passed). *@
     <div class="table-wrap">
       <table class="data">
         <thead>
           <tr><th>Email</th><th class="col-date">Joined</th><th class="num">Levels passed</th><th class="col-actions"></th></tr>
         </thead>
         <tbody>
+          @* Loop: one table row for each user. *@
           @foreach (var u in Model.Items)
           {
             <tr>
@@ -32,6 +36,7 @@
               <td class="num">@u.LevelsPassed</td>
               <td class="col-actions">
                 <div class="actions">
+                  @* Delete user. Posts to POST /admin/users/{id}/delete (AdminUsersController.Delete). Deletes the user and all progress. *@
                   <form method="post" action="/admin/users/@u.Id/delete" onsubmit="return confirm('Delete this user and all their progress? This cannot be undone.');">
                     @Html.AntiForgeryToken()
                     <button class="btn btn-danger btn-sm" type="submit">Delete</button>
@@ -43,6 +48,7 @@
         </tbody>
       </table>
     </div>
+    @* Pager: Previous and Next links keep the search text in the URL. *@
     <div class="pager">
       @if (Model.Page > 1)
       {

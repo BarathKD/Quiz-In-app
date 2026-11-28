@@ -1,3 +1,13 @@
+/*
+ * QuestionList
+ * What: shows the questions in the admin panel (Questions tab), grouped as Category > Subcategory > Subject.
+ *       Each group can be opened or closed. Questions show text, difficulty, correct answer, Edit and Delete.
+ * Props (from screens/AdminScreen.js):
+ *   questions = loaded questions (flat array)  totalQuestions = total count from utils/api.js
+ *   hasMoreQuestions / isLoadingQuestions = paging flags for the Load More button
+ *   onEdit(question), onDelete(questionId), onLoadMore() = handlers in AdminScreen
+ * This component only displays data; AdminScreen does the API calls.
+ */
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 
@@ -59,12 +69,14 @@ export default function QuestionList({
     return acc;
   }, {});
 
+  // Render helper: one question card. Correct answer = the option whose id equals correctOptionId ('N/A' if not found).
   const renderQuestion = (item) => (
     <View key={item.id} style={styles.questionCard}>
       <View style={styles.questionHeader}>
         <Text numberOfLines={2} style={styles.questionText}>{item.questionText}</Text>
       </View>
       
+      {/* Difficulty badge: color depends on easy / medium / hard */}
       <View style={styles.metaContainer}>
         <View style={[
           styles.difficultyBadge,
@@ -82,6 +94,7 @@ export default function QuestionList({
         ✓ {item.options.find(o => o.id === item.correctOptionId)?.text || 'N/A'}
       </Text>
       
+      {/* Edit gets the whole question object; Delete gets only the id */}
       <View style={styles.actions}>
         <TouchableOpacity style={styles.editBtn} onPress={() => onEdit(item)}>
           <Text style={styles.editText}>Edit</Text>
@@ -96,9 +109,11 @@ export default function QuestionList({
     </View>
   );
 
+  // Render: for each category, count its questions, then show the header and (if expanded) the subcategories and subjects below it.
   return (
     <ScrollView style={styles.container} nestedScrollEnabled={true}>
       {Object.entries(groupedQuestions).map(([category, subcategories]) => {
+        // Count of all questions inside this category (sum of every subject list).
         const categoryQuestionCount = Object.values(subcategories).reduce((sum, subjects) => 
           sum + Object.values(subjects).reduce((s, qs) => s + qs.length, 0), 0
         );
@@ -184,6 +199,7 @@ export default function QuestionList({
         );
       })}
       
+      {/* Load More: shown while the server has more questions; disabled during loading */}
       {hasMoreQuestions && (
         <TouchableOpacity 
           style={styles.loadMoreBtn} 
@@ -196,6 +212,7 @@ export default function QuestionList({
         </TouchableOpacity>
       )}
       
+      {/* Empty state when no questions match the filters */}
       {questions.length === 0 && (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No questions found</Text>
@@ -206,6 +223,7 @@ export default function QuestionList({
   );
 }
 
+// Styles for this component.
 const styles = StyleSheet.create({
   container: {
     flex: 1,

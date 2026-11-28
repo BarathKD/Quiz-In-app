@@ -1,15 +1,20 @@
+@* Game settings page. Route: GET /admin/settings (AdminSettingsController.Index). Model: GameSettings (loaded from the database by GameSettingsStore). The mobile app reads these values. *@
 @model GameSettings
 @{
     ViewData["Title"] = "Game settings";
 }
+@* Helper function Num(): writes a number with InvariantCulture so the value in the input is always plain digits. *@
 @functions {
     public static string Num(int v) => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }
 <div class="page-head"><h1>Game settings</h1></div>
 
+@* Main settings form. Posts to POST /admin/settings (AdminSettingsController.Save). Field names match the GameSettings properties, so ASP.NET binds them automatically, then GameSettingsStore saves them. *@
 <form method="post" action="/admin/settings">
+  @* Anti-forgery token (CSRF protection). *@
   @Html.AntiForgeryToken()
 
+  @* Section: number of questions in one level. *@
   <div class="card">
     <h2 class="card-title">Levels</h2>
     <div class="form-grid">
@@ -21,6 +26,7 @@
     </div>
   </div>
 
+  @* Section: practice mode pass mark in percent for each difficulty. *@
   <div class="card">
     <h2 class="card-title">Practice mode: pass mark</h2>
     <p class="muted">Percent of questions a player must answer correctly to pass a level. A wrong answer never restarts the level.</p>
@@ -40,6 +46,7 @@
     </div>
   </div>
 
+  @* Section: challenge mode. Checkbox trick: an unchecked checkbox sends nothing, so a hidden input with value false comes after it. When checked, both values are sent and ASP.NET takes true. Same trick for Exam and Reminder switches. *@
   <div class="card">
     <h2 class="card-title">Challenge mode</h2>
     <p class="muted">Random questions from the level, in rounds. One wrong answer ends the challenge unless the player revives by watching an ad.</p>
@@ -85,6 +92,7 @@
     </div>
   </div>
 
+  @* Section: minimum app version. Older apps must update. *@
   <div class="card">
     <h2 class="card-title">App updates</h2>
     <div class="form-grid">
@@ -96,6 +104,7 @@
     </div>
   </div>
 
+  @* Section: daily challenge question count and timer. *@
   <div class="card">
     <h2 class="card-title">Daily challenge</h2>
     <div class="form-grid">
@@ -110,6 +119,7 @@
     </div>
   </div>
 
+  @* Section: exam mode (mock test) settings. *@
   <div class="card">
     <h2 class="card-title">Exam mode (mock test)</h2>
     <p class="muted">A full mock test for a subject: random questions of every difficulty, one timer for the whole test, no answers shown until the end. The player sees score, pass or fail, and rank among everyone who took the same test.</p>
@@ -140,6 +150,7 @@
     </div>
   </div>
 
+  @* Section: daily reminder notification time and text (Tamil and English). *@
   <div class="card">
     <h2 class="card-title">Daily reminder notification</h2>
     <p class="muted">Sent by the phone once a day at this time (India time on the player's phone). Players have no switch for it in the app, so only you control it.</p>
@@ -180,11 +191,13 @@
     <span class="hint">The phone picks the Tamil or English text by the app language. The new time and text reach a phone the next time the app opens.</span>
   </div>
 
+  @* Save button for the main form above. *@
   <div class="form-actions">
     <button class="btn" type="submit">Save settings</button>
   </div>
 </form>
 
+@* Reset form. Posts to POST /admin/settings/reset (AdminSettingsController.Reset). Replaces all settings with the defaults (new GameSettings()). *@
 <form method="post" action="/admin/settings/reset" onsubmit="return confirm('Reset every setting to its default?');" style="margin-top:12px">
   @Html.AntiForgeryToken()
   <button class="btn btn-secondary" type="submit">Reset to defaults</button>

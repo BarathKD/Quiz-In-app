@@ -1,7 +1,9 @@
+@* Content page. Route: GET /admin/content (AdminContentController.Index). Model: List<Category> (each with Subcategories and Subjects). Shows the tree Category > Subcategory > Subject. *@
 @model List<Category>
 @{ ViewData["Title"] = "Content"; }
 <div class="page-head"><h1>Content</h1></div>
 
+@* Add category form. Posts to POST /admin/content/category (AdminContentController.AddCategory). The controller creates the category with name, description and timer minutes. *@
 <div class="card">
   <h2 class="card-title">Add category</h2>
   <form method="post" action="/admin/content/category" class="toolbar">
@@ -13,9 +15,11 @@
   </form>
 </div>
 
+@* Loop: one card for each category. *@
 @foreach (var cat in Model)
 {
   <div class="card">
+    @* Category header: image (if any), name, timer, opacity and the Edit / Delete buttons. *@
     <div class="cat-head">
       @if (!string.IsNullOrEmpty(cat.ImageUrl)) { <img class="thumb thumb-sm" src="@cat.ImageUrl" alt=""> }
       <h2>@cat.Name</h2>
@@ -23,6 +27,7 @@
       <span class="badge">opacity @cat.BackgroundOpacity.ToString("0.##")</span>
       <div class="actions">
         <a class="btn btn-secondary btn-sm" href="/admin/content/category/@cat.Id/edit">Edit</a>
+        @* Delete category. Posts to POST /admin/content/category/{id}/delete (AdminContentController.DeleteCategory). Also deletes its questions. The onsubmit confirm() asks the admin first. *@
         <form method="post" action="/admin/content/category/@cat.Id/delete" onsubmit="return confirm('Delete this category and ALL its questions?');">
           @Html.AntiForgeryToken()
           <button class="btn btn-danger btn-sm" type="submit">Delete</button>
@@ -31,6 +36,7 @@
     </div>
     @if (!string.IsNullOrEmpty(cat.Description)) { <p class="cat-desc">@cat.Description</p> }
 
+    @* Tree of subcategories of this category (ordered by Id). *@
     <div class="tree">
       @foreach (var sub in cat.Subcategories.OrderBy(s => s.Id))
       {
@@ -38,7 +44,9 @@
           <div class="sub-head">
             <span class="name">@sub.Name</span>
             <div class="actions">
+              @* Questions button opens the questions list filtered by target=subcategoryId-subjectId. The 0 means no subject. *@
               <a class="btn btn-secondary btn-sm" href="/admin/questions?target=@(sub.Id)-0">Questions</a>
+              @* Delete subcategory. Posts to POST /admin/content/subcategory/{id}/delete (AdminContentController.DeleteSubcategory). Also deletes its questions. *@
               <form method="post" action="/admin/content/subcategory/@sub.Id/delete" onsubmit="return confirm('Delete this subcategory and its questions?');">
                 @Html.AntiForgeryToken()
                 <button class="btn btn-danger btn-sm" type="submit">Delete</button>
@@ -46,6 +54,7 @@
             </div>
           </div>
 
+          @* Show the subject list only when this subcategory has subjects. *@
           @if (sub.Subjects.Count > 0)
           {
             <div class="subject-list">
@@ -56,6 +65,7 @@
                   @if (subject.TimerMinutes != null) { <span class="badge">@subject.TimerMinutes min</span> }
                   <div class="actions">
                     <a class="btn btn-secondary btn-sm" href="/admin/questions?target=@(sub.Id)-@(subject.Id)">Questions</a>
+                    @* Delete subject. Posts to POST /admin/content/subject/{id}/delete (AdminContentController.DeleteSubject). Also deletes its questions. *@
                     <form method="post" action="/admin/content/subject/@subject.Id/delete" onsubmit="return confirm('Delete this subject and its questions?');">
                       @Html.AntiForgeryToken()
                       <button class="btn btn-danger btn-sm" type="submit">Delete</button>
@@ -66,6 +76,7 @@
             </div>
           }
 
+          @* Add subject form. Posts to POST /admin/content/subcategory/{id}/subject (AdminContentController.AddSubject). The timer is optional. *@
           <form method="post" action="/admin/content/subcategory/@sub.Id/subject" class="add-row">
             @Html.AntiForgeryToken()
             <input class="grow" name="name" placeholder="New subject" aria-label="New subject name" required>
@@ -76,6 +87,7 @@
       }
     </div>
 
+    @* Add subcategory form. Posts to POST /admin/content/category/{id}/subcategory (AdminContentController.AddSubcategory). *@
     <form method="post" action="/admin/content/category/@cat.Id/subcategory" class="toolbar add-cat-row">
       @Html.AntiForgeryToken()
       <input class="grow" name="name" placeholder="New subcategory" aria-label="New subcategory name" required>

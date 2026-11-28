@@ -1,3 +1,4 @@
+@* Bulk import page (step 1: choose the file). Route: GET /admin/import (AdminImportController.Index). Model: ImportVm (default category, format, text, and Tree of categories for the dropdowns). *@
 @model ImportVm
 @{ ViewData["Title"] = "Bulk import"; }
 <div class="page-head">
@@ -5,11 +6,13 @@
   <a class="btn btn-secondary" href="/admin/import/history">Import history</a>
 </div>
 
+@* Error message from the controller (for example file could not be read). *@
 @if (!string.IsNullOrEmpty(Model.Error))
 {
   <div class="alert alert-err">@Model.Error</div>
 }
 
+@* Help card: explains the file formats. Only text, no form. *@
 <div class="card">
   <h2 class="card-title">Formats</h2>
   <p class="muted"><b>Excel (.xlsx)</b> or <b>CSV</b> with a header row. Columns (any order, extra columns are ignored):</p>
@@ -33,15 +36,19 @@
   <p class="muted" style="margin:0">You always get a preview first: nothing is saved until you press Import.</p>
 </div>
 
+@* Upload form. Posts to POST /admin/import/preview (AdminImportController.Preview). The controller reads the file or pasted text, builds a draft and redirects to the preview page. Nothing is saved yet. *@
 <div class="card">
   <h2 class="card-title">Choose the file</h2>
   <form method="post" action="/admin/import/preview" enctype="multipart/form-data">
+    @* Anti-forgery token (CSRF protection). *@
     @Html.AntiForgeryToken()
 
+    @* Hidden inputs Category, Subcategory, Subject are what is really posted. The JavaScript at the bottom copies the chosen dropdown (or new name) into them. *@
     <input type="hidden" id="Category" name="Category" value="@Model.Category">
     <input type="hidden" id="Subcategory" name="Subcategory" value="@Model.Subcategory">
     <input type="hidden" id="Subject" name="Subject" value="@Model.Subject">
 
+    @* Dropdowns for default category, subcategory and subject. They are empty in HTML and filled by the JavaScript below. The Subcategory and Subject dropdowns depend on the one before. The text boxes (hidden) are for typing a new name. *@
     <div class="field">
       <label for="catSel">Default category <span class="hint">(used for rows without a category column)</span></label>
       <select id="catSel"></select>
@@ -58,6 +65,7 @@
       <input id="sbjNew" type="text" placeholder="New subject name" hidden>
     </div>
 
+    @* Format of pasted text, and default difficulty for rows that have none. *@
     <div class="form-grid">
       <div class="field">
         <label for="Format">Format (for pasted text; files are detected by extension)</label>
@@ -69,6 +77,7 @@
       <div class="field">
         <label for="Difficulty">Default difficulty</label>
         <select id="Difficulty" name="Difficulty">
+          @* Loop: one option for each difficulty. The current value is selected. *@
           @foreach (var d in new[] { "easy", "medium", "hard" })
           {
             <option value="@d" selected="@(d == Model.Difficulty)">@d</option>
@@ -77,6 +86,7 @@
       </div>
     </div>
 
+    @* File upload (xlsx, csv or json) or pasted text. If a file is chosen it is used. *@
     <div class="field">
       <label for="file">File (.xlsx, .csv or .json)</label>
       <input id="file" name="file" type="file" accept=".xlsx,.csv,.json,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
@@ -91,6 +101,7 @@
   </form>
 </div>
 
+@* JavaScript for the three dropdowns. Model.Tree is written as JSON (Html.Raw prints it without HTML encoding) and used to fill the subcategory and subject lists. On submit it fills the hidden inputs. *@
 <script>
 (function () {
   var tree = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Tree, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));

@@ -1,3 +1,11 @@
+/*
+  QuizSummaryScreen.js - result screen shown after a quiz ends (practice level, daily, mistakes, bookmarks, challenge).
+  Route params (all sent by QuizScreen.handleQuizComplete): score, totalQuestions, questions, passed, category, subcategory,
+    subject, difficulty, user, levelStart, levelEnd, levelNumber, totalLevels, difficultyCompleted, passMark, mode.
+  It only shows the result. Saving progress is already done in QuizScreen (markLevelPassed, completeDaily, recordChallengeWin).
+  Goes to: Quiz (retry or next level), Levels (next difficulty), Categories or Login (home).
+  Where is X done? score and colour: percentage, scoreColor   buttons: handleRetry, handleNextLevel, handleNextDifficulty
+*/
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,9 +16,12 @@ import { gameSettings, getDailyStatus } from "../utils/api";
 import { useLang } from "../utils/i18n";
 import { colors, fonts, shadow } from "../utils/theme";
 
+// DIFF_KEYS: difficulty value to text key in utils/i18n.js.
 const DIFF_KEYS = { easy: "difficultyEasy", medium: "difficultyMedium", hard: "difficultyHard" };
 
+// QuizSummaryScreen: shows score, details and the next-step buttons.
 export default function QuizSummaryScreen({ route, navigation }) {
+  // --- Route params with safe defaults (the screen must not crash if a param is missing) ---
   const { t } = useLang();
   const params = route?.params || {};
   const {
@@ -31,22 +42,28 @@ export default function QuizSummaryScreen({ route, navigation }) {
     passMark,
     mode,
   } = params;
+  // isCustom: daily, mistakes, bookmarks or challenge (not a normal level).
   const isCustom = !!mode;
+  // daily: today's daily status (streak) from api.js getDailyStatus. Only loaded in daily mode.
   const [daily, setDaily] = useState(null);
 
+  // Load the daily streak after a daily quiz.
   useEffect(() => {
     if (mode === "daily" && user?.id) getDailyStatus(user.id).then(setDaily);
   }, [mode, user?.id]);
 
+  // --- Score numbers. Total falls back to the question count. Percentage is rounded and safe when total is 0 ---
   const actualTotalQuestions = totalQuestions || questions.length || 0;
   const percentage = actualTotalQuestions > 0 ? Math.round((score / actualTotalQuestions) * 100) : 0;
 
+  // goHome(): reset the navigation stack and open Categories (or Login if there is no user). Reset means Back cannot return to the quiz.
   const goHome = () =>
     navigation.reset({
       index: 0,
       routes: [{ name: user ? "Categories" : "Login", params: user ? { user } : {} }],
     });
 
+  // Guard: a normal level result without category data is invalid. Show an error and a home button.
   if (!isCustom && (!category || !subcategory || !difficulty)) {
     return (
       <View style={styles.errorContainer}>
@@ -58,12 +75,14 @@ export default function QuizSummaryScreen({ route, navigation }) {
     );
   }
 
+  // --- Score level: 90+ trophy, 70+ ribbon, 50+ happy, below that encouragement ---
   // Score tone: green / peacock / violet (never red or yellow)
   const scoreColor = percentage >= 70 ? colors.success : percentage >= 50 ? colors.primary : colors.accent;
   const scoreIcon = percentage >= 90 ? "trophy" : percentage >= 70 ? "ribbon" : percentage >= 50 ? "happy-outline" : "fitness-outline";
   const scoreMessage =
     percentage >= 90 ? t("msgExcellent") : percentage >= 70 ? t("msgGreat") : percentage >= 50 ? t("msgGood") : t("msgKeepTrying");
 
+  // handleRetry(): open the same quiz again (same level). Challenge keeps its mode.
   const handleRetry = () => {
     navigation.replace("Quiz", {
       category, subcategory, subject, difficulty, user, levelStart, levelEnd, levelNumber,
@@ -71,8 +90,10 @@ export default function QuizSummaryScreen({ route, navigation }) {
     });
   };
 
+  // hasNextLevel: true if this is a normal level and a higher level exists (levelNumber < totalLevels).
   const hasNextLevel = !isCustom && !!levelNumber && levelNumber < totalLevels;
 
+  // handleNextLevel(): open the next level. The question range moves by questionsPerLevel (gameSettings).
   const handleNextLevel = () => {
     navigation.replace("Quiz", {
       category,
@@ -86,6 +107,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
     });
   };
 
+  // handleNextDifficulty(): easy goes to medium, medium goes to hard (hard has no next).
   const handleNextDifficulty = () => {
     let nextDifficulty = "";
     if (difficulty === "easy") nextDifficulty = "medium";
@@ -96,15 +118,19 @@ export default function QuizSummaryScreen({ route, navigation }) {
     }
   };
 
+  // Next difficulty button is shown only if passed, there is no next level, this difficulty is fully completed (difficultyCompleted from markLevelPassed) and a next one exists.
   const nextDifficultyKey = difficulty === "easy" ? "tryMedium" : difficulty === "medium" ? "tryHard" : null;
   const showNextDifficulty = passed && !hasNextLevel && difficultyCompleted && !!nextDifficultyKey;
 
+  // --- Screen layout ---
   return (
     <View style={styles.container}>
+      {/* Header: title depends on the mode. Back button goes home */}
       <Header title={isCustom ? t(mode === "daily" ? "dailyChallenge" : mode === "challenge" ? "challengeTitle" : "practiceTitle") : t("quizComplete")} onBack={goHome} />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <FadeInUp index={0}>
+          {/* Score card: big score, percentage, message, passed badge or the pass mark needed */}
           <View style={styles.scoreCard}>
             <Ionicons name={scoreIcon} size={60} color={scoreColor} />
             <Text style={[styles.scoreText, { color: scoreColor }]}>
@@ -113,12 +139,14 @@ export default function QuizSummaryScreen({ route, navigation }) {
             <Text style={[styles.percentageText, { color: scoreColor }]}>{percentage}%</Text>
             <Text style={styles.messageText}>{scoreMessage}</Text>
 
+            {/* Passed badge (challenge shows a won text) */}
             {passed && (
               <View style={styles.passedBadge}>
                 <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                 <Text style={styles.passedText}>{mode === "challenge" ? t("challengeWon") : t("passed")}</Text>
               </View>
             )}
+            {/* Failed in a normal level: show the pass mark needed */}
             {!passed && !isCustom && !!passMark && (
               <Text style={styles.messageText}>{t("passMarkNeed", { p: Math.round(passMark * 100) })}</Text>
             )}
@@ -126,6 +154,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
         </FadeInUp>
 
         <FadeInUp index={1}>
+          {/* Quiz details card: category, subject, difficulty, daily streak, correct count */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t("quizDetails")}</Text>
             {isCustom ? null : (
@@ -141,6 +170,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
         </FadeInUp>
 
         <FadeInUp index={2}>
+          {/* Performance card: correct, wrong, accuracy and a progress bar */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t("performance")}</Text>
             <View style={styles.statRow}>
@@ -155,7 +185,9 @@ export default function QuizSummaryScreen({ route, navigation }) {
         </FadeInUp>
 
         <FadeInUp index={3}>
+          {/* Action buttons: try again, next level, next difficulty, back to categories */}
           <View style={styles.actions}>
+            {/* Try again: for normal levels and challenge only */}
             {(!isCustom || mode === "challenge") && (
               <PressableScale style={styles.primaryBtn} onPress={handleRetry}>
                 <Ionicons name="refresh" size={20} color="#FFFFFF" />
@@ -163,6 +195,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
               </PressableScale>
             )}
 
+            {/* Next level: only if passed */}
             {passed && hasNextLevel && (
               <PressableScale style={styles.accentBtn} onPress={handleNextLevel}>
                 <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
@@ -170,6 +203,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
               </PressableScale>
             )}
 
+            {/* Next difficulty: only when this difficulty is finished */}
             {showNextDifficulty && (
               <PressableScale style={styles.accentBtn} onPress={handleNextDifficulty}>
                 <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
@@ -184,6 +218,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
           </View>
         </FadeInUp>
 
+        {/* Study tips card (normal levels only) */}
         {!isCustom && (
         <FadeInUp index={4}>
           <View style={styles.tipsCard}>
@@ -206,6 +241,7 @@ export default function QuizSummaryScreen({ route, navigation }) {
   );
 }
 
+// InfoRow: one label and value line in the details card. accent = highlighted value.
 function InfoRow({ label, value, accent }) {
   return (
     <View style={styles.infoRow}>
@@ -215,6 +251,7 @@ function InfoRow({ label, value, accent }) {
   );
 }
 
+// Stat: one number with a label (correct, wrong, accuracy).
 function Stat({ value, label, color }) {
   return (
     <View style={styles.statItem}>

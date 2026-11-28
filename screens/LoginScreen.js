@@ -1,3 +1,8 @@
+// LoginScreen.js - login and sign up screen (one form, two buttons).
+// ROUTE PARAMS: none.
+// TALKS TO: utils/api.js (authenticateUser, registerUser, loginUserSession, USE_SERVER), utils/i18n.js (t), utils/theme.js.
+// NAVIGATES TO: "Categories" after login ("Admin" for a local-mode admin), "ForgotPassword" (only when USE_SERVER is true).
+// We use navigation.reset so the user cannot press Back to return to the login screen.
 import React, { useState } from "react";
 import { View, Text, TextInput, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,12 +16,16 @@ import FadeInUp from "../components/FadeInUp";
 export default function LoginScreen({ navigation }) {
   const { t } = useLang();
   const insets = useSafeAreaInsets();
+  // State group: form values and busy flag (busy disables the buttons while a request is running).
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Helper: simple email format check (text@text.text). Same check is used in ForgotPasswordScreen.
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
+  // Handler: login button. Validate input, call authenticateUser (utils/api.js), save session, then go to the home screen.
+  // Wrong password or unknown user returns null from authenticateUser.
   const login = async () => {
     if (!email || !password) return Alert.alert(t("error"), t("errEnterBoth"));
     if (!isValidEmail(email)) return Alert.alert(t("error"), t("errInvalidEmail"));
@@ -30,8 +39,10 @@ export default function LoginScreen({ navigation }) {
         return;
       }
 
+      // Save the session so SplashScreen can auto-login next time.
       await loginUserSession(user);
 
+      // Local admin goes to Admin screen. With a server, admin screen is opened from Categories/Settings instead.
       if (user.isAdmin && !USE_SERVER) {
         navigation.reset({ index: 0, routes: [{ name: "Admin", params: { user } }] });
       } else {
@@ -45,6 +56,7 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
+  // Handler: sign up button. Validate input (password min 6 chars), then registerUser (utils/api.js). User must press Login after sign up.
   const signup = async () => {
     if (!email || !password) return Alert.alert(t("error"), t("errEnterBoth"));
     if (!isValidEmail(email)) return Alert.alert(t("error"), t("errInvalidEmail"));
@@ -69,12 +81,14 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
+  // Render: banner on top, form card, then features info box.
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.bg }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
+        {/* Top banner: logo, language toggle, tagline */}
         <View style={[styles.banner, { paddingTop: Math.max(insets.top, 16) + 8 }]}>
           <View style={styles.bannerTop}>
             <Text style={styles.logo}>Quiz-IN</Text>
@@ -83,6 +97,7 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.tagline}>{t("tagline")}</Text>
         </View>
 
+        {/* Form card: email, password, login, sign up, forgot password link */}
         <FadeInUp style={styles.formContainer}>
           <TextInput
             placeholder={t("email")}
@@ -111,6 +126,7 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.secondaryText}>{t("signup")}</Text>
           </PressableScale>
 
+          {/* Forgot password link is only shown when a server is used (reset code is sent by server) */}
           {USE_SERVER && (
             <PressableScale style={styles.linkBtn} onPress={() => navigation.navigate("ForgotPassword", { email: email.trim() })} disabled={busy}>
               <Text style={styles.linkText}>{t("forgotLink")}</Text>
@@ -118,6 +134,7 @@ export default function LoginScreen({ navigation }) {
           )}
         </FadeInUp>
 
+        {/* Features info box (texts from i18n: feature1..3) */}
         <FadeInUp index={2} style={styles.infoContainer}>
           <Text style={styles.infoTitle}>{t("featuresTitle")}</Text>
           <Text style={styles.infoText}>• {t("feature1")}</Text>
@@ -129,6 +146,7 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
+// Styles. Colors come from utils/theme.js.
 const styles = StyleSheet.create({
   banner: {
     backgroundColor: colors.primary,

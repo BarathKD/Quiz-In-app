@@ -1,3 +1,7 @@
+// DailyChallengeScreen.js - daily challenge: streak card, last 7 days, and a start button (or "done today" card).
+// ROUTE PARAMS: user (needs user.id; without it nothing is loaded).
+// TALKS TO: utils/api.js (getDailyStatus -> streak, best, history, doneToday, lastScore).
+// NAVIGATES TO: "Quiz" with { mode: "daily", user } - the quiz itself is in QuizScreen. BottomNav tab: categories.
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,18 +13,22 @@ import { getDailyStatus } from "../utils/api";
 import { useLang } from "../utils/i18n";
 import { colors, fonts, shadow } from "../utils/theme";
 
+// Date helpers: keyOf() makes a local date key like 2026-01-05. It must have the same format as the dates in status.history from the api.
 const pad = (n) => String(n).padStart(2, "0");
 const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 export default function DailyChallengeScreen({ navigation, route }) {
   const { user } = route.params || {};
   const { t } = useLang();
+  // State: daily status from the api (null until loaded, so the UI uses status?. with defaults).
   const [status, setStatus] = useState(null);
 
+  // Helper: load the daily status for this user.
   const load = useCallback(async () => {
     if (user?.id) setStatus(await getDailyStatus(user.id));
   }, [user?.id]);
 
+  // Effect: load on open and every time the screen gets focus (to refresh after finishing the daily quiz).
   useEffect(() => {
     load();
     const unsubscribe = navigation.addListener("focus", load);
@@ -34,12 +42,15 @@ export default function DailyChallengeScreen({ navigation, route }) {
     d.setDate(d.getDate() - i);
     days.push({ key: keyOf(d), label: d.toLocaleDateString(undefined, { weekday: "narrow" }) });
   }
+  // Set of completed date keys, used to mark the dots in the week card.
   const done = new Set(status?.history || []);
 
+  // Render: header, then streak card, 7-day card, and start/done card.
   return (
     <View style={styles.container}>
       <Header title={t("dailyChallenge")} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Streak card: current streak and best streak */}
         <FadeInUp index={0}>
           <View style={styles.streakCard}>
             <Ionicons name="flame" size={56} color="#FFFFFF" />
@@ -48,6 +59,7 @@ export default function DailyChallengeScreen({ navigation, route }) {
           </View>
         </FadeInUp>
 
+        {/* Week card: last 7 days, a green dot means the challenge was done that day */}
         <FadeInUp index={1}>
           <View style={styles.weekCard}>
             {days.map((d) => (
@@ -61,6 +73,7 @@ export default function DailyChallengeScreen({ navigation, route }) {
           </View>
         </FadeInUp>
 
+        {/* Bottom card: if done today show result, otherwise show the start button */}
         <FadeInUp index={2}>
           {status?.doneToday ? (
             <View style={styles.doneCard}>
@@ -88,6 +101,7 @@ export default function DailyChallengeScreen({ navigation, route }) {
   );
 }
 
+// Styles.
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16 },

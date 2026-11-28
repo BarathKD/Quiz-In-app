@@ -6,6 +6,13 @@
 //                           leaderboard come from the ASP.NET Core backend. Content and the last answers are
 //                           cached, so the quiz still opens offline.
 // Names defined in this file replace the same-named exports of ./storage.
+// Structure of this file:
+//   1. helpers (absoluteUrl, mapCategory, mapQuestion, progressKey, dateKey)
+//   2. server = { ... }: server-mode versions of the functions (HTTP calls through ./server.js)
+//   3. extra exports that exist only here (reportQuestion, submitExam, loadGameSettings, password reset, pending writes)
+//   4. at the bottom: pick(name) chooses server[name] or local[name] (storage.js) using USE_SERVER
+// Where is X done? Find the name in the server section (server mode) or in storage.js (local mode).
+// Functions not listed at the bottom (for example recordChallengeWin, completeDaily rules, game settings) come straight from storage.js through export * below.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as local from "./storage";
 import { API_BASE_URL, USE_SERVER } from "./config";
@@ -14,14 +21,19 @@ import {
   isNetworkError, enqueueWrite, flushQueue, clearQueue, pendingWrites,
 } from "./server";
 
+// Re-export everything from storage.js, so screens can import all names from this one file. Names defined below replace them.
 export * from "./storage";
+// Screens use USE_SERVER to show server-only features (for example the report button).
 export { USE_SERVER };
 
+// DAILY_HISTORY_KEY: AsyncStorage key prefix for the list of days the user finished the daily challenge. Real key = prefix + userId.
 const DAILY_HISTORY_KEY = "quizin_daily_history_";
 
+// absoluteUrl(u): server gives image paths like /images/a.jpg. This adds the server address in front. Returns null if empty.
 // ---------- helpers ----------
 const absoluteUrl = (u) => (u ? (u.startsWith("http") ? u : API_BASE_URL + u) : null);
 
+// mapCategory(c): converts a category from the server JSON to the shape the screens use (same as local mode).
 const mapCategory = (c) => ({
   id: String(c.id),
   name: c.name,
@@ -35,23 +47,29 @@ const mapCategory = (c) => ({
   subjectImages: Object.fromEntries(Object.entries(c.subjectImages || {}).map(([k, v]) => [k, absoluteUrl(v)])),
 });
 
+// progressKey(category, subcategory, subject): key used in the progress object, e.g. "GK_History" or "GK_History_India".
 const progressKey = (category, subcategory, subject) =>
   subject ? `${category}_${subcategory}_${subject}` : `${category}_${subcategory}`;
 
+// dateKey(d): date as "YYYY-MM-DD" in the phone's local time. Used for the daily challenge.
 const dateKey = (d = new Date()) => {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${m}-${day}`;
 };
+// yesterdayKey(): same as dateKey but for yesterday. Needed to check the daily streak.
 const yesterdayKey = () => {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   return dateKey(d);
 };
 
+// server: an object that holds the server-mode functions. They are added below as server.name = ...
 // ---------- server-mode implementations ----------
 const server = {};
 
+// --- Server mode: accounts ---
+// registerUser: creates an account. Returns {ok:true} or {ok:false, reason:"exists"} if the email is used.
 // Accounts
 server.registerUser = async (email, password) => {
   try {
@@ -64,6 +82,7 @@ server.registerUser = async (email, password) => {
   }
 };
 
+// authenticateUser: login. Saves the token, clears old cache, returns the user or null if email or password is wrong.
 server.authenticateUser = async (email, password) => {
   try {
     const res = await request("POST", "/api/auth/login", { email, password });
@@ -76,18 +95,21 @@ server.authenticateUser = async (email, password) => {
   }
 };
 
+// getLoggedInUserSession: the saved user (from storage.js), but only if a login token also exists.
 server.getLoggedInUserSession = async () => {
   const user = await local.getLoggedInUserSession();
   if (!user) return null;
   return (await getToken()) ? user : null;
 };
 
+// logoutUserSession: removes the token and the cache, then the saved user.
 server.logoutUserSession = async () => {
   await setToken(null);
   await clearCaches();
   return local.logoutUserSession();
 };
 
+// deleteUserAccount: deletes the account on the server, then clears everything on the phone. Returns true or false.
 server.deleteUserAccount = async () => {
   try {
     const userId = await currentUserId();
@@ -103,13 +125,17 @@ server.deleteUserAccount = async () => {
   }
 };
 
+// initStorageWithSample: nothing to do in server mode (sample data is only for local mode).
 server.initStorageWithSample = async () => {};
 
+// --- Server mode: content (categories and questions). Reads use cachedGet, so they work offline after the first load ---
 // Content
 server.getAllCategories = async () => (await cachedGet("/api/categories")).map(mapCategory);
 
+// getCategoryByName(name): finds one category in the list. Used by QuizScreen for the background and timer.
 server.getCategoryByName = async (name) => (await server.getAllCategories()).find((c) => c.name === name) || null;
 
+// getCategoryImage: image URL of a category or of one subject. Returns null if there is none.
 server.getCategoryImage = async (categoryId, subcategory = null, subject = null) => {
   const cats = await server.getAllCategories();
   const cat = cats.find((c) => String(c.id) === String(categoryId));
@@ -118,6 +144,7 @@ server.getCategoryImage = async (categoryId, subcategory = null, subject = null)
   return subcategory ? null : cat.backgroundImage;
 };
 
+// mapQuestion(q): converts a question from the server JSON to the shape the screens use.
 const mapQuestion = (q) => ({
   id: q.id,
   category: q.category,
@@ -130,8 +157,10 @@ const mapQuestion = (q) => ({
   explanation: q.explanation || "",
 });
 
+// getAllQuestions: all questions (cached).
 server.getAllQuestions = async () => (await cachedGet("/api/questions")).map(mapQuestion);
 
+// getQuestionsByFilter: questions for a category, subcategory, subject and difficulty. Filtering is done by the server.
 server.getQuestionsByFilter = async (category = null, subcategory = null, subject = null, difficulty = null) => {
   const params = [];
   if (category) params.push(`category=${encodeURIComponent(category)}`);
@@ -143,30 +172,38 @@ server.getQuestionsByFilter = async (category = null, subcategory = null, subjec
   return (await cachedGet(path)).map(mapQuestion);
 };
 
+// getQuestionsByIds: questions for a list of ids (used for mistakes and bookmarks practice).
 server.getQuestionsByIds = async (ids) => {
   const wanted = new Set(ids);
   return (await server.getAllQuestions()).filter((q) => wanted.has(q.id));
 };
 
+// --- Server mode: per-user data. All of it comes from one call /api/me/data (levels, mistakes, bookmarks, stats, daily). loadMe() keeps it in memory ---
 // Per-user data (one call, kept in memory and updated after each write)
+// ME_CACHE_KEY: AsyncStorage key where the copy of /api/me/data is saved for offline use (same name that cachedGet uses).
 const ME_CACHE_KEY = "quizin_cache_/api/me/data";
 
+// currentUserId(): id of the logged-in user, or null.
 const currentUserId = async () => (await local.getLoggedInUserSession())?.id || null;
 
+// flushPendingWrites(): sends the writes that were saved while offline. Returns how many are still waiting.
 // Sends any writes saved while offline. Returns how many are still waiting.
 export const flushPendingWrites = async () => {
   if (!USE_SERVER) return 0;
   return flushQueue(await currentUserId());
 };
 
+// getPendingWriteCount(): how many writes are waiting to be sent.
 export const getPendingWriteCount = async () => (USE_SERVER ? pendingWrites(await currentUserId()) : 0);
 
+// setMe(me): stores the changed user data in memory and in AsyncStorage.
 // Keeps the saved copy of /api/me/data in step with local changes, so they survive a restart while offline.
 const setMe = (me) => {
   setMemo("me", me);
   AsyncStorage.setItem(ME_CACHE_KEY, JSON.stringify(me)).catch(() => {});
 };
 
+// writeOrQueue(userId, op): sends a change to the server. If there is no network, saves it in a queue (sent later by flushQueue). Other errors are thrown.
 // Runs a write against the server. With no connection it is queued and the app carries on with its local copy.
 const writeOrQueue = async (userId, op) => {
   try {
@@ -178,6 +215,7 @@ const writeOrQueue = async (userId, op) => {
   }
 };
 
+// loadMe(): gets the user data once and keeps it for 60 seconds (memo). Pending writes are sent first. Offline fallback is empty data.
 const loadMe = () => memo("me", async () => {
   try {
     await flushQueue(await currentUserId()); // our own pending changes must reach the server before we read it back
@@ -188,6 +226,7 @@ const loadMe = () => memo("me", async () => {
   }
 }, 60000);
 
+// getUserProgress: builds the progress object {key: {easy, medium, hard, levels}} from the passed levels list.
 // Builds the same progress shape the screens already use, from the passed-level rows.
 server.getUserProgress = async () => {
   const me = await loadMe();
@@ -198,6 +237,7 @@ server.getUserProgress = async () => {
     progress[key].levels[row.difficulty][row.levelNumber] = true;
   }
 
+  // Mark a difficulty as complete only if every level of it was passed (level count from the question count).
   // A difficulty counts as complete when every level of it (50 questions each) has been passed.
   const keys = Object.keys(progress);
   if (keys.length) {
@@ -218,6 +258,7 @@ server.getUserProgress = async () => {
   return progress;
 };
 
+// markLevelPassed: saves a passed level (called by QuizScreen). Returns difficultyCompleted, which tells if the next difficulty can open.
 server.markLevelPassed = async (userId, category, subcategory, subject, difficulty, levelNumber, totalLevels) => {
   const payload = { category, subcategory, subject: subject || null, difficulty, levelNumber };
   await writeOrQueue(userId, { type: "level", method: "POST", path: "/api/me/levels", body: payload, payload });
@@ -234,6 +275,7 @@ server.markLevelPassed = async (userId, category, subcategory, subject, difficul
   return { progress: entry, difficultyCompleted: !!entry[difficulty] || allPassed };
 };
 
+// getLeaderboard: top users list. Returns [] on error.
 server.getLeaderboard = async () => {
   try {
     const rows = await cachedGet("/api/leaderboard");
@@ -244,11 +286,13 @@ server.getLeaderboard = async () => {
   }
 };
 
+// --- Server mode: mistakes, bookmarks and stats ---
 // Mistakes, bookmarks, stats
 server.getMistakeIds = async () => (await loadMe()).mistakes || [];
 server.getBookmarkIds = async () => (await loadMe()).bookmarks || [];
 server.getUserStats = async () => (await loadMe()).stats || { answered: 0, correct: 0 };
 
+// toggleBookmark: adds or removes the bookmark. Returns true if it is now bookmarked.
 // Decides the new state from our own copy and sends that state (add / remove), so replaying it later is safe.
 server.toggleBookmark = async (userId, questionId) => {
   const me = await loadMe();
@@ -263,6 +307,7 @@ server.toggleBookmark = async (userId, questionId) => {
   return on;
 };
 
+// removeBookmark: removes one bookmark.
 server.removeBookmark = async (userId, questionId) => {
   const me = await loadMe();
   me.bookmarks = (me.bookmarks || []).filter((id) => id !== questionId);
@@ -271,6 +316,7 @@ server.removeBookmark = async (userId, questionId) => {
   await writeOrQueue(userId, { type: "bookmark", method: "DELETE", path: `/api/me/bookmarks/${questionId}`, payload });
 };
 
+// removeMistake: removes one question from the My mistakes list.
 server.removeMistake = async (userId, questionId) => {
   const me = await loadMe();
   me.mistakes = (me.mistakes || []).filter((id) => id !== questionId);
@@ -279,6 +325,7 @@ server.removeMistake = async (userId, questionId) => {
   await writeOrQueue(userId, { type: "mistake_remove", method: "DELETE", path: `/api/me/mistakes/${questionId}`, payload });
 };
 
+// recordAnswer: after each answer. Wrong answer adds to mistakes, correct answer removes it. countStats=false skips the answered/correct counters.
 server.recordAnswer = async (userId, questionId, correct, countStats = true) => {
   if (!userId) return;
   try {
@@ -300,10 +347,13 @@ server.recordAnswer = async (userId, questionId, correct, countStats = true) => 
   }
 };
 
+// --- Server mode: daily challenge ---
+// getDailyQuestions: today's questions (same for all users).
 // Daily challenge
 server.getDailyQuestions = async () =>
   (await request("GET", `/api/daily?date=${dateKey()}`)).map(mapQuestion);
 
+// readDailyHistory(userId): list of dates when the user completed the daily challenge (kept on the phone only).
 const readDailyHistory = async (userId) => {
   try {
     const raw = await AsyncStorage.getItem(DAILY_HISTORY_KEY + userId);
@@ -313,6 +363,7 @@ const readDailyHistory = async (userId) => {
   }
 };
 
+// getDailyStatus: streak, best streak, done today, last score and history. A streak stays alive only if the last day was today or yesterday.
 server.getDailyStatus = async (userId) => {
   const me = await loadMe();
   const d = me.daily || {};
@@ -327,6 +378,7 @@ server.getDailyStatus = async (userId) => {
   };
 };
 
+// completeDaily: called by QuizScreen after a finished daily quiz. Updates the streak, sends it to the server, saves the history (last 60 days).
 server.completeDaily = async (userId, score, total) => {
   const me = await loadMe();
   const payload = { date: dateKey(), score, total };
@@ -343,6 +395,8 @@ server.completeDaily = async (userId, score, total) => {
   return server.getDailyStatus(userId);
 };
 
+// --- Server mode: achievements ---
+// getAchievements: each badge has value, target and unlocked. Counts levels, hard levels, full subjects, streak, correct answers and challenge wins.
 // Badges (computed from the data above, same rules as local mode)
 server.getAchievements = async (userId) => {
   const progress = await server.getUserProgress();
@@ -362,6 +416,7 @@ server.getAchievements = async (userId) => {
     if (entry.easy && entry.medium && entry.hard) masterCount += 1;
   }
 
+  // Badge list: id is used for the text in i18n.js. value is capped at target.
   const defs = [
     { id: "firstLevel", icon: "flag", value: levelsPassed, target: 1 },
     { id: "levels10", icon: "layers", value: levelsPassed, target: 10 },
@@ -396,8 +451,10 @@ server.submitExam = async (userId, answers, seconds) => {
     return null;
   }
 };
+// submitExam is exported only in server mode. In local mode it does nothing and returns null.
 export const submitExam = USE_SERVER ? server.submitExam : async () => null;
 
+// --- Password reset (used by the login screens) ---
 // Forgot password (server mode only): e-mail a 6-digit code, then set a new password with it.
 export const requestPasswordReset = async (email) => {
   await request("POST", "/api/auth/forgot", { email });
@@ -416,6 +473,8 @@ export const loadGameSettings = async () => {
   }
 };
 
+// --- Public exports: the screens use these. In server mode the server version is used, otherwise the local version from storage.js ---
+// pick(name): chooses the right function.
 // ---------- public exports: server version in server mode, local version otherwise ----------
 const pick = (name) => (USE_SERVER ? server[name] : local[name]);
 

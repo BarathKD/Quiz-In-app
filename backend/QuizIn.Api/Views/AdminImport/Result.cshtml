@@ -1,5 +1,7 @@
+@* Import result page (step 3). Route: GET /admin/import/result/{token} (AdminImportController.Result). Model: ImportDraft with Result filled after Commit. *@
 @model ImportDraft
 @{
+    @* result = what the import did. skipped = rows that were not imported (errors, duplicates, not selected). *@
     ViewData["Title"] = "Import result";
     var result = Model.Result!;
     var skipped = result.Skipped;
@@ -9,6 +11,7 @@
   <a class="btn btn-secondary" href="/admin/import">Import another file</a>
 </div>
 
+@* Four counters: added, updated, not imported, and the import (batch) number. *@
 <div class="stat-grid">
   <div class="stat"><b>@result.Added</b><span>Added</span></div>
   <div class="stat"><b>@result.Updated</b><span>Updated</span></div>
@@ -16,16 +19,20 @@
   <div class="stat"><b>#@result.BatchId</b><span>Import number</span></div>
 </div>
 
+@* Next actions: view questions, download skipped rows, or undo this import. *@
 <div class="card">
   <h2 class="card-title">What next?</h2>
   <div class="form-actions">
     <a class="btn" href="/admin/questions">View questions</a>
+    @* Download link for skipped rows (GET /admin/import/errors/{token}, AdminImportController.ErrorReport). Only shown when something was skipped. *@
     @if (skipped.Count > 0)
     {
       <a class="btn btn-secondary" href="/admin/import/errors/@Model.Token">Download the rows not imported (Excel)</a>
     }
+    @* Undo is possible only when this import added questions. *@
     @if (result.Added > 0)
     {
+      @* Undo form. Posts to POST /admin/import/undo/{batchId} (AdminImportController.Undo). Removes the questions added by this batch. *@
       <form method="post" action="/admin/import/undo/@result.BatchId" onsubmit="return confirm('Remove the @result.Added question(s) added by this import?');">
         @Html.AntiForgeryToken()
         <button class="btn btn-danger" type="submit">Undo this import</button>
@@ -38,6 +45,7 @@
   }
 </div>
 
+@* Table of skipped rows. Rows: the first 200 skipped rows only (Take(200)). The Excel download has all of them. *@
 @if (skipped.Count > 0)
 {
   <div class="card">

@@ -1,3 +1,8 @@
+// AchievementsScreen.js - grid of badges (unlocked or locked) with a progress bar for each.
+// ROUTE PARAMS: user (needs user.id).
+// TALKS TO: utils/api.js (getAchievements -> list with id, icon, unlocked, value, target).
+// TEXTS: badge title and description come from i18n keys badge_<id> and badge_<id>_d (utils/i18n.js). Add both keys when you add a badge.
+// BottomNav tab: profile.
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,26 +16,32 @@ import { colors, shadow } from "../utils/theme";
 export default function AchievementsScreen({ navigation, route }) {
   const { user } = route.params || {};
   const { t } = useLang();
+  // State: badge list from the api.
   const [badges, setBadges] = useState([]);
 
+  // Helper: load badges for this user.
   const load = useCallback(async () => {
     if (user?.id) setBadges(await getAchievements(user.id));
   }, [user?.id]);
 
+  // Effect: load on open and on every focus (new badges can unlock after a quiz).
   useEffect(() => {
     load();
     const unsubscribe = navigation.addListener("focus", load);
     return unsubscribe;
   }, [navigation, load]);
 
+  // Count for the summary line.
   const unlockedCount = badges.filter((b) => b.unlocked).length;
 
+  // Render: header, summary line, badge grid, bottom nav.
   return (
     <View style={styles.container}>
       <Header title={t("achievements")} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.summary}>{t("achievementsSub", { a: unlockedCount, b: badges.length })}</Text>
         <View style={styles.grid}>
+          {/* One cell per badge. Locked badges show a lock icon; progress bar width = value / target. */}
           {badges.map((b, index) => (
             <FadeInUp key={b.id} index={index} style={styles.cell}>
               <View style={[styles.badge, !b.unlocked && styles.badgeLocked]}>
@@ -53,6 +64,7 @@ export default function AchievementsScreen({ navigation, route }) {
   );
 }
 
+// Styles.
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, paddingBottom: 28 },

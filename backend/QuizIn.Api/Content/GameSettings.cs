@@ -10,15 +10,19 @@ namespace QuizIn.Api.Content;
 public class GameSettings
 {
     // Levels
+    // How many questions make one level (admin: Settings > Levels). The app slices a subject's questions into levels of this size.
     public int QuestionsPerLevel { get; set; } = 50;
 
     // Practice: percent of answers that must be correct to pass a level
+    // Pass marks (percent) per difficulty. Example: 70 means 35 of 50 correct passes an Easy level.
     public int PassMarkEasy { get; set; } = 70;
     public int PassMarkMedium { get; set; } = 80;
     public int PassMarkHard { get; set; } = 90;
 
     // Challenge: rounds of questions, one mistake ends it (unless revived)
     public bool ChallengeEnabled { get; set; } = true;
+    // Challenge mode: ChallengeRounds x ChallengeQuestionsPerRound random questions; seconds per question depend on difficulty;
+    // ChallengeRevives = how many times a player may continue after a mistake (by watching an ad); BonusMultiplier is for the leaderboard bonus (not used yet).
     public int ChallengeQuestionsPerRound { get; set; } = 10;
     public int ChallengeRounds { get; set; } = 3;
     public int ChallengeSecondsEasy { get; set; } = 15;
@@ -28,13 +32,16 @@ public class GameSettings
     public int ChallengeBonusMultiplier { get; set; } = 2;
 
     // App updates: versions older than this must update before playing (e.g. "1.2.0")
+    // The app compares its own version with this (utils/version.js). If the app is older it shows the "Update required" screen.
     public string MinAppVersion { get; set; } = "1.0.0";
 
     // Daily challenge
+    // Daily Challenge: number of questions and the total timer in minutes.
     public int DailyQuestionCount { get; set; } = 10;
     public int DailyTimerMinutes { get; set; } = 10;
 
     // Exam mode (mock test): mixed-difficulty questions, one timer, negative marking, score + rank
+    // Used by POST /api/me/exams (Auth/UserDataEndpoints.cs) for grading and by the app's ExamScreen for the intro/timer.
     public bool ExamEnabled { get; set; } = true;
     public int ExamQuestionCount { get; set; } = 25;
     public int ExamMinutes { get; set; } = 30;
@@ -42,6 +49,7 @@ public class GameSettings
     public int ExamPassMark { get; set; } = 40;        // percent of the marks needed to pass
 
     // Daily reminder notification: the admin decides whether it is sent, when, and what it says.
+    // The phone schedules one local notification per day at ReminderHour:ReminderMinute (utils/reminder.js). Tamil or English text is picked by the app language.
     public bool ReminderEnabled { get; set; } = true;
     public int ReminderHour { get; set; } = 20;
     public int ReminderMinute { get; set; } = 0;
@@ -50,6 +58,7 @@ public class GameSettings
     public string ReminderBodyTa { get; set; } = "இன்றைய தினசரி சவாலை முடித்து உங்கள் streak-ஐ காப்பாற்றுங்கள்!";
     public string ReminderBodyEn { get; set; } = "Finish today's daily challenge and keep your streak alive!";
 
+    // Trims a text setting, cuts it to a maximum length and uses the default when it is empty.
     private static string Text(string? value, string fallback, int max)
     {
         var v = (value ?? "").Trim();
@@ -58,6 +67,7 @@ public class GameSettings
     }
 
     // Keeps every value inside a sensible range so a typo cannot break the app.
+    // Called on every load and save, so wrong values can never reach the app.
     public GameSettings Normalize()
     {
         QuestionsPerLevel = Math.Clamp(QuestionsPerLevel, 5, 200);
@@ -90,11 +100,13 @@ public class GameSettings
     }
 }
 
+/// <summary>Reads and writes the settings from the AppSettings table (one row, key "game", value = JSON).</summary>
 public static class GameSettingsStore
 {
     private const string Key = "game";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+    // Returns the saved settings, or the defaults when nothing is saved yet or the JSON is broken.
     public static async Task<GameSettings> LoadAsync(AppDbContext db)
     {
         var row = await db.AppSettings.AsNoTracking().FirstOrDefaultAsync(s => s.Key == Key);
@@ -103,6 +115,7 @@ public static class GameSettingsStore
         catch (JsonException) { return new GameSettings(); }
     }
 
+    // Used by Admin > Settings (AdminSettingsController). Normalizes first, then updates or creates the row.
     public static async Task SaveAsync(AppDbContext db, GameSettings settings)
     {
         var json = JsonSerializer.Serialize(settings.Normalize(), Json);
@@ -112,6 +125,7 @@ public static class GameSettingsStore
         await db.SaveChangesAsync();
     }
 
+    // GET /api/settings: public, the app loads it at start-up (utils/api.js loadGameSettings).
     public static void MapSettings(this IEndpointRouteBuilder app)
     {
         // Not secret, and the app loads it on start-up before anyone logs in.

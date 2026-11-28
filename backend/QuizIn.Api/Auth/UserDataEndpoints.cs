@@ -6,6 +6,10 @@ using QuizIn.Api.Models;
 
 namespace QuizIn.Api.Auth;
 
+// Request and response shapes (JSON) for the per-user endpoints below.
+// LevelPassedInput: a level the user finished. AnswerInput: one answered question (CountStats=false for practice replays).
+// ReportInput: "report this question". DailyInput: result of the daily quiz. ExamInput: all answers of a mock test.
+// PassedLevelDto: one finished level sent to the app. LeaderboardRow: one line of the leaderboard.
 public record LevelPassedInput(string? Category, string? Subcategory, string? Subject, string? Difficulty, int LevelNumber);
 public record AnswerInput(int QuestionId, bool Correct, bool CountStats = true);
 public record ReportInput(int QuestionId, string? Reason, string? Note);
@@ -15,19 +19,27 @@ public record ExamInput(List<ExamAnswer>? Answers, int Seconds);
 public record PassedLevelDto(string Category, string Subcategory, string? Subject, string Difficulty, int LevelNumber);
 public record LeaderboardRow(int Rank, Guid Id, string Name, int Levels, int Points);
 
-// Per-user data for the app: level progress, mistakes, bookmarks, stats, daily streak, leaderboard.
+/// <summary>
+/// Per-user data for the app: level progress, mistakes, bookmarks, stats, mock exams, reports,
+/// daily quiz and streak, leaderboard. All /api/me/... endpoints need a logged-in user (JWT).
+/// Called from Program.cs (app.MapUserData()). Errors are JSON { "error": "code" }.
+/// </summary>
 public static class UserDataEndpoints
 {
+    // Allowed difficulty names, 50 questions per level (used for leaderboard points), allowed report reasons.
     private static readonly string[] Difficulties = { "easy", "medium", "hard" };
     private const int QuestionsPerLevel = 50;
     private static readonly string[] ReportReasons = { "wrong_answer", "typo", "unclear", "other" };
 
+    // Point multiplier per difficulty: hard 3, medium 2, easy 1.
     private static int Weight(string difficulty) => difficulty == "hard" ? 3 : difficulty == "medium" ? 2 : 1;
 
+    /// <summary>Registers the /api/me/* endpoints (group needs login) plus /api/daily and /api/leaderboard.</summary>
     public static void MapUserData(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/me").RequireAuthorization();
 
+        // GET /api/me/data. Logged-in user. Returns 200 { levels, mistakes, bookmarks, stats, daily }. Error: 401.
         // Everything the app needs after login, in one call.
         g.MapGet("/data", async (ClaimsPrincipal p, AppDbContext db) =>
         {
@@ -62,6 +74,8 @@ public static class UserDataEndpoints
             });
         });
 
+        // POST /api/me/levels. Logged-in user. Body: LevelPassedInput. Saves a passed level (no duplicates).
+        // Returns 204. Errors: 400 invalid_level, 404 subcategory_not_found, 404 subject_not_found, 401.
         g.MapPost("/levels", async (LevelPassedInput input, ClaimsPrincipal p, AppDbContext db) =>
         {
             if (AuthEndpoints.UserId(p) is not Guid uid) return Results.Unauthorized();
@@ -95,6 +109,7 @@ public static class UserDataEndpoints
             return Results.NoContent();
         });
 
+        // POST /api/me/answers. Logged-in user. Body: AnswerInput. Returns 204. Errors: 404 question_not_found, 401.
         // Records one answer: keeps the mistakes list and (optionally) the answered/correct counters.
         g.MapPost("/answers", async (AnswerInput input, ClaimsPrincipal p, AppDbContext db) =>
         {
@@ -116,6 +131,10 @@ public static class UserDataEndpoints
             return Results.NoContent();
         });
 
+        // POST /api/me/exams. Logged-in user. Body: ExamInput { answers, seconds }.
+        // Returns 200 { total, correct, wrong, unanswered, score, percent, passed, rank, participants }.
+        // Errors: 400 exam_disabled (admin setting), 400 invalid_exam (empty, too many, unknown or mixed questions), 401.
+        // Score = correct - wrong x negative marking percent (from GameSettings), never below 0.
         // Mock test result. The server grades it itself from the stored correct options (the phone cannot cheat),
         // saves it, and answers with the score and the player's rank among everyone who took the same test.
         g.MapPost("/exams", async (ExamInput input, ClaimsPrincipal p, AppDbContext db) =>
@@ -167,6 +186,8 @@ public static class UserDataEndpoints
             });
         });
 
+        // POST /api/me/reports. Logged-in user. Body: ReportInput. Returns 204.
+        // Errors: 400 invalid_reason, 404 question_not_found, 429 (more than 30 reports in 24 hours), 401.
         // "Report this question": wrong answer, typo, unclear. The admin sees these under Reports.
         g.MapPost("/reports", async (ReportInput input, ClaimsPrincipal p, AppDbContext db) =>
         {
@@ -193,6 +214,7 @@ public static class UserDataEndpoints
             return Results.NoContent();
         });
 
+        // DELETE /api/me/mistakes/{questionId}. Logged-in user. Removes a question from the mistakes list. Returns 204 (also if not found).
         g.MapDelete("/mistakes/{questionId:int}", async (int questionId, ClaimsPrincipal p, AppDbContext db) =>
         {
             if (AuthEndpoints.UserId(p) is not Guid uid) return Results.Unauthorized();
@@ -201,6 +223,8 @@ public static class UserDataEndpoints
             return Results.NoContent();
         });
 
+        // POST /api/me/bookmarks/{questionId}. Logged-in user. Returns 200 { bookmarked: true/false }.
+        // Errors: 404 question_not_found, 401.
         // Toggles a bookmark and returns the new state.
         g.MapPost("/bookmarks/{questionId:int}", async (int questionId, ClaimsPrincipal p, AppDbContext db) =>
         {
@@ -213,6 +237,7 @@ public static class UserDataEndpoints
             return Results.Ok(new { bookmarked = true });
         });
 
+        // PUT /api/me/bookmarks/{questionId}. Logged-in user. Returns 204. Errors: 404 question_not_found, 401.
         // Idempotent "add bookmark" (the offline queue replays this safely).
         g.MapPut("/bookmarks/{questionId:int}", async (int questionId, ClaimsPrincipal p, AppDbContext db) =>
         {
@@ -224,6 +249,7 @@ public static class UserDataEndpoints
             return Results.NoContent();
         });
 
+        // DELETE /api/me/bookmarks/{questionId}. Logged-in user. Removes the bookmark. Returns 204 (also if not found).
         g.MapDelete("/bookmarks/{questionId:int}", async (int questionId, ClaimsPrincipal p, AppDbContext db) =>
         {
             if (AuthEndpoints.UserId(p) is not Guid uid) return Results.Unauthorized();
@@ -232,6 +258,9 @@ public static class UserDataEndpoints
             return Results.NoContent();
         });
 
+        // GET /api/daily?date=yyyy-MM-dd. Logged-in user (this one is on app, not on the /api/me group).
+        // Returns 200 list of question DTOs. Error: 400 invalid_date.
+        // The shuffle is seeded with the day number, so the result is the same for all users on that day.
         // The same 10 questions for everyone on a given day. ?date=yyyy-MM-dd (the user's local date).
         app.MapGet("/api/daily", async (string? date, AppDbContext db) =>
         {
@@ -250,6 +279,8 @@ public static class UserDataEndpoints
             return Results.Ok(rows.OrderBy(q => order[q.Id]).Select(ContentEndpoints.ToDto));
         }).RequireAuthorization();
 
+        // POST /api/me/daily. Logged-in user. Body: DailyInput { date, score, total }.
+        // Updates the streak (consecutive days). Returns 200 { streak, best, doneToday, lastScore }. Errors: 400 invalid_date, 401.
         g.MapPost("/daily", async (DailyInput input, ClaimsPrincipal p, AppDbContext db) =>
         {
             if (AuthEndpoints.UserId(p) is not Guid uid) return Results.Unauthorized();
@@ -268,6 +299,8 @@ public static class UserDataEndpoints
             return Results.Ok(new { streak = d.Streak, best = d.Best, doneToday = true, lastScore = d.LastScore });
         });
 
+        // GET /api/leaderboard. Logged-in user. Returns 200 top 100 rows { rank, id, name, levels, points }.
+        // Name is the part of the e-mail before "@".
         // Points: passed level = 50 questions x difficulty weight (easy 1, medium 2, hard 3). Admins are excluded.
         app.MapGet("/api/leaderboard", async (AppDbContext db) =>
         {

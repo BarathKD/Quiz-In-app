@@ -199,3 +199,7 @@ Pages, by priority:
 - Admin > Settings > Exam mode: on/off, questions per test (25), minutes (30), negative marking % (25), pass mark % (40).
 - Server: `POST /api/me/exams` re-grades from stored correct options (anti-cheat), saves `ExamResults`, returns rank = position by best percent among all players who took the same subcategory/subject test. Offline: the result is queued and the rank shows next time only on the server side.
 - New table: delete the dev DB (`rm -f quizin.db*`) after pulling.
+
+## Coding rule: comments everywhere
+- Every file starts with a short comment (what it is, what it talks to). Every function, handler, state group, endpoint, entity and non-obvious line has a comment in simple English, so the owner can open the code and find a problem manually.
+- Added to all existing code on 2026-11-28 (comment-only change, checked by diffing the code with comments removed). Every new feature must follow the same rule.

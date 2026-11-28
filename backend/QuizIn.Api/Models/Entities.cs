@@ -1,5 +1,9 @@
+// Entities.cs - the database tables. Each class here = one table (EF Core makes the tables from these classes).
+// Table rules (indexes, foreign keys, cascade delete) are set in Data/AppDbContext.cs, not here.
+// Dev database: SQLite file quizin.db. After adding or changing a class here, delete quizin.db* and run again.
 namespace QuizIn.Api.Models;
 
+/// <summary>A player or admin account. Created by POST /api/auth/register (Auth/AuthEndpoints.cs). Deleting a user deletes all their progress (cascade).</summary>
 public class User
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -9,6 +13,7 @@ public class User
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
+/// <summary>Top level of the content tree: Category > Subcategory > Subject > Questions. Example: "TNPSC". The app shows these on the home screen.</summary>
 public class Category
 {
     public int Id { get; set; }
@@ -21,6 +26,7 @@ public class Category
     public List<Subcategory> Subcategories { get; set; } = new();
 }
 
+/// <summary>Second level, for example "Class 10" inside a category. Deleting it deletes its subjects and questions.</summary>
 public class Subcategory
 {
     public int Id { get; set; }
@@ -30,6 +36,7 @@ public class Subcategory
     public List<Subject> Subjects { get; set; } = new();
 }
 
+/// <summary>Third level (optional), for example "History". Questions may belong to a subject or directly to the subcategory (SubjectId = null).</summary>
 public class Subject
 {
     public int Id { get; set; }
@@ -40,6 +47,7 @@ public class Subject
     public string? ImageUrl { get; set; }
 }
 
+/// <summary>One multiple choice question. Options are stored as JSON text in OptionsJson; CorrectOptionId says which option id is right.</summary>
 public class Question
 {
     public int Id { get; set; }
@@ -55,6 +63,8 @@ public class Question
     public int? ImportBatchId { get; set; }          // set when the question came from a bulk import (for undo)
 }
 
+// Table PasswordResets. Created by POST /api/auth/forgot, used by POST /api/auth/reset (Auth/AuthEndpoints.cs).
+// Attempts counts wrong codes; after 5 the code stops working. Used = true once the password was changed.
 // A "forgot password" code e-mailed to the player. Only a hash of the 6-digit code is stored.
 public class PasswordReset
 {
@@ -68,6 +78,8 @@ public class PasswordReset
     public bool Used { get; set; }
 }
 
+// Table ExamResults. Written by POST /api/me/exams (Auth/UserDataEndpoints.cs) after the server has graded the test.
+// Rank = position by best Percent among all players with the same SubcategoryId + SubjectId.
 // One finished mock test. Scope = the subcategory (+ subject when the test was for a subject).
 public class ExamResult
 {
@@ -86,6 +98,7 @@ public class ExamResult
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
+// Table QuestionReports. Created from the app (POST /api/me/reports); the admin sees them on the Reports page.
 // A player's report that a question is wrong, has a typo or is unclear.
 public class QuestionReport
 {
@@ -101,6 +114,7 @@ public class QuestionReport
     public DateTime? ResolvedAt { get; set; }
 }
 
+// Table AppSettings. Edited on Admin > Settings; read by the app through GET /api/settings (Content/GameSettings.cs).
 // Key / value settings (the game rules are one JSON value under the key "game").
 public class AppSetting
 {
@@ -108,6 +122,7 @@ public class AppSetting
     public string Value { get; set; } = "";
 }
 
+// Table ImportBatches. Every imported question stores its ImportBatchId, so "Undo" can remove exactly that import (Admin/ImportService.cs).
 // One admin bulk import; lets the admin see history and undo it.
 public class ImportBatch
 {
@@ -120,6 +135,7 @@ public class ImportBatch
     public bool Undone { get; set; }
 }
 
+// Table LevelProgresses. A level is "passed" per user + subcategory + subject + difficulty + level number. Drives progress and the leaderboard.
 // One row per level a user has passed
 public class LevelProgress
 {
@@ -133,6 +149,7 @@ public class LevelProgress
     public DateTime PassedAt { get; set; } = DateTime.UtcNow;
 }
 
+/// <summary>One row per user: Daily Challenge streak (days in a row), best streak and the last date played.</summary>
 public class DailyStreak
 {
     public Guid UserId { get; set; }
@@ -143,6 +160,7 @@ public class DailyStreak
     public string? LastScore { get; set; }
 }
 
+/// <summary>One row per user: total answers and correct answers (used for accuracy and achievements).</summary>
 public class UserStats
 {
     public Guid UserId { get; set; }
@@ -151,6 +169,7 @@ public class UserStats
     public int Correct { get; set; }
 }
 
+/// <summary>A question the user saved to practise later. One row per user + question.</summary>
 public class Bookmark
 {
     public Guid UserId { get; set; }
@@ -159,6 +178,7 @@ public class Bookmark
     public Question? Question { get; set; }
 }
 
+/// <summary>A question the user answered wrong. It stays in My Mistakes until answered correctly. One row per user + question.</summary>
 public class Mistake
 {
     public Guid UserId { get; set; }

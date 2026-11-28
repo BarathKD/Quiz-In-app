@@ -1,3 +1,12 @@
+/*
+  i18n.js - all texts of the app in two languages, and the language switch.
+  strings: { ta: {...}, en: {...} }. Tamil (ta) is the default. Both blocks must have the same keys.
+  How to use in a screen:  const { t, lang, setLang } = useLang();  then  t("login")  gives the text in the current language.
+  Variables: a text can contain {n}. t("subjectsCount", { n: 3 }) replaces {n} with 3. Names must match exactly.
+  Missing key: falls back to the English text, and if that is also missing, the key itself is shown (so a wrong key is easy to see).
+  Language switch: setLang("ta" or "en") changes the state, so every screen using useLang() redraws. The choice is saved in AsyncStorage (LANG_KEY).
+  LanguageProvider wraps the whole app (see App.js). Add new texts to BOTH ta and en.
+*/
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -5,10 +14,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // Category, subject and question text comes from the admin and is shown as entered.
 // To add a string: add the same key to both "ta" and "en".
 
+// LANG_KEY: AsyncStorage key where the chosen language ("ta" or "en") is saved.
 const LANG_KEY = "@quizin_language";
 
+// strings: all texts. strings[lang][key]. Keys are grouped by screen with section comments.
 const strings = {
+  // ===== Tamil texts =====
   ta: {
+    // --- Home and categories texts ---
     tagline: "வினாடி வினா",
     greeting: "வணக்கம்!",
     pickCategory: "இன்று எந்தப் பிரிவில் விளையாடலாம்?",
@@ -16,6 +29,7 @@ const strings = {
     subjectsCount: "{n} பாடங்கள்",
     emptyCategories: "பிரிவுகள் எதுவும் இல்லை",
     emptyCategoriesSub: "பிரிவுகள் கிடைத்ததும் இங்கே தோன்றும்.",
+    // --- Bottom menu and profile texts ---
     navHome: "முகப்பு",
     navProfile: "சுயவிவரம்",
     profile: "சுயவிவரம்",
@@ -25,6 +39,7 @@ const strings = {
     logoutConfirm: "நிச்சயமாக வெளியேற விரும்புகிறீர்களா?",
     cancel: "ரத்து செய்",
     language: "மொழி",
+    // --- Login and signup texts ---
     login: "உள்நுழை",
     signup: "பதிவு செய்",
     email: "மின்னஞ்சல்",
@@ -41,6 +56,7 @@ const strings = {
     userExistsTitle: "பயனர் ஏற்கனவே உள்ளார்",
     userExists: "இந்த மின்னஞ்சல் ஏற்கனவே பதிவு செய்யப்பட்டுள்ளது. உள்நுழைய முயற்சிக்கவும்.",
     signupOk: "கணக்கு உருவாக்கப்பட்டது. தயவுசெய்து உள்நுழையவும்.",
+    // --- Mock test (ExamScreen) texts ---
     examTitle: "மாதிரித் தேர்வு",
     examCardSub: "எல்லா நிலை கேள்விகளும், ஒரே நேரம், மதிப்பெண் + தரவரிசை",
     examInfoQuestions: "{n} கேள்விகள் (எளிது, நடுத்தரம், கடினம் கலந்து)",
@@ -78,6 +94,7 @@ const strings = {
     examNotAnswered: "பதிலளிக்கவில்லை",
     examAgain: "புதிய தேர்வு எழுது",
     examBack: "திரும்பு",
+    // --- Forgot password and reset password texts ---
     forgotLink: "கடவுச்சொல் மறந்துவிட்டதா?",
     forgotTitle: "கடவுச்சொல் மீட்டமைப்பு",
     forgotHint: "உங்கள் மின்னஞ்சலை உள்ளிடவும். 6 இலக்க குறியீடு அனுப்புவோம்.",
@@ -95,10 +112,12 @@ const strings = {
     resetNetwork: "சேவையகத்தை அடைய முடியவில்லை. இணையத்தைச் சரிபார்க்கவும்.",
     loginFailed: "உள்நுழைவு தோல்வியடைந்தது. மீண்டும் முயற்சிக்கவும்.",
     signupFailed: "கணக்கை உருவாக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+    // --- Login screen feature list texts ---
     featuresTitle: "சிறப்பம்சங்கள்",
     feature1: "பிரிவு வாரியான வினாடி வினா",
     feature2: "படிப்படியாகத் திறக்கும் நிலைகள்",
     feature3: "உங்கள் முன்னேற்றத்தைப் பாருங்கள்",
+    // --- Levels and difficulty texts ---
     difficultyEasy: "எளிது",
     difficultyMedium: "நடுத்தரம்",
     difficultyHard: "கடினம்",
@@ -133,6 +152,7 @@ const strings = {
     questionsCount: "{n} கேள்விகள்",
     levelLockedTitle: "நிலை பூட்டப்பட்டுள்ளது",
     levelLockedMsg: "இதைத் திறக்க முதலில் நிலை {n}-ஐ முடிக்கவும்.",
+    // --- Quiz screen texts (QuizScreen) ---
     loadingQuestions: "கேள்விகள் ஏற்றப்படுகின்றன...",
     noQuestions: "கேள்விகள் எதுவும் இல்லை",
     goBack: "திரும்பிச் செல்",
@@ -159,6 +179,7 @@ const strings = {
     finishConfirmMsg: "நீங்கள் {a} / {b} கேள்விகளுக்குப் பதிலளித்துள்ளீர்கள். முடிக்க விரும்புகிறீர்களா?",
     continueQuiz: "தொடரவும்",
     finish: "முடி",
+    // --- Quiz summary texts (QuizSummaryScreen) ---
     quizComplete: "வினாடி வினா முடிந்தது!",
     passed: "தேர்ச்சி",
     notPassed: "மீண்டும் முயற்சிக்கவும்",
@@ -182,6 +203,7 @@ const strings = {
     tip2: "நேரம் முடிவதற்குள் முழு நிலையையும் முடியுங்கள்",
     tip3: "நினைவில் கொள்ளுங்கள்: ஒரு தவறான பதில் வினாடி வினாவை மீண்டும் தொடங்கும்",
     tip4: "அறிவை மேம்படுத்த தொடர்ந்து பயிற்சி செய்யுங்கள்",
+    // --- Leaderboard texts ---
     navLeaderboard: "தரவரிசை",
     leaderboard: "தரவரிசைப் பட்டியல்",
     leaderboardSub: "புள்ளிகள் = வென்ற நிலைகள் × கேள்விகள் × சிரம எடை",
@@ -192,6 +214,7 @@ const strings = {
     pointsLabel: "{n} புள்ளிகள்",
     levelsPassed: "{n} நிலைகள்",
     leaderboardNote: "இந்தச் சாதனத்தில் உள்ள கணக்குகள் மட்டும்",
+    // --- Settings and account texts ---
     settings: "அமைப்புகள்",
     settingsAccount: "கணக்கு",
     settingsApp: "செயலி",
@@ -205,6 +228,7 @@ const strings = {
     deleteConfirmMsg: "உங்கள் கணக்கு, முன்னேற்றம், புக்மார்க்குகள் அனைத்தும் இந்தச் சாதனத்திலிருந்து நிரந்தரமாக அழியும். இதைத் திரும்பப் பெற முடியாது.",
     deleteConfirmBtn: "நிரந்தரமாக நீக்கு",
     deleteFailed: "இந்தக் கணக்கை நீக்க முடியவில்லை.",
+    // --- Daily challenge, mistakes and bookmarks texts ---
     dailyChallenge: "இன்றைய சவால்",
     dailySub: "ஒவ்வொரு நாளும் 10 கேள்விகள்",
     dailyStreak: "{n} நாள் தொடர்",
@@ -226,6 +250,7 @@ const strings = {
     remove: "நீக்கு",
     practiceTitle: "பயிற்சி முடிந்தது",
     challengeTitle: "சவால் முடிந்தது",
+    // --- Report question texts ---
     reportQuestion: "கேள்வியைப் புகாரளி",
     reportTitle: "இந்தக் கேள்வியில் என்ன தவறு?",
     reportWrongAnswer: "பதில் தவறு",
@@ -234,9 +259,11 @@ const strings = {
     reportOther: "வேறு பிரச்சனை",
     reportThanks: "நன்றி! நாங்கள் சரிபார்க்கிறோம்.",
     reportFailed: "அனுப்ப முடியவில்லை. பின்னர் முயலுங்கள்.",
+    // --- Forced update texts ---
     updateRequiredTitle: "புதுப்பிப்பு தேவை",
     updateRequiredMsg: "தொடர, Quiz-IN செயலியின் புதிய பதிப்பை நிறுவவும்.",
     updateNow: "இப்போது புதுப்பி",
+    // --- Challenge mode texts (rounds, revive, ad) ---
     roundDoneTitle: "சுற்று {n} முடிந்தது!",
     roundDoneMsg: "அடுத்தது சுற்று {n} / {total}. தயாரா?",
     nextRound: "அடுத்த சுற்று",
@@ -253,6 +280,7 @@ const strings = {
     reviveMsg: "விளம்பரம் பார்த்து தொடரலாம் (இன்னும் {n} முறை).",
     reviveWatch: "விளம்பரம் பார்",
     giveUp: "விட்டுவிடு",
+    // --- Achievement badge texts ---
     badge_challenger: "சவால் வீரர்",
     badge_challenger_d: "ஒரு சவாலை தவறின்றி வெல்லுங்கள்",
     bookmarkAdded: "புக்மார்க் செய்யப்பட்டது",
@@ -282,7 +310,9 @@ const strings = {
     unlockedNext: "சிறப்பு! அடுத்த நிலை திறக்கப்பட்டது!",
     correctOutOf: "{a} சரி / {b}",
   },
+  // ===== English texts =====
   en: {
+    // --- Home and categories texts ---
     tagline: "Hardest Game Ever",
     greeting: "Welcome!",
     pickCategory: "Which category will you play today?",
@@ -290,6 +320,7 @@ const strings = {
     subjectsCount: "{n} subjects",
     emptyCategories: "No categories available",
     emptyCategoriesSub: "Categories will appear here once they are available.",
+    // --- Bottom menu and profile texts ---
     navHome: "Home",
     navProfile: "Profile",
     profile: "Profile",
@@ -299,6 +330,7 @@ const strings = {
     logoutConfirm: "Are you sure you want to logout?",
     cancel: "Cancel",
     language: "Language",
+    // --- Login and signup texts ---
     login: "Login",
     signup: "Sign up",
     email: "Email",
@@ -315,6 +347,7 @@ const strings = {
     userExistsTitle: "User exists",
     userExists: "This email is already registered. Try login instead.",
     signupOk: "Account created. Please login.",
+    // --- Mock test (ExamScreen) texts ---
     examTitle: "Mock test",
     examCardSub: "Every difficulty mixed, one timer, score + rank",
     examInfoQuestions: "{n} questions (easy, medium and hard mixed)",
@@ -352,6 +385,7 @@ const strings = {
     examNotAnswered: "Not answered",
     examAgain: "Take a new test",
     examBack: "Back",
+    // --- Forgot password and reset password texts ---
     forgotLink: "Forgot password?",
     forgotTitle: "Reset password",
     forgotHint: "Enter your e-mail. We will send a 6-digit code.",
@@ -369,10 +403,12 @@ const strings = {
     resetNetwork: "Could not reach the server. Check your internet.",
     loginFailed: "Login failed. Please try again.",
     signupFailed: "Account creation failed. Please try again.",
+    // --- Login screen feature list texts ---
     featuresTitle: "Features",
     feature1: "Category-based quiz system",
     feature2: "Progressive level unlocking",
     feature3: "Track your progress",
+    // --- Levels and difficulty texts ---
     difficultyEasy: "Easy",
     difficultyMedium: "Medium",
     difficultyHard: "Hard",
@@ -407,6 +443,7 @@ const strings = {
     questionsCount: "{n} Questions",
     levelLockedTitle: "Level locked",
     levelLockedMsg: "Pass Level {n} first to unlock this level.",
+    // --- Quiz screen texts (QuizScreen) ---
     loadingQuestions: "Loading questions...",
     noQuestions: "No questions available",
     goBack: "Go Back",
@@ -433,6 +470,7 @@ const strings = {
     finishConfirmMsg: "Are you sure you want to finish? You have answered {a} out of {b} questions.",
     continueQuiz: "Continue Quiz",
     finish: "Finish",
+    // --- Quiz summary texts (QuizSummaryScreen) ---
     quizComplete: "Quiz Complete!",
     passed: "PASSED",
     notPassed: "Try again",
@@ -456,6 +494,7 @@ const strings = {
     tip2: "Finish the whole level before the timer runs out",
     tip3: "Remember: one wrong answer restarts the quiz",
     tip4: "Practice regularly to improve your knowledge",
+    // --- Leaderboard texts ---
     navLeaderboard: "Leaderboard",
     leaderboard: "Leaderboard",
     leaderboardSub: "Points = passed levels × questions × difficulty weight",
@@ -466,6 +505,7 @@ const strings = {
     pointsLabel: "{n} pts",
     levelsPassed: "{n} levels",
     leaderboardNote: "Accounts on this device only",
+    // --- Settings and account texts ---
     settings: "Settings",
     settingsAccount: "Account",
     settingsApp: "App",
@@ -479,6 +519,7 @@ const strings = {
     deleteConfirmMsg: "Your account, progress and bookmarks will be permanently erased from this device. This cannot be undone.",
     deleteConfirmBtn: "Delete permanently",
     deleteFailed: "This account cannot be deleted.",
+    // --- Daily challenge, mistakes and bookmarks texts ---
     dailyChallenge: "Daily Challenge",
     dailySub: "10 questions every day",
     dailyStreak: "{n} day streak",
@@ -500,6 +541,7 @@ const strings = {
     remove: "Remove",
     practiceTitle: "Practice complete",
     challengeTitle: "Challenge complete",
+    // --- Report question texts ---
     reportQuestion: "Report question",
     reportTitle: "What is wrong with this question?",
     reportWrongAnswer: "Wrong answer",
@@ -508,9 +550,11 @@ const strings = {
     reportOther: "Something else",
     reportThanks: "Thanks! We will check it.",
     reportFailed: "Could not send. Please try again later.",
+    // --- Forced update texts ---
     updateRequiredTitle: "Update required",
     updateRequiredMsg: "Please install the latest version of Quiz-IN to continue.",
     updateNow: "Update now",
+    // --- Challenge mode texts (rounds, revive, ad) ---
     roundDoneTitle: "Round {n} complete!",
     roundDoneMsg: "Next up: round {n} of {total}. Ready?",
     nextRound: "Next round",
@@ -527,6 +571,7 @@ const strings = {
     reviveMsg: "Watch an ad to keep going ({n} left).",
     reviveWatch: "Watch ad",
     giveUp: "Give up",
+    // --- Achievement badge texts ---
     badge_challenger: "Challenger",
     badge_challenger_d: "Win one challenge with no mistakes",
     bookmarkAdded: "Bookmarked",
@@ -558,15 +603,19 @@ const strings = {
   },
 };
 
+// LanguageContext: default values are used only if a screen is rendered outside LanguageProvider (t returns the key).
 const LanguageContext = createContext({
   lang: "ta",
   setLang: () => {},
   t: (key) => key,
 });
 
+// LanguageProvider: put around the app. Gives lang, setLang and t to every screen.
 export function LanguageProvider({ children }) {
+  // lang: current language. Starts as Tamil until the saved value is loaded.
   const [lang, setLangState] = useState("ta");
 
+  // On start: read the saved language from AsyncStorage.
   useEffect(() => {
     AsyncStorage.getItem(LANG_KEY)
       .then((saved) => {
@@ -575,11 +624,13 @@ export function LanguageProvider({ children }) {
       .catch(() => {});
   }, []);
 
+  // setLang(next): change language now and save it for the next app start.
   const setLang = useCallback((next) => {
     setLangState(next);
     AsyncStorage.setItem(LANG_KEY, next).catch(() => {});
   }, []);
 
+  // t(key, vars): returns the text for key in the current language, with {name} placeholders replaced by vars (see header).
   // t("subjectsCount", { n: 3 }) -> "3 பாடங்கள்"
   const t = useCallback(
     (key, vars) => {
@@ -601,4 +652,5 @@ export function LanguageProvider({ children }) {
   );
 }
 
+// useLang(): hook that gives { lang, setLang, t } to a screen.
 export const useLang = () => useContext(LanguageContext);

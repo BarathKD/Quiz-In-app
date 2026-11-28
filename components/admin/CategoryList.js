@@ -1,17 +1,32 @@
+/*
+ * CategoryList
+ * What: shows the categories as cards in the admin panel (Categories tab).
+ * Props (from screens/AdminScreen.js):
+ *   categories = array of category objects ({ id, name, description, subcategories, subjects })
+ *   onEdit(category)   = called when Edit is pressed (AdminScreen opens the edit form)
+ *   onDelete(category) = called when Delete is pressed (AdminScreen asks to confirm, then deletes via utils/api.js)
+ * This component only displays data; it does not call the API itself.
+ */
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, FlatList } from "react-native";
 
 export default function CategoryList({ categories, onEdit, onDelete }) {
+  // Render helper: one card for one category (FlatList gives { item }).
   const renderCategoryItem = ({ item }) => (
     <View style={styles.card}>
+      {/* Card title (category name, one line only) */}
       <View style={styles.categoryHeader}>
         <Text numberOfLines={1} style={styles.cardTitle}>{item.name}</Text>
       </View>
       
+      {/* Description is optional, so show it only when it exists */}
       {item.description && (
         <Text style={styles.cardDescription}>{item.description}</Text>
       )}
       
+      {/* Structure info. Two data shapes exist:
+          1) nested: subjects is an object { subcategory: [subjects] } -> show the first 2 entries and '... and more'
+          2) direct: only a subcategories list -> show it as text */}
       {item.subjects && typeof item.subjects === 'object' ? (
         <View>
           <Text style={styles.cardInfo}>
@@ -33,6 +48,7 @@ export default function CategoryList({ categories, onEdit, onDelete }) {
       )}
       
 
+      {/* Action buttons: pass the whole category object to the parent handlers */}
       <View style={styles.cardActions}>
         <TouchableOpacity style={styles.small} onPress={() => onEdit(item)}>
           <Text style={styles.smallText}>Edit</Text>
@@ -47,6 +63,7 @@ export default function CategoryList({ categories, onEdit, onDelete }) {
     </View>
   );
 
+  // Render: scrollEnabled is false because the parent admin screen already scrolls (avoids nested scrolling).
   return (
     <FlatList 
       data={categories} 
@@ -58,6 +75,7 @@ export default function CategoryList({ categories, onEdit, onDelete }) {
   );
 }
 
+// Styles for this component.
 const styles = StyleSheet.create({
   list: {
     marginTop: 8

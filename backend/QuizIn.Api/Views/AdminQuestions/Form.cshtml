@@ -1,5 +1,7 @@
+@* Add or edit question page. Routes: GET /admin/questions/new (AdminQuestionsController.New) and GET /admin/questions/{id}/edit (AdminQuestionsController.Edit). Model: QuestionFormVm. Model.Id is null for a new question. *@
 @model QuestionFormVm
 @{
+    @* Title and form action depend on add or edit: new posts to /admin/questions/new, edit posts to /admin/questions/{id}/edit. *@
     ViewData["Title"] = Model.Id == null ? "Add question" : "Edit question";
     var actionUrl = Model.Id == null ? "/admin/questions/new" : "/admin/questions/" + Model.Id + "/edit";
 }
@@ -8,14 +10,18 @@
   <a class="btn btn-secondary" href="/admin/questions?target=@Model.Target">Back to questions</a>
 </div>
 
+@* Validation error from the controller (for example empty question or missing option). *@
 @if (!string.IsNullOrEmpty(Model.Error))
 {
   <div class="alert alert-err">@Model.Error</div>
 }
 
+@* Question form. Posts to the actionUrl above: AdminQuestionsController.Create (new) or Edit (existing). The controller reads Target, Difficulty, QuestionText, OptionA-D, Correct and Explanation, then saves. *@
 <form method="post" action="@actionUrl">
+  @* Anti-forgery token (CSRF protection). *@
   @Html.AntiForgeryToken()
 
+  @* Section: where the question belongs, difficulty and question text. *@
   <div class="card">
     <h2 class="card-title">Details</h2>
     <div class="form-grid">
@@ -23,6 +29,7 @@
         <label for="Target">Where does it belong?</label>
         <select id="Target" name="Target" required>
           <option value="">Choose...</option>
+          @* Loop: one option for each location (Category > Subcategory > Subject). The value is subcategoryId-subjectId (subject 0 = none). *@
           @foreach (var loc in Model.Locations)
           {
             <option value="@loc.Value" selected="@(loc.Value == Model.Target)">@loc.Label</option>
@@ -33,6 +40,7 @@
       <div class="field">
         <label for="Difficulty">Difficulty</label>
         <select id="Difficulty" name="Difficulty">
+          @* Loop: one option for each difficulty. *@
           @foreach (var d in new[] { "easy", "medium", "hard" })
           {
             <option value="@d" selected="@(d == Model.Difficulty)">@d</option>
@@ -46,6 +54,7 @@
     </div>
   </div>
 
+  @* Section: answer options. A and B are required, C and D are optional. *@
   <div class="card">
     <h2 class="card-title">Options</h2>
     <div class="form-grid">
@@ -69,6 +78,7 @@
     <div class="field" style="max-width:240px;margin-bottom:0">
       <label for="Correct">Correct answer</label>
       <select id="Correct" name="Correct">
+        @* Loop: letters a to d for the Correct dropdown. The option text shows the letter in upper case. *@
         @foreach (var letter in new[] { "a", "b", "c", "d" })
         {
           <option value="@letter" selected="@(letter == Model.Correct)">@letter.ToUpper()</option>
@@ -77,6 +87,7 @@
     </div>
   </div>
 
+  @* Section: explanation shown to the student after answering (optional). *@
   <div class="card">
     <h2 class="card-title">Explanation</h2>
     <div class="field" style="margin-bottom:0">

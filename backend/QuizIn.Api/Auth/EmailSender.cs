@@ -3,6 +3,10 @@ using System.Net.Mail;
 
 namespace QuizIn.Api.Auth;
 
+/// <summary>
+/// Sends an e-mail (used for password reset codes). Program.cs picks the real class:
+/// SmtpEmailSender if Email:Host is set, otherwise LogEmailSender.
+/// </summary>
 public interface IEmailSender
 {
     Task SendAsync(string to, string subject, string body);
@@ -14,8 +18,10 @@ public class SmtpEmailSender : IEmailSender
     private readonly IConfiguration _config;
     public SmtpEmailSender(IConfiguration config) => _config = config;
 
+    /// <summary>Sends the mail through SMTP. Throws if the server refuses (the caller catches and logs it).</summary>
     public async Task SendAsync(string to, string subject, string body)
     {
+        // Settings: Email:Host (required), Port (default 587), User, Password, From (default = User), FromName.
         var host = _config["Email:Host"]!;
         var port = int.TryParse(_config["Email:Port"], out var p) ? p : 587;
         var from = _config["Email:From"] is { Length: > 0 } f ? f : _config["Email:User"]!;
@@ -38,6 +44,7 @@ public class LogEmailSender : IEmailSender
     private readonly ILogger<LogEmailSender> _log;
     public LogEmailSender(ILogger<LogEmailSender> log) => _log = log;
 
+    /// <summary>Does not send anything. Look in the server log to find the reset code while developing.</summary>
     public Task SendAsync(string to, string subject, string body)
     {
         _log.LogWarning("E-mail is not configured. Would send to {To}: {Subject} | {Body}", to, subject, body);

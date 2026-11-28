@@ -1,4 +1,6 @@
+@* Shared layout used by every admin page. RenderBody() below inserts the page content. *@
 @{
+    @* path = current URL in lower case. Active() gives the CSS class active for the menu link of the current page. exact: true means the path must be equal (used for the Dashboard link, because /admin is the start of all other paths). *@
     var path = (Context.Request.Path.Value ?? "").TrimEnd('/').ToLowerInvariant();
     string Active(string prefix, bool exact = false) =>
         (exact ? path == prefix : path == prefix || path.StartsWith(prefix + "/")) ? "active" : "";
@@ -9,14 +11,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>@ViewData["Title"] - Quiz-IN Admin</title>
+  @* admin.css: the version number ?v=4 is a cache buster. Change it after editing the CSS so browsers load the new file. *@
   <link rel="stylesheet" href="/css/admin.css?v=4">
 </head>
 <body>
+@* Top menu bar. Shown only when the admin is logged in (so the login page has no menu). *@
 @if (User.Identity?.IsAuthenticated == true)
 {
   <header class="topbar">
     <div class="topbar-inner">
       <span class="brand">Quiz-IN Admin</span>
+      @* Mobile menu: a hidden checkbox plus a label (burger icon). CSS shows or hides the links with no JavaScript. *@
       <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Toggle menu">
       <label for="nav-toggle" class="nav-burger" aria-hidden="true">&#9776;</label>
       <nav class="nav-links">
@@ -27,6 +32,7 @@
         <a href="/admin/reports" class="@Active("/admin/reports")">Reports</a>
         <a href="/admin/users" class="@Active("/admin/users")">Users</a>
         <a href="/admin/settings" class="@Active("/admin/settings")">Settings</a>
+        @* Logout form. Posts to POST /admin/logout (AdminAccountController.Logout), which signs out the admin. *@
         <form method="post" action="/admin/logout">
           @Html.AntiForgeryToken()
           <button class="btn btn-secondary btn-sm" type="submit">Logout</button>
@@ -35,6 +41,7 @@
     </div>
   </header>
 }
+@* Page area. Messages from TempData are shown here once: Msg (green) and Err (red), set by controllers before a redirect. *@
 <main class="page">
   @if (TempData["Msg"] is string okMessage)
   {
@@ -44,6 +51,7 @@
   {
     <div class="alert alert-err">@errMessage</div>
   }
+  @* The page content goes here. *@
   @RenderBody()
 </main>
 </body>

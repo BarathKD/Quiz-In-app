@@ -1,3 +1,16 @@
+/*
+ * LevelsScreen
+ * What: splits the questions of the chosen subject + difficulty into levels
+ *       (gameSettings.questionsPerLevel questions each) and lets the user open one.
+ *       Level 1 is open; level N opens after level N-1 is passed (admin: all open).
+ * Route params: { category, subcategory, subject, difficulty, user }
+ * Data: utils/api.js -> getQuestionsByFilter (count of questions), getUserProgress (passed levels),
+ *       passMarkFor (pass percent shown in the mode dialog), gameSettings (level size, challenge flag).
+ * Texts: t() from utils/i18n.js. Colors: utils/theme.js.
+ * Next screen: "Quiz" with levelStart, levelEnd, levelNumber.
+ *   Practice mode = no "mode" param. Challenge mode = mode: "challenge" (only if gameSettings.challengeEnabled).
+ * The quiz itself only gets the question range (start/end); QuizScreen loads and slices the questions.
+ */
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,11 +22,16 @@ import { getQuestionsByFilter, getUserProgress, passMarkFor, gameSettings } from
 import { useLang } from "../utils/i18n";
 import { colors, difficultyColors, shadow } from "../utils/theme";
 
+// Maps a difficulty to its text key in utils/i18n.js.
 const LABEL_KEYS = { easy: "difficultyEasy", medium: "difficultyMedium", hard: "difficultyHard" };
 
 export default function LevelsScreen({ navigation, route }) {
+  // Values sent by the previous screen (DifficultyScreen).
   const { category, subcategory, subject, difficulty, user } = route.params;
   const { t } = useLang();
+  // State: levels = generated level list ({ levelNumber, start, end, count }).
+  // passedLevels = { [levelNumber]: true } for levels the user passed.
+  // totalQuestions = number of questions found. isLoading = show spinner while loading.
   const [levels, setLevels] = useState([]);
   const [passedLevels, setPassedLevels] = useState({});
   const [totalQuestions, setTotalQuestions] = useState(0);
@@ -26,6 +44,8 @@ export default function LevelsScreen({ navigation, route }) {
     return unsubscribe;
   }, [category, subcategory, subject, difficulty, user?.id]);
 
+  // Helper: loads passed levels + question count, then builds the level list.
+  // Also runs on every "focus" event (see effect above).
   const loadLevels = async () => {
     try {
       setIsLoading(true);
@@ -86,6 +106,11 @@ export default function LevelsScreen({ navigation, route }) {
     return !!passedLevels[level.levelNumber - 1];
   };
 
+  // Handler: tap on a level card.
+  //  - locked -> alert only
+  //  - challenge mode off -> go straight to Quiz (practice)
+  //  - challenge mode on -> ask the user: Practice or Challenge (pass mark from passMarkFor in utils/api.js)
+  // QuizScreen decides its rules from the "mode" param.
   const handleLevelPress = (level) => {
     if (!isLevelUnlocked(level)) {
       Alert.alert(t("levelLockedTitle"), t("levelLockedMsg", { n: level.levelNumber - 1 }));
@@ -116,8 +141,10 @@ export default function LevelsScreen({ navigation, route }) {
     );
   };
 
+  // Theme color for this difficulty (fallback: primary color).
   const color = difficultyColors[difficulty] || colors.primary;
 
+  // Render section 1: loading spinner while data is being fetched.
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -127,6 +154,7 @@ export default function LevelsScreen({ navigation, route }) {
     );
   }
 
+  // Render section 2: header, info card, level list (or "coming soon"), bottom nav.
   return (
     <View style={styles.container}>
       <Header
@@ -139,6 +167,7 @@ export default function LevelsScreen({ navigation, route }) {
           {category} › {subcategory}{subject ? ` › ${subject}` : ""}
         </Text>
 
+        {/* Info card: total questions, number of levels, questions per level */}
         <View style={[styles.summaryCard, { borderLeftColor: color }]}>
           <Text style={styles.summaryTitle}>{t("quizInfo")}</Text>
           <Text style={styles.summaryText}>
@@ -152,6 +181,8 @@ export default function LevelsScreen({ navigation, route }) {
           </Text>
         </View>
 
+        {/* Level list. If there are no questions yet, show the "coming soon" message instead.
+            Each level badge shows: check = passed, number = open, lock = locked. */}
         {levels.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="hourglass-outline" size={48} color={colors.muted} />
@@ -195,11 +226,13 @@ export default function LevelsScreen({ navigation, route }) {
           </View>
         )}
       </ScrollView>
+      {/* Bottom tab bar; "categories" tab stays highlighted */}
       <BottomNav navigation={navigation} user={user} activeTab="categories" />
     </View>
   );
 }
 
+// Styles: colors come from utils/theme.js. The card border color is set inline per difficulty.
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   loadingContainer: {

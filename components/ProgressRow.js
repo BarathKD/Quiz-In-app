@@ -1,3 +1,6 @@
+// components/ProgressRow.js - list row for SubcategoriesScreen and SubjectsScreen.
+// PROPS: title, progress (object like { easy: true, medium: false, hard: false } = which difficulties are completed), onPress, index (for the fade-in order).
+// Texts from i18n (difficultyEasy/Medium/Hard, completedCount); badge colors from difficultyColors in utils/theme.js.
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,15 +9,20 @@ import PressableScale from "./PressableScale";
 import { useLang } from "../utils/i18n";
 import { colors, difficultyColors, shadow } from "../utils/theme";
 
+// Difficulty names. They must match the keys used in the progress object from utils/api.js.
 const LEVELS = ["easy", "medium", "hard"];
+// Map from difficulty to i18n key.
 const LEVEL_KEYS = { easy: "difficultyEasy", medium: "difficultyMedium", hard: "difficultyHard" };
 
 // One list row for Subcategories and Subjects: name + Easy/Medium/Hard progress badges.
 export default function ProgressRow({ title, progress, onPress, index = 0 }) {
   const { t } = useLang();
+  // Use an empty object when no progress is known yet.
   const done = progress || {};
+  // How many of the 3 difficulties are completed (shown as text under the badges).
   const completedCount = LEVELS.filter((level) => done[level]).length;
 
+  // Render: icon, title, 3 difficulty badges (colored with a check when done), completed count, arrow.
   return (
     <FadeInUp index={index} style={styles.rowWrap}>
       <PressableScale style={styles.card} onPress={onPress}>
@@ -26,6 +34,7 @@ export default function ProgressRow({ title, progress, onPress, index = 0 }) {
           <Text style={styles.title} numberOfLines={2}>{title}</Text>
 
           <View style={styles.badgeRow}>
+            {/* One badge per difficulty. A done badge gets the difficulty color and a check mark. */}
             {LEVELS.map((level) => (
               <View
                 key={level}
@@ -50,6 +59,7 @@ export default function ProgressRow({ title, progress, onPress, index = 0 }) {
   );
 }
 
+// Styles.
 const styles = StyleSheet.create({
   rowWrap: { paddingHorizontal: 16, marginBottom: 12 },
   card: {

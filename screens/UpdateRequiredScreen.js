@@ -1,3 +1,6 @@
+// UpdateRequiredScreen.js - force-update screen. App.js shows it INSTEAD of the whole app when the installed version is lower than gameSettings.minAppVersion (admin setting).
+// No navigation and no route params: this screen is rendered outside the navigator, only inside LanguageProvider.
+// The button opens the Play Store page (PLAY_STORE_URL in utils/config.js).
 import React from "react";
 import { View, Text, StyleSheet, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,6 +12,7 @@ import { PLAY_STORE_URL } from "../utils/config";
 // Shown instead of the app when the admin raised "Minimum app version" above this install's version.
 export default function UpdateRequiredScreen() {
   const { t } = useLang();
+  // Render: icon, title, message, and the update button.
   return (
     <View style={styles.container}>
       <Ionicons name="cloud-download-outline" size={72} color={colors.primary} />

@@ -1,3 +1,7 @@
+// ReviewScreen.js - list of saved questions the user wants to review: wrong answers ("mistakes") or bookmarked questions ("bookmarks").
+// ROUTE PARAMS: user (needs user.id), mode = "mistakes" (default) or "bookmarks".
+// TALKS TO: utils/api.js (getMistakeIds, getBookmarkIds, getQuestionsByIds, removeMistake, removeBookmark).
+// NAVIGATES TO: "Quiz" with { mode, user } for practice (QuizScreen reads the same mode). BottomNav tab: profile.
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, FlatList } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,27 +19,33 @@ import { colors, shadow } from "../utils/theme";
 export default function ReviewScreen({ navigation, route }) {
   const { user, mode = "mistakes" } = route.params || {};
   const { t } = useLang();
+  // State: the saved questions to show.
   const [items, setItems] = useState([]);
 
+  // Helper: get saved question ids for this mode, then load the full questions.
   const load = useCallback(async () => {
     if (!user?.id) return;
     const ids = mode === "mistakes" ? await getMistakeIds(user.id) : await getBookmarkIds(user.id);
     setItems(await getQuestionsByIds(ids));
   }, [user?.id, mode]);
 
+  // Effect: load on open and on every focus (a question may be saved or removed in the quiz).
   useEffect(() => {
     load();
     const unsubscribe = navigation.addListener("focus", load);
     return unsubscribe;
   }, [navigation, load]);
 
+  // Handler: remove one question from the saved list (api), then remove it from the screen without reloading.
   const remove = async (q) => {
     if (mode === "mistakes") await removeMistake(user.id, q.id);
     else await removeBookmark(user.id, q.id);
     setItems((prev) => prev.filter((x) => x.id !== q.id));
   };
 
+  // FlatList row renderer: question, correct answer, optional explanation, remove button.
   const renderItem = ({ item, index }) => {
+    // Find the text of the correct option (shows N/A if not found).
     const answer = item.options?.find((o) => o.id === item.correctOptionId)?.text;
     return (
       <FadeInUp index={Math.min(index, 8)} style={styles.rowWrap}>
@@ -55,6 +65,7 @@ export default function ReviewScreen({ navigation, route }) {
     );
   };
 
+  // Render: header, list (with empty message), practice button, bottom nav.
   return (
     <View style={styles.container}>
       <Header title={t(mode)} onBack={() => navigation.goBack()} />
@@ -71,6 +82,7 @@ export default function ReviewScreen({ navigation, route }) {
           </View>
         }
       />
+      {/* Practice bar: only shown when there is something to practise */}
       {items.length > 0 ? (
         <View style={styles.practiceBar}>
           <PressableScale style={styles.practiceBtn} onPress={() => navigation.navigate("Quiz", { mode, user })}>
@@ -84,6 +96,7 @@ export default function ReviewScreen({ navigation, route }) {
   );
 }
 
+// Styles.
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   rowWrap: { paddingHorizontal: 16, marginBottom: 12 },

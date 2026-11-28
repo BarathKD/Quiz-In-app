@@ -1,7 +1,9 @@
+@* Dashboard page. Route: GET /admin (AdminDashboardController.Index). Model: DashboardVm (counts and Stats per category). *@
 @model DashboardVm
 @{ ViewData["Title"] = "Dashboard"; }
 <div class="page-head"><h1>Dashboard</h1></div>
 
+@* Four total counters: users, categories, questions and levels passed. *@
 <div class="stat-grid">
   <div class="stat"><b>@Model.Users</b><span>Users</span></div>
   <div class="stat"><b>@Model.Categories</b><span>Categories</span></div>
@@ -9,8 +11,10 @@
   <div class="stat"><b>@Model.LevelsPassed</b><span>Levels passed</span></div>
 </div>
 
+@* Table of question counts per category. Rows: one for each category in Model.Stats, with Easy, Medium, Hard and Total counts. *@
 <div class="card">
   <h2 class="card-title">Questions per category</h2>
+  @* If there are no categories, show a help message instead of the table. *@
   @if (Model.Stats.Count == 0)
   {
     <p class="muted">No categories yet. Add one under <a href="/admin/content">Content</a>, or use <a href="/admin/import">Bulk import</a>.</p>

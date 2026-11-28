@@ -1,3 +1,16 @@
+/*
+ * SubjectImageManager
+ * What: admin tool to set a background image for a quiz category.
+ *       The admin picks a subcategory (and optionally a subject), chooses a picture from the phone gallery,
+ *       sets the white overlay opacity, then saves. The quiz screens show this image behind the questions.
+ * Props (from the parent admin screen):
+ *   category = the category object being edited ({ id, name, subcategories, subjects, subjectImages })
+ *   onClose  = function called when the admin presses Cancel (parent hides this component)
+ * Data: utils/api.js -> getCategoryImage, saveCategoryImage, deleteCategoryImage, getAllCategories.
+ *       Opacity is also saved in AsyncStorage key 'quiz_categories' (category.subjectImages).
+ * If the image does not show or does not save, check: the key format in saveImage(), and loadExistingImage().
+ * Note: this file is not imported by screens/AdminScreen.js at the moment.
+ */
 import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ScrollView } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -6,16 +19,22 @@ import Slider from '@react-native-community/slider';
 import { saveCategoryImage, getCategoryImage, deleteCategoryImage, getAllCategories } from "../../utils/api";
 
 export default function SubjectImageManager({ category, onClose }) {
+  // State: which subcategory / subject the admin selected (subject is optional, null = all subjects).
   const [selectedSubcategory, setSelectedSubcategory] = useState(null);
   const [selectedSubject, setSelectedSubject] = useState(null);
+  // State: imageUri = picture shown in preview (saved or newly picked).
+  // imageData = newly picked picture ({ uri, base64, width, height }); null until the admin picks one.
+  // opacity = white overlay strength (0.1 to 0.8). loading = true while saving.
   const [imageUri, setImageUri] = useState(null);
   const [imageData, setImageData] = useState(null);
   const [opacity, setOpacity] = useState(0.3);
   const [loading, setLoading] = useState(false);
 
+  // Lists from the category prop. hasNestedStructure = true when category.subjects is an object like { subcategory: [subjects] }.
   const subcategories = category?.subcategories || [];
   const hasNestedStructure = category?.subjects && typeof category.subjects === 'object';
 
+  // Helper: returns the subject list of the selected subcategory (empty if none or if the category has no nested subjects).
   const getSubjects = () => {
     if (!selectedSubcategory) return [];
     if (hasNestedStructure) {
@@ -24,10 +43,13 @@ export default function SubjectImageManager({ category, onClose }) {
     return [];
   };
 
+  // Effect: each time the selected subcategory or subject changes, load the image that is already saved for it.
   useEffect(() => {
     loadExistingImage();
   }, [selectedSubcategory, selectedSubject]);
 
+  // Helper: asks utils/api.js for the saved image of this category/subcategory/subject.
+  // If none is found, clear the preview. Errors are only logged.
   const loadExistingImage = async () => {
     if (!selectedSubcategory) return;
     
@@ -45,6 +67,8 @@ export default function SubjectImageManager({ category, onClose }) {
     }
   };
 
+  // Handler: open the phone gallery and let the admin pick one image (cropped 16:9, quality 0.8).
+  // base64 is requested so saveImage() can send the picture as text to utils/api.js. Nothing is saved here.
   const pickImage = async () => {
   try {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -56,14 +80,17 @@ export default function SubjectImageManager({ category, onClose }) {
       allowsMultipleSelection: false,
     });
 
+    // result.canceled = true when the admin closes the gallery without choosing.
     if (!result.canceled && result.assets && result.assets[0]) {
       const asset = result.assets[0];
       
+      // Reject files bigger than 5 MB.
       if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
         Alert.alert("Error", "Image too large. Please select an image under 5MB.");
         return;
       }
       
+      // Show the preview now and keep the base64 data for saveImage().
       setImageUri(asset.uri);
       setImageData({
         uri: asset.uri,
@@ -79,6 +106,7 @@ export default function SubjectImageManager({ category, onClose }) {
   }
 };
 
+  // Handler: save the picked image. Needs a selected subcategory and a picked image (imageData.base64).
   const saveImage = async () => {
     if (!selectedSubcategory) {
       Alert.alert("Error", "Please select a subcategory");
@@ -98,6 +126,7 @@ export default function SubjectImageManager({ category, onClose }) {
         subject: selectedSubject
       });
 
+      // utils/api.js saves the image file and returns its path.
       const path = await saveCategoryImage(
         category.id, 
         imageData.base64, 
@@ -105,6 +134,7 @@ export default function SubjectImageManager({ category, onClose }) {
         selectedSubject
       );
 
+      // Also remember the opacity inside the category data, so the quiz screens know how strong the overlay is.
       const categories = await getAllCategories();
       const catIndex = categories.findIndex(c => c.id === category.id);
       if (catIndex !== -1) {
@@ -112,6 +142,7 @@ export default function SubjectImageManager({ category, onClose }) {
           categories[catIndex].subjectImages = {};
         }
         
+        // Key = 'subcategory_subject', or only 'subcategory' when no subject is selected.
         const key = selectedSubject ? 
           `${selectedSubcategory}_${selectedSubject}` : 
           selectedSubcategory;
@@ -121,6 +152,7 @@ export default function SubjectImageManager({ category, onClose }) {
           hasImage: true
         };
         
+        // Write the updated category list back to local storage.
         await AsyncStorage.setItem('quiz_categories', JSON.stringify(categories));
       }
 
@@ -129,6 +161,7 @@ export default function SubjectImageManager({ category, onClose }) {
         `Image saved successfully!\nPath: ${path}\nOpacity: ${Math.round(opacity * 100)}%`
       );
       
+      // Clear the picked data; the saved image stays in the preview.
       setImageData(null);
     } catch (error) {
       console.error("Error saving image:", error);
@@ -138,6 +171,7 @@ export default function SubjectImageManager({ category, onClose }) {
     }
   };
 
+  // Handler: remove the saved image. Asks for confirmation first; utils/api.js deleteCategoryImage runs only on the Delete button.
   const removeImage = async () => {
     if (!selectedSubcategory) {
       Alert.alert("Error", "Please select a subcategory");
@@ -168,13 +202,16 @@ export default function SubjectImageManager({ category, onClose }) {
     );
   };
 
+  // Render: header, subcategory chips, optional subject chips, info line, image controls, preview, opacity slider, Cancel/Save buttons.
   return (
     <ScrollView style={styles.container}>
+      {/* Header: title and the category name */}
       <View style={styles.header}>
         <Text style={styles.title}>Manage Background Images</Text>
         <Text style={styles.subtitle}>Category: {category?.name}</Text>
       </View>
 
+      {/* Subcategory chips: tapping one selects it and clears the subject and the preview */}
       <View style={styles.section}>
         <Text style={styles.label}>Select Subcategory:</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -203,6 +240,8 @@ export default function SubjectImageManager({ category, onClose }) {
         </ScrollView>
       </View>
 
+      {/* Subject chips (optional): only when the category has nested subjects for the selected subcategory.
+          'All Subjects' = no subject (selectedSubject null). */}
       {selectedSubcategory && hasNestedStructure && getSubjects().length > 0 && (
         <View style={styles.section}>
           <Text style={styles.label}>Select Subject (Optional):</Text>
@@ -248,6 +287,7 @@ export default function SubjectImageManager({ category, onClose }) {
         </View>
       )}
 
+      {/* Info line: shows which category > subcategory > subject will get the image */}
       {selectedSubcategory && (
         <View style={styles.selectionInfo}>
           <Text style={styles.selectionText}>
@@ -257,6 +297,7 @@ export default function SubjectImageManager({ category, onClose }) {
         </View>
       )}
 
+      {/* Everything below shows only after a subcategory is selected */}
       {selectedSubcategory && (
         <>
           <View style={styles.imageControls}>
@@ -271,6 +312,7 @@ export default function SubjectImageManager({ category, onClose }) {
             )}
           </View>
 
+          {/* Preview: the picture with a white overlay. The overlay color uses the opacity state */}
           {imageUri && (
             <View style={styles.preview}>
               <Text style={styles.previewLabel}>Preview:</Text>
@@ -290,6 +332,7 @@ export default function SubjectImageManager({ category, onClose }) {
             </View>
           )}
 
+          {/* Opacity slider (range 0.1 to 0.8); only after an image is available */}
           {imageUri && (
             <View style={styles.opacitySection}>
               <Text style={styles.label}>
@@ -314,6 +357,7 @@ export default function SubjectImageManager({ category, onClose }) {
             </View>
           )}
 
+          {/* Buttons: Cancel calls onClose; Save is disabled while saving or when no new image was picked */}
           <View style={styles.actions}>
             <TouchableOpacity 
               style={styles.cancelBtn} 
@@ -337,6 +381,7 @@ export default function SubjectImageManager({ category, onClose }) {
   );
 }
 
+// Styles for this component.
 const styles = StyleSheet.create({
   container: {
     flex: 1,

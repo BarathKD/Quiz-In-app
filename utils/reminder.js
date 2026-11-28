@@ -6,9 +6,13 @@ import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { gameSettings } from "./storage";
 
+// AsyncStorage key that stores "asked" after we showed the permission popup.
+// CHANNEL: Android notification channel id for the daily reminder.
 const KEY = "quizin_reminder";
 const CHANNEL = "daily-reminder";
 
+// Load expo-notifications safely. If the module is missing (web / Expo Go), Notifications stays null
+// and syncReminder() returns "unavailable" instead of crashing.
 let Notifications = null;
 try {
   Notifications = require("expo-notifications");
@@ -25,6 +29,9 @@ const getAsked = async () => {
 };
 const setAsked = () => AsyncStorage.setItem(KEY, "asked").catch(() => {});
 
+// schedule(lang): removes old reminders and sets ONE new daily reminder.
+// Text and time come from gameSettings (admin). Any language other than "en" uses the Tamil text.
+// Called only by syncReminder().
 const schedule = async (lang) => {
   const ta = lang !== "en";
   await Notifications.cancelAllScheduledNotificationsAsync();
@@ -57,6 +64,7 @@ export const syncReminder = async (lang) => {
       await Notifications.cancelAllScheduledNotificationsAsync();
       return "off";
     }
+    // Ask for permission only once; after that respect the player's choice.
     let permission = await Notifications.getPermissionsAsync();
     if (!permission.granted && !(await getAsked()) && permission.canAskAgain !== false) {
       await setAsked();

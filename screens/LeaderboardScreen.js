@@ -1,3 +1,7 @@
+// LeaderboardScreen.js - ranking of players by points.
+// ROUTE PARAMS: user (current logged in user, used to highlight "me" and for BottomNav).
+// TALKS TO: utils/api.js (getLeaderboard returns rows with id, name, rank, points, levels).
+// UI PARTS: header, "your rank" card (list header), list of players, empty message, BottomNav (tab "leaderboard").
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,28 +13,34 @@ import { useLang } from "../utils/i18n";
 import { colors, fonts, shadow } from "../utils/theme";
 
 // Top 3 use peacock, violet and green (no gold/red palette)
+// Badge colors for rank 1, 2, 3.
 const PODIUM = [colors.accent, colors.primary, colors.success];
 
 export default function LeaderboardScreen({ navigation, route }) {
+  // State group: rows = leaderboard data, loading = show spinner.
   const { user } = route.params || {};
   const { t } = useLang();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Helper: fetch the leaderboard from utils/api.js.
   const load = useCallback(async () => {
     setLoading(true);
     setRows(await getLeaderboard());
     setLoading(false);
   }, []);
 
+  // Effect: load on open and again every time this screen gets focus (so points are fresh after a quiz).
   useEffect(() => {
     load();
     const unsubscribe = navigation.addListener("focus", load);
     return unsubscribe;
   }, [navigation, load]);
 
+  // My own row (used for the "your rank" card).
   const mine = rows.find((r) => r.id === user?.id);
 
+  // FlatList row renderer: one player row. Top 3 get a trophy badge, my row is highlighted.
   const renderItem = ({ item, index }) => {
     const isMe = item.id === user?.id;
     const top = item.rank <= 3;
@@ -56,6 +66,7 @@ export default function LeaderboardScreen({ navigation, route }) {
     );
   };
 
+  // Render: header, then spinner or list, then bottom navigation.
   return (
     <View style={styles.container}>
       <Header title={t("leaderboard")} />
@@ -64,6 +75,7 @@ export default function LeaderboardScreen({ navigation, route }) {
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
+        // List only shows players with points > 0. The list header (your rank card + notes) and the empty message are passed as props below.
         <FlatList
           data={rows.filter((r) => r.points > 0)}
           keyExtractor={(r) => String(r.id)}
@@ -96,6 +108,7 @@ export default function LeaderboardScreen({ navigation, route }) {
   );
 }
 
+// Styles.
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { alignItems: "center", justifyContent: "center", paddingVertical: 60, paddingHorizontal: 24 },

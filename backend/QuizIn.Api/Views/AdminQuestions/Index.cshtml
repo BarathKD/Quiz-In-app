@@ -1,8 +1,11 @@
+@* Questions list page. Route: GET /admin/questions (AdminQuestionsController.Index, with query target, difficulty, search, page). Model: QuestionListVm (Items for this page, Total, Page, TotalPages, Locations). *@
 @model QuestionListVm
 @{
+    @* filtered = true when any filter is used. The bulk delete box is shown only then. *@
     ViewData["Title"] = "Questions";
     var filtered = !string.IsNullOrEmpty(Model.Target) || !string.IsNullOrEmpty(Model.Difficulty) || !string.IsNullOrWhiteSpace(Model.Search);
 }
+@* Page title, Export Excel (GET /admin/questions/export with the current filters) and Add question buttons. *@
 <div class="page-head">
   <h1>Questions <span class="count">(@Model.Total)</span></h1>
   <div class="actions">
@@ -11,10 +14,12 @@
   </div>
 </div>
 
+@* Filter form. GET request to /admin/questions: sends target, difficulty and search in the URL. *@
 <div class="card">
   <form method="get" action="/admin/questions" class="toolbar">
     <select class="grow-2" name="target" aria-label="Location">
       <option value="">All locations</option>
+      @* Loop: one option for each location. The current filter is selected. *@
       @foreach (var loc in Model.Locations)
       {
         <option value="@loc.Value" selected="@(loc.Value == Model.Target)">@loc.Label</option>
@@ -22,6 +27,7 @@
     </select>
     <select class="fixed" name="difficulty" aria-label="Difficulty">
       <option value="">Any difficulty</option>
+      @* Loop: one option for each difficulty. *@
       @foreach (var d in new[] { "easy", "medium", "hard" })
       {
         <option value="@d" selected="@(d == Model.Difficulty)">@d</option>
@@ -32,6 +38,7 @@
   </form>
 </div>
 
+@* Bulk delete box. Shown only when a filter is used and there are matches. Posts to POST /admin/questions/bulk-delete (AdminQuestionsController.BulkDelete). The hidden inputs repeat the filters so the controller deletes exactly the matching questions. *@
 @if (filtered && Model.Total > 0)
 {
   <div class="card">
@@ -46,6 +53,7 @@
   </div>
 }
 
+@* Questions table. Rows: the questions of the current page (Model.Items). Long text is cut at 110 characters. *@
 <div class="card">
   @if (Model.Items.Count == 0)
   {
@@ -59,6 +67,7 @@
           <tr><th class="col-id">#</th><th>Question</th><th class="col-where">Where</th><th class="col-level">Level</th><th class="col-actions"></th></tr>
         </thead>
         <tbody>
+          @* Loop: one table row for each question. *@
           @foreach (var q in Model.Items)
           {
             <tr>
@@ -69,6 +78,7 @@
               <td class="col-actions">
                 <div class="actions">
                   <a class="btn btn-secondary btn-sm" href="/admin/questions/@q.Id/edit">Edit</a>
+                  @* Delete one question. Posts to POST /admin/questions/{id}/delete (AdminQuestionsController.Delete). The hidden target input is used to go back to the same list. *@
                   <form method="post" action="/admin/questions/@q.Id/delete" onsubmit="return confirm('Delete this question?');">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="target" value="@Model.Target">
@@ -81,6 +91,7 @@
         </tbody>
       </table>
     </div>
+    @* Pager: Previous and Next links keep the filters in the URL. *@
     <div class="pager">
       @if (Model.Page > 1)
       {

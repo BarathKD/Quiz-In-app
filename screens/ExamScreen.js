@@ -1,3 +1,14 @@
+/*
+  ExamScreen.js - mock test. One screen with 5 phases: loading, empty, intro, test, result (variable: phase).
+  Route params: category, subcategory, subject, user. Comes from LevelsScreen (mock test button).
+  Goes to: nothing new. Back button returns to the previous screen. Result review is shown on this same screen.
+  Data: api.js getQuestionsByFilter (questions), submitExam (saves result and rank), recordAnswer (updates My mistakes).
+  Rules come from gameSettings (set by admin): examQuestionCount, examMinutes, examNegativePercent, examPassMark.
+  Where is X done?
+    pick questions   prepare()       start the test   start()        score and pass   finish()
+    clock            the setInterval effect          leave warning    the beforeRemove effect
+    answer tap       pick()          submit confirm   askSubmit()    layout per phase   the if (phase === ...) blocks
+*/
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Alert, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,8 +18,11 @@ import { getQuestionsByFilter, recordAnswer, submitExam, gameSettings } from "..
 import { useLang } from "../utils/i18n";
 import { colors, fonts, shadow } from "../utils/theme";
 
+// --- Small helpers ---
+// pad(n): 5 becomes "05". clock(s): seconds to "mm:ss".
 const pad = (n) => String(n).padStart(2, "0");
 const clock = (s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+// shuffle(list): returns a new randomly ordered list (original not changed).
 const shuffle = (list) => {
   const a = [...list];
   for (let i = a.length - 1; i > 0; i--) {
@@ -17,30 +31,41 @@ const shuffle = (list) => {
   }
   return a;
 };
+// round2(n): round to 2 decimals (for scores like 7.75).
 const round2 = (n) => Math.round(n * 100) / 100;
 
 // Mock test: random questions of every difficulty, one timer, negative marking, answers shown only at the end.
+// ExamScreen: the whole mock test flow.
 export default function ExamScreen({ navigation, route }) {
+  // --- Route params ---
   const { category, subcategory, subject, user } = route.params;
   const { t } = useLang();
 
+  // --- State: phase decides which layout is shown at the bottom of this file ---
   const [phase, setPhase] = useState("loading"); // loading | empty | intro | test | result
+  // questions = the picked exam questions. index = current question number.
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({}); // questionId -> optionId
   const [index, setIndex] = useState(0);
+  // remaining = seconds left (shown in the clock). paletteOpen = question number grid modal. result = final score data.
   const [remaining, setRemaining] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [result, setResult] = useState(null);
 
+  // --- Refs: same values as the state, but always fresh inside timers, alerts and the finish() function (avoid stale values) ---
+  // phaseRef: current phase. answersRef: chosen answers. questionsRef: picked questions.
   const phaseRef = useRef("loading");
   const answersRef = useRef({});
   const questionsRef = useRef([]);
+  // endAtRef: exam end time (milliseconds). startedRef: start time. submittedRef: true after finish() ran, so it runs only once.
   const endAtRef = useRef(0);
   const startedRef = useRef(0);
   const submittedRef = useRef(false);
 
+  // goPhase(p): change the phase in both the ref and the state.
   const goPhase = (p) => { phaseRef.current = p; setPhase(p); };
 
+  // prepare(): loads questions of all difficulties for this subject, shuffles, takes examQuestionCount. Goes to intro, or empty if none. Also used by the Try again button.
   const prepare = useCallback(async () => {
     goPhase("loading");
     try {
@@ -57,8 +82,10 @@ export default function ExamScreen({ navigation, route }) {
     }
   }, [category, subcategory, subject]);
 
+  // Load the questions when the screen opens.
   useEffect(() => { prepare(); }, [prepare]);
 
+  // start(): user taps Start. Clears old answers, sets the end time from examMinutes and shows the test.
   const start = () => {
     answersRef.current = {};
     setAnswers({});
@@ -71,11 +98,14 @@ export default function ExamScreen({ navigation, route }) {
     goPhase("test");
   };
 
+  // finish(timeUp): ends the test. Counts correct and wrong, applies negative marking, shows the result, then saves it.
+  // timeUp is true when the clock reached zero. Runs only once (submittedRef).
   const finish = useCallback(async (timeUp) => {
     if (submittedRef.current) return;
     submittedRef.current = true;
     setPaletteOpen(false);
 
+    // Count answers. Unanswered questions give no marks and no penalty.
     const list = questionsRef.current;
     const given = answersRef.current;
     let correct = 0;
@@ -84,10 +114,12 @@ export default function ExamScreen({ navigation, route }) {
       if (!given[q.id]) continue;
       if (given[q.id] === q.correctOptionId) correct += 1; else wrong += 1;
     }
+    // Score = correct - (wrong x negative percent / 100), never below 0. Pass if percent >= examPassMark.
     const total = list.length;
     const score = Math.max(0, round2(correct - (wrong * gameSettings.examNegativePercent) / 100));
     const percent = total ? Math.round((score * 100) / total) : 0;
     const seconds = Math.round((Date.now() - startedRef.current) / 1000);
+    // Show the local result first. Rank is added after the server answers.
     setResult({
       total, correct, wrong, unanswered: total - correct - wrong, score, percent,
       passed: percent >= gameSettings.examPassMark, seconds, rank: null, participants: null, timeUp: !!timeUp,
@@ -141,6 +173,7 @@ export default function ExamScreen({ navigation, route }) {
     return unsubscribe;
   }, [navigation, t]);
 
+  // pick(q, optionId): select an answer. Tap the same option again to remove the answer. Updates the ref and the state.
   const pick = (q, optionId) => {
     const next = { ...answersRef.current };
     if (next[q.id] === optionId) delete next[q.id]; else next[q.id] = optionId;
@@ -148,6 +181,7 @@ export default function ExamScreen({ navigation, route }) {
     setAnswers(next);
   };
 
+  // askSubmit(): confirm before submit. Tells how many questions are not answered.
   const askSubmit = () => {
     const left = questions.length - Object.keys(answersRef.current).length;
     Alert.alert(t("examSubmit"), left > 0 ? t("examSubmitLeft", { n: left }) : t("examSubmitAll"), [
@@ -156,9 +190,11 @@ export default function ExamScreen({ navigation, route }) {
     ]);
   };
 
+  // title: "subcategory - subject" text for the intro screen.
   const title = `${subcategory}${subject ? ` - ${subject}` : ""}`;
 
   // ---------- screens ----------
+  // Phase: loading
   if (phase === "loading") {
     return (
       <View style={styles.container}>
@@ -168,6 +204,7 @@ export default function ExamScreen({ navigation, route }) {
     );
   }
 
+  // Phase: empty (no questions found for this subject)
   if (phase === "empty") {
     return (
       <View style={styles.container}>
@@ -180,6 +217,7 @@ export default function ExamScreen({ navigation, route }) {
     );
   }
 
+  // Phase: intro. Shows the rules (from gameSettings) and the Start button.
   if (phase === "intro") {
     const rows = [
       ["help-circle-outline", t("examInfoQuestions", { n: questions.length })],
@@ -192,11 +230,13 @@ export default function ExamScreen({ navigation, route }) {
       <View style={styles.container}>
         <Header title={t("examTitle")} onBack={() => navigation.goBack()} />
         <ScrollView contentContainerStyle={styles.content}>
+          {/* Hero card with title and subject */}
           <View style={styles.hero}>
             <Ionicons name="school" size={52} color="#FFFFFF" />
             <Text style={styles.heroTitle}>{t("examTitle")}</Text>
             <Text style={styles.heroSub}>{title}</Text>
           </View>
+          {/* Rules list */}
           <View style={styles.card}>
             {rows.map(([icon, text]) => (
               <View key={icon} style={styles.infoRow}>
@@ -214,12 +254,15 @@ export default function ExamScreen({ navigation, route }) {
     );
   }
 
+  // Phase: test. One question at a time, one timer for the whole test, answers are not shown until the end.
   if (phase === "test") {
+    // low: true when 60 seconds or less are left. The timer turns red.
     const q = questions[index];
     const low = remaining <= 60;
     return (
       <View style={styles.container}>
         <Header title={t("examTitle")} onBack={() => navigation.goBack()} />
+        {/* Top bar: question number and timer */}
         <View style={styles.topBar}>
           <Text style={styles.qCount}>{t("examQ", { n: index + 1, total: questions.length })}</Text>
           <View style={[styles.timer, low && styles.timerLow]}>
@@ -227,6 +270,7 @@ export default function ExamScreen({ navigation, route }) {
             <Text style={[styles.timerText, low && { color: colors.danger }]}>{clock(remaining)}</Text>
           </View>
         </View>
+        {/* Question and option buttons. Tap again to unselect */}
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.card}>
             <Text style={styles.question}>{q.questionText}</Text>
@@ -243,6 +287,7 @@ export default function ExamScreen({ navigation, route }) {
             );
           })}
         </ScrollView>
+        {/* Bottom bar: previous, question grid, next or submit */}
         <View style={styles.bottom}>
           <PressableScale style={[styles.navBtn, index === 0 && { opacity: 0.4 }]} onPress={() => index > 0 && setIndex(index - 1)}>
             <Ionicons name="chevron-back" size={22} color={colors.primaryDark} />
@@ -263,6 +308,7 @@ export default function ExamScreen({ navigation, route }) {
           )}
         </View>
 
+        {/* Question grid modal: jump to any question. Filled cell = answered */}
         <Modal visible={paletteOpen} transparent animationType="slide" onRequestClose={() => setPaletteOpen(false)}>
           <View style={styles.modalBack}>
             <View style={styles.modalCard}>
@@ -293,12 +339,14 @@ export default function ExamScreen({ navigation, route }) {
     );
   }
 
+  // Phase: result. Score, counts, rank and a review of every question.
   // result
   const r = result;
   return (
     <View style={styles.container}>
       <Header title={t("examResult")} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Result hero: passed or failed, score, percent, rank */}
         <View style={[styles.hero, { backgroundColor: r.passed ? colors.success : colors.primaryDark }]}>
           <Ionicons name={r.passed ? "trophy" : "ribbon"} size={50} color="#FFFFFF" />
           <Text style={styles.heroTitle}>{r.passed ? t("examPassed") : t("examFailed")}</Text>
@@ -307,6 +355,7 @@ export default function ExamScreen({ navigation, route }) {
           {r.rank ? <Text style={styles.rank}>{t("examRank", { r: r.rank, n: r.participants })}</Text> : null}
         </View>
 
+        {/* Counts: correct, wrong, skipped, time taken */}
         <View style={styles.statsRow}>
           <View style={styles.stat}><Text style={[styles.statNum, { color: colors.success }]}>{r.correct}</Text><Text style={styles.statLabel}>{t("examCorrect")}</Text></View>
           <View style={styles.stat}><Text style={[styles.statNum, { color: colors.danger }]}>{r.wrong}</Text><Text style={styles.statLabel}>{t("examWrong")}</Text></View>
@@ -314,6 +363,7 @@ export default function ExamScreen({ navigation, route }) {
           <View style={styles.stat}><Text style={styles.statNum}>{clock(r.seconds)}</Text><Text style={styles.statLabel}>{t("examTimeTaken")}</Text></View>
         </View>
 
+        {/* Review: each question with your answer, the correct answer and the explanation */}
         <Text style={styles.sectionTitle}>{t("examReview")}</Text>
         {questions.map((q, i) => {
           const mine = answers[q.id];
@@ -332,6 +382,7 @@ export default function ExamScreen({ navigation, route }) {
           );
         })}
 
+        {/* Try again (new random questions) and back buttons */}
         <PressableScale style={styles.primaryBtn} onPress={prepare}>
           <Ionicons name="refresh" size={20} color="#FFFFFF" />
           <Text style={styles.primaryText}>{t("examAgain")}</Text>

@@ -1,12 +1,17 @@
+@* Login page. Route: GET /admin/login (AdminAccountController.Login). Model: LoginVm (Email, Error). *@
 @model LoginVm
 @{ ViewData["Title"] = "Login"; }
+@* Login card. Same card style is used on every page (see admin.css: .card, .auth-card). *@
 <div class="card auth-card">
   <h1 class="card-title">Admin login</h1>
+  @* Show an error message (for example wrong password) only when the controller set Model.Error. *@
   @if (!string.IsNullOrEmpty(Model.Error))
   {
     <div class="alert alert-err">@Model.Error</div>
   }
+  @* Login form. Posts to POST /admin/login (AdminAccountController.Login). The controller checks the email and password, signs the admin in with a cookie, then redirects to /admin. On failure it shows this page again with Error. *@
   <form method="post" action="/admin/login">
+    @* Anti-forgery token: hidden field that protects against fake form posts (CSRF). Needed in every POST form. *@
     @Html.AntiForgeryToken()
     <div class="field">
       <label for="Email">Email</label>

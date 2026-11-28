@@ -1,3 +1,5 @@
+// components/MenuRow.js - one row of a menu list (used in SettingsScreen and the Profile tab).
+// PROPS: icon (Ionicons name), title, subtitle (optional), badge (optional number/text), onPress, danger (red style, e.g. delete account), right (optional element that replaces the chevron arrow, e.g. LanguageToggle).
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,7 +8,9 @@ import { colors, shadow } from "../utils/theme";
 
 // One tappable list row: icon tile, title, optional subtitle, optional badge, chevron.
 export default function MenuRow({ icon, title, subtitle, badge, onPress, danger, right }) {
+  // Icon color: red for dangerous actions, normal color otherwise.
   const tone = danger ? colors.danger : colors.primary;
+  // Render: icon tile, texts, optional badge, right element or arrow.
   return (
     <PressableScale style={styles.row} onPress={onPress}>
       <View style={[styles.tile, { backgroundColor: danger ? colors.dangerTint : colors.tint }]}>
@@ -26,6 +30,7 @@ export default function MenuRow({ icon, title, subtitle, badge, onPress, danger,
   );
 }
 
+// Styles.
 const styles = StyleSheet.create({
   row: {
     backgroundColor: colors.surface,

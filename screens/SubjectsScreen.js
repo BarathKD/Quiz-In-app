@@ -1,3 +1,13 @@
+/*
+ * SubjectsScreen
+ * What: shows the list of subjects (for example Tamil, Maths) inside one subcategory.
+ *       It is only used for categories that have nested subjects (like Tamil Nadu -> Class X -> subjects).
+ * Route params: { category (string name), subcategory (string name), user }
+ * Data: utils/api.js -> getUserProgress (done easy/medium/hard marks), getAllCategories (subject names).
+ * Texts: t() from utils/i18n.js. Colors: utils/theme.js.
+ * Next screen: "Difficulty" (params: category, subcategory, subject, user, progress).
+ * If subjects list is empty, check loadData() below (category name must match exactly).
+ */
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, FlatList } from "react-native";
 import Header from "../components/header";
@@ -8,15 +18,21 @@ import { useLang } from "../utils/i18n";
 import { colors } from "../utils/theme";
 
 export default function SubjectsScreen({ navigation, route }) {
+  // Values sent by the previous screen (SubcategoriesScreen).
   const { category, subcategory, user } = route.params;
   const { t } = useLang();
+  // State: progress = map of "category_subcategory_subject" -> { easy, medium, hard } done flags.
+  // subjects = list of subject names to show.
   const [progress, setProgress] = useState({});
   const [subjects, setSubjects] = useState([]);
 
+  // Effect: load data once when the screen opens.
   useEffect(() => {
     loadData();
   }, []);
 
+  // Helper: gets user progress and the subject list from utils/api.js.
+  // Errors are only logged, so the screen shows the empty message instead of crashing.
   const loadData = async () => {
     try {
       // Load user progress
@@ -47,11 +63,14 @@ export default function SubjectsScreen({ navigation, route }) {
     }
   };
 
+  // Helper: progress flags for one subject. The key format must match what utils/api.js saves.
+  // If nothing is saved yet, all levels are "not done".
   const getSubjectProgress = (subjectName) => {
     const key = `${category}_${subcategory}_${subjectName}`;
     return progress[key] || { easy: false, medium: false, hard: false };
   };
 
+  // Handler: user taps a subject -> go to Difficulty screen with the subject and its progress.
   const handleSubjectPress = (subjectName) => {
     const subjectProgress = getSubjectProgress(subjectName);
     
@@ -64,12 +83,14 @@ export default function SubjectsScreen({ navigation, route }) {
     });
   };
 
+  // Render: header (back button), subject list, bottom navigation.
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Header
         title={`${category} - ${subcategory}`}
         onBack={() => navigation.goBack()}
       />
+      {/* Subject list: one ProgressRow per subject (shows easy/medium/hard done marks) */}
       <FlatList
         contentContainerStyle={{ paddingTop: 16, paddingBottom: 24 }}
         data={subjects}
@@ -89,11 +110,13 @@ export default function SubjectsScreen({ navigation, route }) {
           </View>
         }
       />
+      {/* Bottom tab bar; "categories" tab stays highlighted */}
       <BottomNav navigation={navigation} user={user} activeTab="categories" />
     </View>
   );
 }
 
+// Styles: only the "empty list" message needs styles here; colors come from utils/theme.js.
 const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: "center",
